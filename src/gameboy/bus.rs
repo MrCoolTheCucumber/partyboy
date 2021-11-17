@@ -57,13 +57,40 @@ impl Bus {
 
                 self.cartridge.read_rom(addr)
             }
+            0x8000 | 0x9000 => {
+                todo!("Implement Ppu::read_u8")
+            }
+            0xA000 | 0xB000 => self.cartridge.read_ram(addr - 0xA000),
+            0xC000 | 0xD000 => self.working_ram[(addr - 0xC000) as usize],
+            0xE000 => self.working_ram[(addr - 0xE000) as usize],
+            0xF000 => {
+                todo!()
+            }
 
             _ => todo!(),
         }
     }
 
     pub fn write_u8(&mut self, addr: u16, val: u8) {
-        todo!()
+        match addr & 0xF000 {
+            0x0000 | 0x1000 | 0x2000 | 0x3000 | 0x4000 | 0x5000 | 0x6000 | 0x7000 => {
+                self.cartridge.write_rom(addr, val);
+            }
+            0x8000 | 0x9000 => {
+                todo!("Implement Ppu::write_u8");
+            }
+            0xA000 | 0xB000 => {
+                self.cartridge.write_ram(addr - 0xA000, val);
+            }
+            0xC000 | 0xD000 => self.working_ram[(addr - 0xC000) as usize] = val,
+            0xE000 => self.working_ram[(addr - 0xE000) as usize] = val,
+
+            _ => todo!(),
+        }
+    }
+
+    pub fn read_u16(&self, addr: u16) -> u16 {
+        self.read_u8(addr) as u16 + ((self.read_u8(addr + 1) as u16) << 8)
     }
 
     pub fn write_u16(&mut self, addr: u16, val: u16) {

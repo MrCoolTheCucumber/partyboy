@@ -444,13 +444,13 @@ macro_rules! __define_op_macro {
                 (hl) => {
                     instruction! {
                         __read_hl!(),
-                        $op!(hl)
+                        [<__ $op>]!(hl)
                     }
                 };
 
                 ($reg:tt) => {
                     instruction! {
-                        $op!($reg)
+                        [<__ $op>]!($reg)
                     }
                 };
             }
@@ -458,7 +458,7 @@ macro_rules! __define_op_macro {
     };
 }
 
-macro_rules! add {
+macro_rules! __add {
     ($location:ident) => {
         InstructionStep::Instant(|cpu, _| {
             let (result, overflown) = cpu.af.hi.overflowing_add(r8!(cpu, $location));
@@ -477,7 +477,7 @@ macro_rules! add {
     };
 }
 
-macro_rules! adc {
+macro_rules! __adc {
     ($location:ident) => {
         InstructionStep::Instant(|cpu, _| {
             let carry: u8 = if cpu.is_flag_set(Flag::C) { 1 } else { 0 };
@@ -505,7 +505,7 @@ macro_rules! adc {
     };
 }
 
-macro_rules! sub {
+macro_rules! __sub {
     ($location:ident) => {
         InstructionStep::Instant(|cpu, _| {
             cpu.set_flag_if_cond_else_clear(r8!(cpu, $location) > r8!(cpu, a), Flag::C);
@@ -523,7 +523,7 @@ macro_rules! sub {
     };
 }
 
-macro_rules! sbc {
+macro_rules! __sbc {
     ($location:ident) => {
         InstructionStep::Instant(|cpu, _| {
             let carry: u8 = if cpu.is_flag_set(Flag::C) { 1 } else { 0 };
@@ -551,7 +551,7 @@ macro_rules! sbc {
     };
 }
 
-macro_rules! and {
+macro_rules! __and {
     ($location:ident) => {
         InstructionStep::Instant(|cpu, _| {
             r8!(cpu, a) = r8!(cpu, a) & r8!(cpu, $location);
@@ -565,7 +565,7 @@ macro_rules! and {
     };
 }
 
-macro_rules! xor {
+macro_rules! __xor {
     ($location:ident) => {
         InstructionStep::Instant(|cpu, _| {
             r8!(cpu, a) = r8!(cpu, a) ^ r8!(cpu, $location);
@@ -579,7 +579,7 @@ macro_rules! xor {
     };
 }
 
-macro_rules! or {
+macro_rules! __or {
     ($location:ident) => {
         InstructionStep::Instant(|cpu, _| {
             r8!(cpu, a) = r8!(cpu, a) | r8!(cpu, $location);
@@ -593,7 +593,7 @@ macro_rules! or {
     };
 }
 
-macro_rules! cp {
+macro_rules! __cp {
     ($location:ident) => {
         InstructionStep::Instant(|cpu, _| {
             cpu.set_flag_if_cond_else_clear(r8!(cpu, a) == r8!(cpu, $location), Flag::Z);

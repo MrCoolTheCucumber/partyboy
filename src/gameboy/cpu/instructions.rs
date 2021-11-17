@@ -373,6 +373,79 @@ macro_rules! ld_memhl_r8 {
     };
 }
 
+macro_rules! r8 {
+    ($cpu:ident, a) => {
+        $cpu.af.hi
+    };
+    ($cpu:ident, b) => {
+        $cpu.bc.hi
+    };
+    ($cpu:ident, c) => {
+        $cpu.bc.lo
+    };
+    ($cpu:ident, d) => {
+        $cpu.de.hi
+    };
+    ($cpu:ident, e) => {
+        $cpu.de.lo
+    };
+    ($cpu:ident, h) => {
+        $cpu.hl.hi
+    };
+    ($cpu:ident, l) => {
+        $cpu.hl.lo
+    };
+
+    // where we temporarily store the 8bit result
+    // of fetching address HL in mem
+    ($cpu:ident, hl) => {
+        $cpu.temp8
+    };
+}
+
+macro_rules! __read_hl {
+    () => {
+        InstructionStep::Standard(|cpu, bus| {
+            r8!(cpu, hl) = bus.read_u8(cpu.hl.into());
+            InstructionState::ExecNextInstantly
+        })
+    };
+}
+
+macro_rules! __add {
+    ($location:ident) => {
+        InstructionStep::Instant(|cpu, _| {
+            let (result, overflown) = cpu.af.hi.overflowing_add(r8!(cpu, $location));
+
+            cpu.clear_flag(Flag::N);
+            // TODO: bug in frosty? we did .is_none() in add(..) code so wat?
+            cpu.set_flag_if_cond_else_clear(overflown, Flag::C);
+            cpu.handle_z_flag(result);
+
+            let is_half_carry = ((cpu.af.hi & 0x0F) + (r8!(cpu, $location) & 0x0F)) > 0x0F;
+            cpu.set_flag_if_cond_else_clear(is_half_carry, Flag::H);
+
+            cpu.af.hi = result;
+            InstructionState::Finished
+        })
+    };
+}
+
+macro_rules! add_a_r8 {
+    (hl) => {
+        instruction! {
+            __read_hl!(),
+            __add!(hl)
+        }
+    };
+
+    ($reg:tt) => {
+        instruction! {
+            __add!($reg)
+        }
+    };
+}
+
 fn inc_hl() -> Instruction {
     instruction! {
         InstructionStep::Standard(|cpu, bus| {
@@ -623,13 +696,20 @@ impl InstructionCache {
             0x7E => ld_r8_r8!(af, hi <= HL),
             0x7F => ld_r8_r8!(af, hi <= af, hi),
 
+            // add a, r8
+            0x80 => add_a_r8!(b),
+            0x81 => add_a_r8!(c),
+            0x82 => add_a_r8!(d),
+            0x83 => add_a_r8!(e),
+            0x84 => add_a_r8!(h),
+            0x85 => add_a_r8!(l),
+            0x86 => add_a_r8!(hl),
+
             _ => instruction!(InstructionStep::Instant(|_, _| unimplemented!(""))),
         };
 
         // mini playground
-        let _ = |cpu: &mut Cpu| {
-            let (result, overflown) = u16::from(cpu.hl).overflowing_add(15);
-        };
+        let _ = |cpu: &mut Cpu| {};
 
         let mut instructions = Vec::new();
         for opcode in 0..=255 {

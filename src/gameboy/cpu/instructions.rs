@@ -66,6 +66,11 @@ const __FETCH_OPERAND16: InstructionStep = InstructionStep::Standard(|cpu, bus| 
     InstructionState::InProgress
 });
 
+const FETCH_OP8_EXECNEXTINSTANT: InstructionStep = InstructionStep::Standard(|cpu, bus| {
+    cpu.operand8 = cpu.fetch(bus);
+    InstructionState::ExecNextInstantly
+});
+
 const BLANK_PROGRESS: InstructionStep =
     InstructionStep::Standard(|_, _| InstructionState::InProgress);
 
@@ -322,26 +327,45 @@ macro_rules! branch_condition {
     };
 }
 
-macro_rules! jr_i8 {
-    ($($cond:tt)?) => {
-        instruction! {
-            fetch8,
-            $(
-                branch_condition!($cond),
-            )?
-            InstructionStep::Standard(|cpu, _| {
-                let jmp_amount = cpu.operand8 as i8;
-                if jmp_amount < 0 {
-                    cpu.pc = cpu.pc.wrapping_sub(jmp_amount.abs() as u16);
-                } else {
-                    cpu.pc = cpu.pc.wrapping_add(jmp_amount as u16);
-                }
+macro_rules! __define_branching_op_macro {
+    ($op:ident, $suffix:ident) => {
+        paste! {
+            macro_rules! [<$op $suffix>] {
+                () => {
+                    instruction! {
+                        fetch8,
+                        [<__ $op>]!()
+                    }
+                };
 
-                InstructionState::Finished
-            })
+                ($cond:tt) => {
+                    instruction! {
+                        FETCH_OP8_EXECNEXTINSTANT,
+                        branch_condition!($cond),
+                        [<__ $op>]!()
+                    }
+                };
+            }
         }
     };
 }
+
+macro_rules! __jr {
+    () => {
+        InstructionStep::Standard(|cpu, _| {
+            let jmp_amount = cpu.operand8 as i8;
+            if jmp_amount < 0 {
+                cpu.pc = cpu.pc.wrapping_sub(jmp_amount.abs() as u16);
+            } else {
+                cpu.pc = cpu.pc.wrapping_add(jmp_amount as u16);
+            }
+
+            InstructionState::Finished
+        })
+    };
+}
+
+__define_branching_op_macro!(jr, _i8);
 
 macro_rules! ld_r8_r8 {
     ($dest_reg:ident,$dest_bit:ident <= HL) => {

@@ -1,6 +1,7 @@
 use crate::gameboy::bus::Bus;
 
 use super::{register::Flag, Cpu};
+use paste::paste;
 
 type InstructionFn = fn(&mut Cpu, &mut Bus) -> InstructionState;
 
@@ -412,7 +413,28 @@ macro_rules! __read_hl {
     };
 }
 
-macro_rules! __add {
+macro_rules! __define_op_macro {
+    ($op:ident) => {
+        paste! {
+            macro_rules! [<$op _a_r8>] {
+                (hl) => {
+                    instruction! {
+                        __read_hl!(),
+                        $op!(hl)
+                    }
+                };
+
+                ($reg:tt) => {
+                    instruction! {
+                        $op!($reg)
+                    }
+                };
+            }
+        }
+    };
+}
+
+macro_rules! add {
     ($location:ident) => {
         InstructionStep::Instant(|cpu, _| {
             let (result, overflown) = cpu.af.hi.overflowing_add(r8!(cpu, $location));
@@ -431,20 +453,145 @@ macro_rules! __add {
     };
 }
 
-macro_rules! add_a_r8 {
-    (hl) => {
-        instruction! {
-            __read_hl!(),
-            __add!(hl)
-        }
-    };
+macro_rules! adc {
+    ($location:ident) => {
+        InstructionStep::Instant(|cpu, _| {
+            let carry: u8 = if cpu.is_flag_set(Flag::C) { 1 } else { 0 };
 
-    ($reg:tt) => {
-        instruction! {
-            __add!($reg)
-        }
+            let is_half_carry =
+                ((r8!(cpu, a) & 0x0F) + (r8!(cpu, $location) & 0x0F) + carry) & 0x10 == 0x10;
+
+            // TODO: use overflowing add?
+            let is_carry = ((r8!(cpu, a) as u16) + (r8!(cpu, $location) as u16) + (carry as u16))
+                & 0x100
+                == 0x100;
+
+            let result = r8!(cpu, a)
+                .wrapping_add(r8!(cpu, $location))
+                .wrapping_add(carry);
+
+            cpu.handle_z_flag(result);
+            cpu.set_flag_if_cond_else_clear(is_half_carry, Flag::H);
+            cpu.set_flag_if_cond_else_clear(is_carry, Flag::C);
+
+            cpu.clear_flag(Flag::N);
+            r8!(cpu, a) = result;
+            InstructionState::Finished
+        })
     };
 }
+
+macro_rules! sub {
+    ($location:ident) => {
+        InstructionStep::Instant(|cpu, _| {
+            cpu.set_flag_if_cond_else_clear(r8!(cpu, $location) > r8!(cpu, a), Flag::C);
+            cpu.set_flag_if_cond_else_clear(
+                (r8!(cpu, $location) & 0x0F) > (r8!(cpu, a) & 0x0F),
+                Flag::H,
+            );
+
+            r8!(cpu, a) = r8!(cpu, a).wrapping_sub(r8!(cpu, $location));
+
+            cpu.handle_z_flag(r8!(cpu, a));
+            cpu.set_flag(Flag::N);
+            InstructionState::Finished
+        })
+    };
+}
+
+macro_rules! sbc {
+    ($location:ident) => {
+        InstructionStep::Instant(|cpu, _| {
+            let carry: u8 = if cpu.is_flag_set(Flag::C) { 1 } else { 0 };
+
+            let is_half_carry = ((r8!(cpu, a) & 0x0F) as i16)
+                - ((r8!(cpu, $location) & 0x0F) as i16)
+                - (carry as i16)
+                < 0;
+
+            let is_full_carry =
+                (r8!(cpu, a) as i16) - (r8!(cpu, $location) as i16) - (carry as i16) < 0;
+
+            let result = r8!(cpu, a)
+                .wrapping_sub(r8!(cpu, $location))
+                .wrapping_sub(carry);
+
+            cpu.handle_z_flag(result);
+            cpu.set_flag_if_cond_else_clear(is_half_carry, Flag::H);
+            cpu.set_flag_if_cond_else_clear(is_full_carry, Flag::C);
+
+            cpu.set_flag(Flag::N);
+            r8!(cpu, a) = result;
+            InstructionState::Finished
+        })
+    };
+}
+
+macro_rules! and {
+    ($location:ident) => {
+        InstructionStep::Instant(|cpu, _| {
+            r8!(cpu, a) = r8!(cpu, a) & r8!(cpu, $location);
+
+            cpu.handle_z_flag(r8!(cpu, a));
+            cpu.clear_flag(Flag::C);
+            cpu.clear_flag(Flag::N);
+            cpu.clear_flag(Flag::H);
+            InstructionState::Finished
+        })
+    };
+}
+
+macro_rules! xor {
+    ($location:ident) => {
+        InstructionStep::Instant(|cpu, _| {
+            r8!(cpu, a) = r8!(cpu, a) ^ r8!(cpu, $location);
+
+            cpu.handle_z_flag(r8!(cpu, a));
+            cpu.clear_flag(Flag::C);
+            cpu.clear_flag(Flag::N);
+            cpu.clear_flag(Flag::H);
+            InstructionState::Finished
+        })
+    };
+}
+
+macro_rules! or {
+    ($location:ident) => {
+        InstructionStep::Instant(|cpu, _| {
+            r8!(cpu, a) = r8!(cpu, a) | r8!(cpu, $location);
+
+            cpu.handle_z_flag(r8!(cpu, a));
+            cpu.clear_flag(Flag::C);
+            cpu.clear_flag(Flag::N);
+            cpu.clear_flag(Flag::H);
+            InstructionState::Finished
+        })
+    };
+}
+
+macro_rules! cp {
+    ($location:ident) => {
+        InstructionStep::Instant(|cpu, _| {
+            cpu.set_flag_if_cond_else_clear(r8!(cpu, a) == r8!(cpu, $location), Flag::Z);
+            cpu.set_flag_if_cond_else_clear(r8!(cpu, $location) > r8!(cpu, a), Flag::C);
+            cpu.set_flag_if_cond_else_clear(
+                (r8!(cpu, $location) & 0xF) > (r8!(cpu, a) & 0x0F),
+                Flag::H,
+            );
+            cpu.set_flag(Flag::N);
+            InstructionState::Finished
+        })
+    };
+}
+
+__define_op_macro!(add);
+__define_op_macro!(adc);
+__define_op_macro!(sub);
+__define_op_macro!(sbc);
+__define_op_macro!(and);
+__define_op_macro!(xor);
+__define_op_macro!(or);
+__define_op_macro!(cp);
 
 fn inc_hl() -> Instruction {
     instruction! {
@@ -704,6 +851,77 @@ impl InstructionCache {
             0x84 => add_a_r8!(h),
             0x85 => add_a_r8!(l),
             0x86 => add_a_r8!(hl),
+            0x87 => add_a_r8!(a),
+
+            // adc a, r8
+            0x88 => adc_a_r8!(b),
+            0x89 => adc_a_r8!(c),
+            0x8A => adc_a_r8!(d),
+            0x8B => adc_a_r8!(e),
+            0x8C => adc_a_r8!(h),
+            0x8D => adc_a_r8!(l),
+            0x8E => adc_a_r8!(hl),
+            0x8F => adc_a_r8!(a),
+
+            // sub a, r8
+            0x90 => sub_a_r8!(b),
+            0x91 => sub_a_r8!(c),
+            0x92 => sub_a_r8!(d),
+            0x93 => sub_a_r8!(e),
+            0x94 => sub_a_r8!(h),
+            0x95 => sub_a_r8!(l),
+            0x96 => sub_a_r8!(hl),
+            0x97 => sub_a_r8!(a),
+
+            // sbc a, r8
+            0x98 => sbc_a_r8!(b),
+            0x99 => sbc_a_r8!(c),
+            0x9A => sbc_a_r8!(d),
+            0x9B => sbc_a_r8!(e),
+            0x9C => sbc_a_r8!(h),
+            0x9D => sbc_a_r8!(l),
+            0x9E => sbc_a_r8!(hl),
+            0x9F => sbc_a_r8!(a),
+
+            // and a, r8
+            0xA0 => and_a_r8!(b),
+            0xA1 => and_a_r8!(c),
+            0xA2 => and_a_r8!(d),
+            0xA3 => and_a_r8!(e),
+            0xA4 => and_a_r8!(h),
+            0xA5 => and_a_r8!(l),
+            0xA6 => and_a_r8!(hl),
+            0xA7 => and_a_r8!(a),
+
+            // xor a, r8
+            0xA8 => xor_a_r8!(b),
+            0xA9 => xor_a_r8!(c),
+            0xAA => xor_a_r8!(d),
+            0xAB => xor_a_r8!(e),
+            0xAC => xor_a_r8!(h),
+            0xAD => xor_a_r8!(l),
+            0xAE => xor_a_r8!(hl),
+            0xAF => xor_a_r8!(a),
+
+            // or a, r8
+            0xB0 => or_a_r8!(b),
+            0xB1 => or_a_r8!(c),
+            0xB2 => or_a_r8!(d),
+            0xB3 => or_a_r8!(e),
+            0xB4 => or_a_r8!(h),
+            0xB5 => or_a_r8!(l),
+            0xB6 => or_a_r8!(hl),
+            0xB7 => or_a_r8!(a),
+
+            // cp a, r8
+            0xB8 => cp_a_r8!(b),
+            0xB9 => cp_a_r8!(c),
+            0xBA => cp_a_r8!(d),
+            0xBB => cp_a_r8!(e),
+            0xBC => cp_a_r8!(h),
+            0xBD => cp_a_r8!(l),
+            0xBE => cp_a_r8!(hl),
+            0xBF => cp_a_r8!(a),
 
             _ => instruction!(InstructionStep::Instant(|_, _| unimplemented!(""))),
         };

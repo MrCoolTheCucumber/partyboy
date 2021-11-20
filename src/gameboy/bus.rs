@@ -1,6 +1,8 @@
 use super::{
     cartridge::{self, Cartridge},
+    interrupts::Interrupts,
     ppu::Ppu,
+    timer::Timer,
 };
 
 pub struct Bus {
@@ -12,6 +14,9 @@ pub struct Bus {
 
     pub bios_enabled: bool,
     pub bios: [u8; 0x100],
+
+    pub interrupts: Interrupts,
+    pub timer: Timer,
 }
 
 impl Bus {
@@ -45,6 +50,9 @@ impl Bus {
                 0xD8, 0x21, 0x4D, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
                 0x3E, 0x01, 0xE0, 0x50,
             ],
+
+            interrupts: Interrupts::new(),
+            timer: Timer::new(),
         }
     }
 
@@ -63,11 +71,32 @@ impl Bus {
             0xA000 | 0xB000 => self.cartridge.read_ram(addr - 0xA000),
             0xC000 | 0xD000 => self.working_ram[(addr - 0xC000) as usize],
             0xE000 => self.working_ram[(addr - 0xE000) as usize],
-            0xF000 => {
-                todo!()
-            }
+            0xF000 => match addr & 0x0F00 {
+                0x0000 | 0x0100 | 0x0200 | 0x0300 | 0x0400 | 0x0500 | 0x0600 | 0x0700 | 0x0800
+                | 0x0900 | 0x0A00 | 0x0B00 | 0x0C00 | 0x0D00 => {
+                    return self.working_ram[(addr - 0xE000) as usize];
+                }
 
-            _ => todo!(),
+                0x0E00 => {
+                    /* TODO: Sprite Table */
+                    0
+                }
+
+                0x0F00 => match addr {
+                    0xFF04..=0xFF07 => self.timer.read(addr),
+                    0xFF0F => 0b1110_0000 | (self.interrupts.flags & 0b0001_1111),
+                    0xFFFF => self.interrupts.enable,
+
+                    0xFF00..=0xFF7F => self.io[(addr - 0xFF00) as usize],
+                    0xFF80..=0xFFFE => self.zero_page[(addr - 0xFF80) as usize],
+
+                    _ => todo!("read u8 @{:#06X}", addr),
+                },
+
+                _ => todo!("read u8 @{:#06X}", addr),
+            },
+
+            _ => todo!("read u8 @{:#06X}", addr),
         }
     }
 
@@ -77,7 +106,7 @@ impl Bus {
                 self.cartridge.write_rom(addr, val);
             }
             0x8000 | 0x9000 => {
-                todo!("Implement Ppu::write_u8");
+                // TODO:
             }
             0xA000 | 0xB000 => {
                 self.cartridge.write_ram(addr - 0xA000, val);
@@ -85,7 +114,30 @@ impl Bus {
             0xC000 | 0xD000 => self.working_ram[(addr - 0xC000) as usize] = val,
             0xE000 => self.working_ram[(addr - 0xE000) as usize] = val,
 
-            _ => todo!(),
+            0xF000 => match addr & 0x0F00 {
+                0x0000 | 0x0100 | 0x0200 | 0x0300 | 0x0400 | 0x0500 | 0x0600 | 0x0700 | 0x0800
+                | 0x0900 | 0x0A00 | 0x0B00 | 0x0C00 | 0x0D00 => {
+                    self.working_ram[(addr - 0xE000) as usize] = val;
+                }
+
+                0x0E00 => { /* TODO: Sprite Table */ }
+
+                0x0F00 => match addr {
+                    0xFF01 => log::info!("Hmm!!"),
+                    0xFF04..=0xFF07 => self.timer.write(addr, val),
+                    0xFF0F => self.interrupts.flags = val,
+                    0xFFFF => self.interrupts.enable = val,
+
+                    0xFF00..=0xFF7F => self.io[(addr - 0xFF00) as usize] = val,
+                    0xFF80..=0xFFFE => self.zero_page[(addr - 0xFF80) as usize] = val,
+
+                    _ => todo!("read u8 @{:#06X}", addr),
+                },
+
+                _ => todo!("read u8 @{:#06X}", addr),
+            },
+
+            _ => todo!("write u8 @{:#06X}", addr),
         }
     }
 

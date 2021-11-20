@@ -1,4 +1,4 @@
-use std::ops;
+use std::{fmt::Debug, ops};
 
 #[derive(Clone, Copy)]
 pub enum Flag {
@@ -18,6 +18,13 @@ impl Register {
     #[inline(always)]
     pub fn new(hi: u8, lo: u8) -> Self {
         Self { hi, lo }
+    }
+}
+
+impl Debug for Register {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let val: u16 = (*self).into();
+        f.write_str(format!("{}", val).as_str())
     }
 }
 

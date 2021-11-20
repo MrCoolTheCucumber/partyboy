@@ -1,3 +1,4 @@
+mod mbc1;
 mod rom;
 
 use std::{
@@ -6,7 +7,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::gameboy::cartridge::rom::ROM;
+use crate::gameboy::cartridge::{mbc1::MBC1, rom::ROM};
 
 pub trait Cartridge {
     fn read_rom(&self, addr: u16) -> u8;
@@ -79,17 +80,17 @@ pub fn create(rom_path: &str) -> Box<dyn Cartridge> {
     match cartridge_type_code {
         0x00 => Box::new(ROM::new(file, rom_bank_0)),
 
-        // 0x01 | 0x02 | 0x03 => {
-        //     println!("MBC1 cart created!");
-        //     Box::new(MBC1::new(
-        //         file,
-        //         path,
-        //         rom_bank_0,
-        //         cartridge_type_code,
-        //         num_rom_banks,
-        //         num_ram_banks,
-        //     ))
-        // }
+        0x01 | 0x02 | 0x03 => {
+            println!("MBC1 cart created!");
+            Box::new(MBC1::new(
+                file,
+                path,
+                rom_bank_0,
+                cartridge_type_code,
+                num_rom_banks,
+                num_ram_banks,
+            ))
+        }
 
         // 0x0F..=0x13 => {
         //     println!("MBC3 cart created!");

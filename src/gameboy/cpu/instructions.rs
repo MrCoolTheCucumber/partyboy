@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use crate::gameboy::bus::Bus;
 
 use super::{register::Flag, Cpu};
@@ -27,8 +29,19 @@ pub enum InstructionStep {
 
 #[derive(Clone, Copy)]
 pub enum InstructionOpcode {
+    InterruptServiceRoutine,
     Unprefixed(u8),
     Prefixed(u8),
+}
+
+impl Debug for InstructionOpcode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::InterruptServiceRoutine => f.write_str("ISR"),
+            Self::Unprefixed(arg0) => f.write_str(format!("{:#06X}", arg0).as_str()),
+            Self::Prefixed(arg0) => f.write_str(format!("{:#06X}", 0xCB00 + *arg0 as u16).as_str()),
+        }
+    }
 }
 
 pub struct Instruction {
@@ -388,16 +401,26 @@ macro_rules! ret_cc {
     };
 }
 
+macro_rules! enable_master {
+    (i $bus:ident) => {
+        $bus.interrupts.enable_master();
+    };
+}
+
 macro_rules! ret {
-    () => {
+    ($($i:tt)?) => {
         instruction! {
             BLANK_PROGRESS,
             InstructionStep::Standard(|cpu, bus| {
                 cpu.temp16 = cpu.pop_u16_from_stack(bus);
                 InstructionState::InProgress
             }),
-            InstructionStep::Standard(|cpu, _| {
+            #[allow(unused)]
+            InstructionStep::Standard(|cpu, bus| {
                 cpu.pc = cpu.temp16;
+                $(
+                    enable_master!($i bus);
+                )?
                 InstructionState::Finished
             })
         }
@@ -409,7 +432,7 @@ macro_rules! jp_u16 {
         instruction! {
             fetch16,
             InstructionStep::Standard(|cpu, _| {
-                cpu.pc = cpu.temp16;
+                cpu.pc = cpu.operand16;
                 InstructionState::Finished
             })
         }
@@ -444,6 +467,24 @@ macro_rules! call_cc_u16 {
                 InstructionState::ExecNextInstantly
             }),
             branch_condition!($cc),
+            BLANK_PROGRESS,
+            InstructionStep::Standard(|cpu, bus| {
+                cpu.push_u8_to_stack(bus, (cpu.pc >> 8) as u8);
+                InstructionState::InProgress
+            }),
+            InstructionStep::Standard(|cpu, bus| {
+                cpu.push_u8_to_stack(bus, cpu.pc as u8);
+                cpu.pc = cpu.operand16;
+                InstructionState::Finished
+            })
+        }
+    };
+}
+
+macro_rules! call_u16 {
+    () => {
+        instruction! {
+            fetch16,
             BLANK_PROGRESS,
             InstructionStep::Standard(|cpu, bus| {
                 cpu.push_u8_to_stack(bus, (cpu.pc >> 8) as u8);
@@ -772,10 +813,20 @@ macro_rules! rst_yy {
             }),
             InstructionStep::Standard(|cpu, bus| {
                 cpu.push_u8_to_stack(bus, cpu.pc as u8);
-                cpu.pc = ($addr * 8) as u16;
+                // TODO: verify if this is correct
+                cpu.pc = $addr as u16;
                 InstructionState::Finished
             })
         }
+    };
+}
+
+macro_rules! unused_opcode {
+    ($opcode:tt) => {
+        instruction!(InstructionStep::Instant(|_, _| unimplemented!(
+            "Unused Opcode: {}",
+            $opcode
+        )))
     };
 }
 
@@ -820,6 +871,206 @@ fn ld_hlmem_u8() -> Instruction {
         fetch8,
         InstructionStep::Standard(|cpu, bus| {
             bus.write_u8(cpu.hl.into(), cpu.operand8);
+            InstructionState::Finished
+        })
+    }
+}
+
+fn ld_ff00_u8_a() -> Instruction {
+    instruction! {
+        fetch8,
+        InstructionStep::Standard(|cpu, bus| {
+            bus.write_u8(0xFF00 + (cpu.operand8 as u16), r8!(cpu, a));
+            InstructionState::Finished
+        })
+    }
+}
+
+fn ld_a_ff00_u8() -> Instruction {
+    instruction! {
+        fetch8,
+        InstructionStep::Standard(|cpu, bus| {
+            r8!(cpu, a) = bus.read_u8(0xFF00 + (cpu.operand8 as u16));
+            InstructionState::Finished
+        })
+    }
+}
+
+fn ld_ff00_c_a() -> Instruction {
+    instruction! {
+        InstructionStep::Standard(|cpu, bus| {
+            bus.write_u8(0xFF00 + (r8!(cpu, c) as u16), r8!(cpu, a));
+            InstructionState::Finished
+        })
+    }
+}
+
+fn ld_a_ff00_c() -> Instruction {
+    instruction! {
+        InstructionStep::Standard(|cpu, bus| {
+            r8!(cpu, a) = bus.read_u8(0xFF00 + (r8!(cpu, c) as u16));
+            InstructionState::Finished
+        })
+    }
+}
+
+fn add_sp_i8() -> Instruction {
+    instruction! {
+        fetch8,
+        BLANK_PROGRESS,
+        InstructionStep::Standard(|cpu, _| {
+            let arg = cpu.operand8 as i8 as i16 as u16;
+
+            let half_carry = (cpu.sp & 0x000F) + (arg & 0x000F) > 0x000F;
+            let carry = (cpu.sp & 0x00FF) + (arg & 0x00FF) > 0x00FF;
+
+            cpu.clear_flag(Flag::Z);
+            cpu.clear_flag(Flag::N);
+            cpu.set_flag_if_cond_else_clear(carry, Flag::C);
+            cpu.set_flag_if_cond_else_clear(half_carry, Flag::H);
+
+            cpu.sp = cpu.sp.wrapping_add(arg);
+
+            InstructionState::Finished
+        })
+    }
+}
+
+fn ld_hl_sp_i8() -> Instruction {
+    instruction! {
+        fetch8,
+        InstructionStep::Standard(|cpu, _| {
+            let arg = cpu.operand8 as i8 as i16 as u16;
+
+            let half_carry = (cpu.sp & 0x000F) + (arg & 0x000F) > 0x000F;
+            let carry = (cpu.sp & 0x00FF) + (arg & 0x00FF) > 0x00FF;
+
+            cpu.clear_flag(Flag::Z);
+            cpu.clear_flag(Flag::N);
+            cpu.set_flag_if_cond_else_clear(carry, Flag::C);
+            cpu.set_flag_if_cond_else_clear(half_carry, Flag::H);
+
+            let result = cpu.sp.wrapping_add(arg);
+            cpu.hl = result.into();
+            InstructionState::Finished
+        })
+    }
+}
+
+fn jp_hl() -> Instruction {
+    instruction! {
+        InstructionStep::Instant(|cpu, _| {
+            cpu.pc = cpu.hl.into();
+            InstructionState::Finished
+        })
+    }
+}
+
+fn ld_sp_hl() -> Instruction {
+    instruction! {
+        InstructionStep::Standard(|cpu, _| {
+            cpu.sp = cpu.hl.into();
+            InstructionState::Finished
+        })
+    }
+}
+
+fn ld_mem_u16_a() -> Instruction {
+    instruction! {
+        fetch16,
+        InstructionStep::Standard(|cpu, bus| {
+            bus.write_u8(cpu.operand16, r8!(cpu, a));
+            InstructionState::Finished
+        })
+    }
+}
+
+fn ld_a_mem_u16() -> Instruction {
+    instruction! {
+        fetch16,
+        InstructionStep::Standard(|cpu, bus| {
+            r8!(cpu, a) = bus.read_u8(cpu.operand16);
+            InstructionState::Finished
+        })
+    }
+}
+
+fn di() -> Instruction {
+    instruction! {
+        InstructionStep::Instant(|_, bus| {
+            bus.interrupts.disable_master();
+            InstructionState::Finished
+        })
+    }
+}
+
+fn ei() -> Instruction {
+    instruction! {
+        InstructionStep::Instant(|cpu, bus| {
+            if !bus.interrupts.is_master_enabled() && !cpu.ei_delay {
+                cpu.ei_delay = true;
+                cpu.ei_delay_cycles = 4;
+            }
+
+            InstructionState::Finished
+        })
+    }
+}
+
+fn halt() -> Instruction {
+    instruction! {
+        InstructionStep::Instant(|cpu, bus| {
+            if bus.interrupts.is_master_enabled() {
+                // IME set
+                cpu.halted = true;
+            }
+            else {
+                if bus.interrupts.enable & bus.interrupts.flags & 0x1F != 0 {
+                    // IME not set, interupt pending
+                    // continue execution, but the next byte is read twice
+                    // or in other words, after the next byte is read the pc gets
+                    // decremented back to what it was
+                    cpu.halt_bug_triggered = true;
+                }
+                else {
+                    // IME not set, no interupt pending
+                    cpu.halted = true;
+                    cpu.halted_waiting_for_interrupt_pending = true;
+                    bus.interrupts.waiting_for_halt_if = true;
+
+                }
+            }
+
+            InstructionState::Finished
+        })
+    }
+}
+
+fn interrupt_service_routine() -> Instruction {
+    instruction! {
+        BLANK_PROGRESS,
+        BLANK_PROGRESS,
+        InstructionStep::Standard(|cpu, bus| {
+            cpu.temp8 = bus.interrupts.enable;
+            cpu.push_u8_to_stack(bus, (cpu.pc >> 8) as u8);
+            InstructionState::InProgress
+        }),
+        InstructionStep::Standard(|cpu, bus| {
+            let ir_flags = bus.interrupts.flags;
+            cpu.push_u8_to_stack(bus, (cpu.pc & 0x00FF) as u8);
+            cpu.temp16 = ir_flags as u16;
+            InstructionState::InProgress
+        }),
+        InstructionStep::Standard(|cpu, bus| {
+            let interrupt_state = bus.interrupts.get_interupt_state_latched(cpu.temp8, cpu.temp16 as u8);
+            let vector = match interrupt_state {
+                Some(flag) => flag.vector(),
+                None => 0
+            };
+
+            bus.interrupts.disable_master();
+            cpu.pc = vector;
+
             InstructionState::Finished
         })
     }
@@ -877,6 +1128,7 @@ impl Cpu {
 }
 
 pub struct InstructionCache {
+    interrupt_service_routine: Instruction,
     instructions: [Instruction; 256],
     // cb_instructions: [Instruction; 256],
 }
@@ -884,6 +1136,7 @@ pub struct InstructionCache {
 impl InstructionCache {
     pub fn new() -> Self {
         Self {
+            interrupt_service_routine: interrupt_service_routine(),
             instructions: Self::gen_instructions(),
             // cb_instructions: Self::gen_cb_instructions(),
         }
@@ -1033,7 +1286,7 @@ impl InstructionCache {
             0x73 => ld_memhl_r8!(HL <= de, lo),
             0x74 => ld_memhl_r8!(HL <= hl, hi),
             0x75 => ld_memhl_r8!(HL <= hl, lo),
-            0x76 => instruction!(InstructionStep::Instant(|_, _| unimplemented!("HALT"))),
+            0x76 => halt(),
             0x77 => ld_memhl_r8!(HL <= af, hi),
 
             // ld a, r8
@@ -1139,15 +1392,61 @@ impl InstructionCache {
             0xCA => jp_cc_u16!(Z),
             0xCB => instruction!(InstructionStep::Instant(|_, _| unimplemented!("CB PREFIX"))),
             0xCC => call_cc_u16!(Z),
+            0xCD => call_u16!(),
+            0xCE => adc_a_r8!(u8),
+            0xCF => rst_yy!(0x08),
 
-            _ => instruction!(InstructionStep::Instant(|cpu, bus| {
-                cpu.pc -= 1;
-                unimplemented!("{:#04X}", cpu.fetch(bus))
-            })),
+            0xD0 => ret_cc!(NC),
+            0xD1 => pop_r16!(de),
+            0xD2 => jp_cc_u16!(NC),
+            0xD3 => unused_opcode!("0xD3"),
+            0xD4 => call_cc_u16!(NZ),
+            0xD5 => push_r16!(de),
+            0xD6 => sub_a_r8!(u8),
+            0xD7 => rst_yy!(0x10),
+            0xD8 => ret_cc!(C),
+            0xD9 => ret!(i),
+            0xDA => jp_cc_u16!(C),
+            0xDB => unused_opcode!("0xDB"),
+            0xDC => call_cc_u16!(C),
+            0xDD => unused_opcode!("0xDD"),
+            0xDE => sbc_a_r8!(u8),
+            0xDF => rst_yy!(0x18),
+
+            0xE0 => ld_ff00_u8_a(),
+            0xE1 => pop_r16!(hl),
+            0xE2 => ld_ff00_c_a(),
+            0xE3 => unused_opcode!("0xE3"),
+            0xE4 => unused_opcode!("0xE4"),
+            0xE5 => push_r16!(hl),
+            0xE6 => and_a_r8!(u8),
+            0xE7 => rst_yy!(0x20),
+            0xE8 => add_sp_i8(),
+            0xE9 => jp_hl(),
+            0xEA => ld_mem_u16_a(),
+            0xEB => unused_opcode!("0xEB"),
+            0xEC => unused_opcode!("0xEC"),
+            0xED => unused_opcode!("0xED"),
+            0xEE => xor_a_r8!(u8),
+            0xEF => rst_yy!(0x28),
+
+            0xF0 => ld_a_ff00_u8(),
+            0xF1 => pop_r16!(af),
+            0xF2 => ld_a_ff00_c(),
+            0xF3 => di(),
+            0xF4 => unused_opcode!("0xF4"),
+            0xF5 => push_r16!(af),
+            0xF6 => or_a_r8!(u8),
+            0xF7 => rst_yy!(0x30),
+            0xF8 => ld_hl_sp_i8(),
+            0xF9 => ld_sp_hl(),
+            0xFA => ld_a_mem_u16(),
+            0xFB => ei(),
+            0xFC => unused_opcode!("0xFC"),
+            0xFD => unused_opcode!("0xFD"),
+            0xFE => cp_a_r8!(u8),
+            0xFF => rst_yy!(0x38),
         };
-
-        // mini playground
-        let _ = |cpu: &mut Cpu| {};
 
         let mut instructions = Vec::new();
         for opcode in 0..=255 {
@@ -1174,6 +1473,9 @@ impl InstructionCache {
                 self.instructions[opcode as usize].exec(cpu, bus)
             }
             InstructionOpcode::Prefixed(opcode) => todo!(),
+            InstructionOpcode::InterruptServiceRoutine => {
+                self.interrupt_service_routine.exec(cpu, bus)
+            }
         }
     }
 
@@ -1181,6 +1483,7 @@ impl InstructionCache {
         match opcode {
             InstructionOpcode::Unprefixed(opcode) => self.instructions[opcode as usize].get(),
             InstructionOpcode::Prefixed(_) => todo!(),
+            InstructionOpcode::InterruptServiceRoutine => self.interrupt_service_routine.get(),
         }
     }
 
@@ -1188,6 +1491,7 @@ impl InstructionCache {
         match opcode {
             InstructionOpcode::Unprefixed(opcode) => self.instructions[opcode as usize].reset(),
             InstructionOpcode::Prefixed(_) => todo!(),
+            InstructionOpcode::InterruptServiceRoutine => self.interrupt_service_routine.reset(),
         }
     }
 }

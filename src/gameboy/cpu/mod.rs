@@ -1,6 +1,8 @@
 pub mod instructions;
 pub mod register;
 
+use std::fmt::Debug;
+
 use crate::gameboy::cpu::instructions::InstructionStep;
 
 use self::{
@@ -29,6 +31,32 @@ pub struct Cpu {
 
     is_fetching: bool,
     instruction_opcode: Option<InstructionOpcode>,
+
+    halted: bool,
+    halted_waiting_for_interrupt_pending: bool,
+    halt_bug_triggered: bool,
+    ei_delay: bool,
+    ei_delay_cycles: u8,
+}
+
+impl Debug for Cpu {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Cpu")
+            .field("af", &self.af)
+            .field("bc", &self.bc)
+            .field("de", &self.de)
+            .field("hl", &self.hl)
+            .field("pc", &self.pc)
+            .field("sp", &self.sp)
+            .field("operand8", &self.operand8)
+            .field("operand16", &self.operand16)
+            .field("temp8", &self.temp8)
+            .field("temp16", &self.temp16)
+            .field("cycle", &self.cycle)
+            .field("is_fetching", &self.is_fetching)
+            .field("instruction_opcode", &self.instruction_opcode)
+            .finish()
+    }
 }
 
 impl Cpu {
@@ -51,7 +79,33 @@ impl Cpu {
 
             is_fetching: false,
             instruction_opcode: None,
+
+            halted: false,
+            halted_waiting_for_interrupt_pending: false,
+            halt_bug_triggered: false,
+            ei_delay: false,
+            ei_delay_cycles: 0,
         }
+    }
+
+    pub fn initiate_interrupt_service_routin(&mut self) {
+        // TODO: this should only run in debug mode
+        // make it a debug_assert?
+        if self.instruction_opcode.is_some() {
+            panic!("ISR was fired whilst running an instruction");
+        }
+
+        self.instruction_opcode = Some(InstructionOpcode::InterruptServiceRoutine);
+        self.is_fetching = false;
+        self.halted = false; // TODO: un-halting should take extra 4t (TCAGBD 4.9?)
+    }
+
+    pub fn is_fetching(&self) -> bool {
+        self.is_fetching
+    }
+
+    pub fn is_processing_instruction(&self) -> bool {
+        self.instruction_opcode.is_some()
     }
 
     fn fetch(&mut self, bus: &mut Bus) -> u8 {
@@ -61,6 +115,30 @@ impl Cpu {
     }
 
     pub fn tick(&mut self, bus: &mut Bus, instruction_cache: &mut InstructionCache) {
+        if self.ei_delay {
+            self.ei_delay_cycles -= 1;
+
+            if self.ei_delay_cycles == 0 {
+                bus.interrupts.enable_master();
+                self.ei_delay = false;
+            }
+        }
+
+        if self.halted {
+            if self.halted_waiting_for_interrupt_pending {
+                if !bus.interrupts.halt_interrupt_pending {
+                    return;
+                }
+
+                bus.interrupts.halt_interrupt_pending = false;
+                bus.interrupts.waiting_for_halt_if = false;
+                self.halted_waiting_for_interrupt_pending = false;
+                self.halted = false;
+            } else {
+                return;
+            }
+        }
+
         if self.instruction_opcode.is_none() {
             self.is_fetching = true;
 
@@ -70,7 +148,10 @@ impl Cpu {
 
             self.instruction_opcode = match self.fetch(bus) {
                 0xCB => todo!(),
-                opcode => Some(InstructionOpcode::Unprefixed(opcode)),
+                opcode => {
+                    log::debug!("Fetching Opcode {:#06X}", opcode);
+                    Some(InstructionOpcode::Unprefixed(opcode))
+                }
             };
 
             self.cycle += 1;

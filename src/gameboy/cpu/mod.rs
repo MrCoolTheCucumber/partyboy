@@ -34,13 +34,13 @@ pub struct Cpu {
 impl Cpu {
     pub fn new() -> Self {
         Self {
-            af: Register::new(0, 0),
-            bc: Register::new(0, 0),
-            de: Register::new(0, 0),
-            hl: Register::new(0, 0),
+            af: Register::new(0x01, 0xB0),
+            bc: Register::new(0x00, 0x13),
+            de: Register::new(0x00, 0xD8),
+            hl: Register::new(0x01, 0x4D),
 
-            pc: 0x0,
-            sp: 0x0,
+            pc: 0x100,
+            sp: 0xFFFE,
 
             operand8: 0x0,
             operand16: 0x0,
@@ -87,7 +87,7 @@ impl Cpu {
         let opcode = self.instruction_opcode.unwrap();
         match instruction_cache.get(opcode) {
             InstructionStep::Standard(_) => {
-                if self.is_fetching == true {
+                if self.is_fetching {
                     self.is_fetching = false;
                     return;
                 }

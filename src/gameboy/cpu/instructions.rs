@@ -74,6 +74,9 @@ const FETCH_OP8_EXECNEXTINSTANT: InstructionStep = InstructionStep::Standard(|cp
 const BLANK_PROGRESS: InstructionStep =
     InstructionStep::Standard(|_, _| InstructionState::InProgress);
 
+const BLANK_PROGRESS_EXEC_NEXT_INSTANT: InstructionStep =
+    InstructionStep::Standard(|_, _| InstructionState::ExecNextInstantly);
+
 const BRANCH_ZERO: InstructionStep =
     InstructionStep::Instant(|cpu, _| InstructionState::Branch(cpu.is_flag_set(Flag::Z)));
 
@@ -367,6 +370,94 @@ macro_rules! __jr {
 
 __define_branching_op_macro!(jr, _i8);
 
+macro_rules! ret_cc {
+    ($cc:tt) => {
+        instruction! {
+            BLANK_PROGRESS_EXEC_NEXT_INSTANT,
+            branch_condition!($cc),
+            BLANK_PROGRESS,
+            InstructionStep::Standard(|cpu, bus| {
+                cpu.temp16 = cpu.pop_u16_from_stack(bus);
+                InstructionState::InProgress
+            }),
+            InstructionStep::Standard(|cpu, _| {
+                cpu.pc = cpu.temp16;
+                InstructionState::Finished
+            })
+        }
+    };
+}
+
+macro_rules! ret {
+    () => {
+        instruction! {
+            BLANK_PROGRESS,
+            InstructionStep::Standard(|cpu, bus| {
+                cpu.temp16 = cpu.pop_u16_from_stack(bus);
+                InstructionState::InProgress
+            }),
+            InstructionStep::Standard(|cpu, _| {
+                cpu.pc = cpu.temp16;
+                InstructionState::Finished
+            })
+        }
+    };
+}
+
+macro_rules! jp_u16 {
+    () => {
+        instruction! {
+            fetch16,
+            InstructionStep::Standard(|cpu, _| {
+                cpu.pc = cpu.temp16;
+                InstructionState::Finished
+            })
+        }
+    };
+}
+
+macro_rules! jp_cc_u16 {
+    ($cc:tt) => {
+        instruction! {
+            __FETCH_OPERAND8,
+            InstructionStep::Standard(|cpu, bus| {
+                let hi = cpu.fetch(bus);
+                cpu.operand16 = (hi as u16) << 8 | cpu.operand8 as u16;
+                InstructionState::ExecNextInstantly
+            }),
+            branch_condition!($cc),
+            InstructionStep::Standard(|cpu, _| {
+                cpu.pc = cpu.operand16;
+                InstructionState::Finished
+            })
+        }
+    };
+}
+
+macro_rules! call_cc_u16 {
+    ($cc:tt) => {
+        instruction! {
+            __FETCH_OPERAND8,
+            InstructionStep::Standard(|cpu, bus| {
+                let hi = cpu.fetch(bus);
+                cpu.operand16 = (hi as u16) << 8 | cpu.operand8 as u16;
+                InstructionState::ExecNextInstantly
+            }),
+            branch_condition!($cc),
+            BLANK_PROGRESS,
+            InstructionStep::Standard(|cpu, bus| {
+                cpu.push_u8_to_stack(bus, (cpu.pc >> 8) as u8);
+                InstructionState::InProgress
+            }),
+            InstructionStep::Standard(|cpu, bus| {
+                cpu.push_u8_to_stack(bus, cpu.pc as u8);
+                cpu.pc = cpu.operand16;
+                InstructionState::Finished
+            })
+        }
+    };
+}
+
 macro_rules! ld_r8_r8 {
     ($dest_reg:ident,$dest_bit:ident <= HL) => {
         instruction! {
@@ -421,6 +512,10 @@ macro_rules! r8 {
         $cpu.hl.lo
     };
 
+    ($cpu:ident, u8) => {
+        $cpu.operand8
+    };
+
     // where we temporarily store the 8bit result
     // of fetching address HL in mem
     ($cpu:ident, hl) => {
@@ -445,6 +540,13 @@ macro_rules! __define_op_macro {
                     instruction! {
                         __read_hl!(),
                         [<__ $op>]!(hl)
+                    }
+                };
+
+                (u8) => {
+                    instruction! {
+                        fetch8,
+                        [<__ $op>]!(u8)
                     }
                 };
 
@@ -617,6 +719,66 @@ __define_op_macro!(xor);
 __define_op_macro!(or);
 __define_op_macro!(cp);
 
+macro_rules! __pop_r16_af_edgecase {
+    (af $cpu:ident) => {
+        $cpu.af.lo &= 0xF0;
+    };
+
+    ($_:ident $cpu:ident) => {};
+}
+
+macro_rules! pop_r16 {
+    ($reg:ident) => {
+        instruction! {
+            InstructionStep::Standard(|cpu, bus| {
+                cpu.$reg.lo = cpu.pop_u8_from_stack(bus);
+                __pop_r16_af_edgecase!($reg cpu);
+                InstructionState::InProgress
+            }),
+            InstructionStep::Standard(|cpu, bus| {
+                cpu.$reg.hi = cpu.pop_u8_from_stack(bus);
+                __pop_r16_af_edgecase!($reg cpu);
+                InstructionState::Finished
+            })
+        }
+    };
+}
+
+macro_rules! push_r16 {
+    ($reg:ident) => {
+        instruction! {
+            BLANK_PROGRESS,
+            InstructionStep::Standard(|cpu, bus| {
+                let val = cpu.$reg.hi;
+                cpu.push_u8_to_stack(bus, val);
+                InstructionState::InProgress
+            }),
+            InstructionStep::Standard(|cpu, bus| {
+                let val = cpu.$reg.lo;
+                cpu.push_u8_to_stack(bus, val);
+                InstructionState::Finished
+            })
+        }
+    };
+}
+
+macro_rules! rst_yy {
+    ($addr:tt) => {
+        instruction! {
+            BLANK_PROGRESS,
+            InstructionStep::Standard(|cpu, bus| {
+                cpu.push_u8_to_stack(bus, (cpu.pc >> 8) as u8);
+                InstructionState::InProgress
+            }),
+            InstructionStep::Standard(|cpu, bus| {
+                cpu.push_u8_to_stack(bus, cpu.pc as u8);
+                cpu.pc = ($addr * 8) as u16;
+                InstructionState::Finished
+            })
+        }
+    };
+}
+
 fn inc_hl() -> Instruction {
     instruction! {
         InstructionStep::Standard(|cpu, bus| {
@@ -694,6 +856,23 @@ impl Cpu {
         } else {
             self.af.lo &= !(Flag::Z as u8);
         }
+    }
+
+    fn pop_u16_from_stack(&mut self, bus: &Bus) -> u16 {
+        let val = bus.read_u16(self.sp);
+        self.sp = self.sp.wrapping_add(2);
+        val
+    }
+
+    fn pop_u8_from_stack(&mut self, bus: &Bus) -> u8 {
+        let val = bus.read_u8(self.sp);
+        self.sp = self.sp.wrapping_add(1);
+        val
+    }
+
+    fn push_u8_to_stack(&mut self, bus: &mut Bus, val: u8) {
+        self.sp = self.sp.wrapping_sub(1);
+        bus.write_u8(self.sp, val);
     }
 }
 
@@ -947,7 +1126,24 @@ impl InstructionCache {
             0xBE => cp_a_r8!(hl),
             0xBF => cp_a_r8!(a),
 
-            _ => instruction!(InstructionStep::Instant(|_, _| unimplemented!(""))),
+            0xC0 => ret_cc!(NZ),
+            0xC1 => pop_r16!(bc),
+            0xC2 => jp_cc_u16!(NZ),
+            0xC3 => jp_u16!(),
+            0xC4 => call_cc_u16!(NZ),
+            0xC5 => push_r16!(bc),
+            0xC6 => add_a_r8!(u8),
+            0xC7 => rst_yy!(0),
+            0xC8 => ret_cc!(Z),
+            0xC9 => ret!(),
+            0xCA => jp_cc_u16!(Z),
+            0xCB => instruction!(InstructionStep::Instant(|_, _| unimplemented!("CB PREFIX"))),
+            0xCC => call_cc_u16!(Z),
+
+            _ => instruction!(InstructionStep::Instant(|cpu, bus| {
+                cpu.pc -= 1;
+                unimplemented!("{:#04X}", cpu.fetch(bus))
+            })),
         };
 
         // mini playground

@@ -6,6 +6,7 @@ use super::{
 };
 
 pub struct Bus {
+    blargg_output_buffer: Vec<char>,
     pub cartridge: Box<dyn Cartridge>,
     pub ppu: Ppu,
     pub working_ram: [u8; 0x2000],
@@ -22,6 +23,7 @@ pub struct Bus {
 impl Bus {
     pub fn new(cartridge: Box<dyn Cartridge>) -> Self {
         Self {
+            blargg_output_buffer: Vec::new(),
             cartridge,
             ppu: Ppu::new(),
             working_ram: [0; 0x2000],
@@ -53,6 +55,16 @@ impl Bus {
 
             interrupts: Interrupts::new(),
             timer: Timer::new(),
+        }
+    }
+
+    fn handle_blargg_output(&mut self, c: char) {
+        if c == "\n".chars().next().unwrap() {
+            let string = String::from_iter(self.blargg_output_buffer.iter());
+            log::info!("{}", string);
+            self.blargg_output_buffer.clear();
+        } else {
+            self.blargg_output_buffer.push(c);
         }
     }
 
@@ -123,7 +135,7 @@ impl Bus {
                 0x0E00 => { /* TODO: Sprite Table */ }
 
                 0x0F00 => match addr {
-                    0xFF01 => print!("{}", val as char),
+                    0xFF01 => self.handle_blargg_output(val as char),
                     0xFF04..=0xFF07 => self.timer.write(addr, val),
                     0xFF0F => self.interrupts.flags = val,
                     0xFFFF => self.interrupts.enable = val,

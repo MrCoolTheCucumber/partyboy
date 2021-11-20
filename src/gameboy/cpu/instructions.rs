@@ -234,6 +234,15 @@ macro_rules! ld_mem_a {
 }
 
 macro_rules! inc_r16 {
+    (sp) => {
+        instruction! {
+            InstructionStep::Standard(|cpu, _| {
+                cpu.sp = cpu.sp.wrapping_add(1);
+                InstructionState::Finished
+            })
+        }
+    };
+
     ($reg:ident) => {
         instruction! {
             InstructionStep::Standard(|cpu, _| {
@@ -245,6 +254,15 @@ macro_rules! inc_r16 {
 }
 
 macro_rules! dec_r16 {
+    (sp) => {
+        instruction! {
+            InstructionStep::Standard(|cpu, _| {
+                cpu.sp = cpu.sp.wrapping_sub(1);
+                InstructionState::Finished
+            })
+        }
+    };
+
     ($reg:ident) => {
         instruction! {
             InstructionStep::Standard(|cpu, _| {
@@ -274,7 +292,7 @@ macro_rules! dec_r8 {
     ($reg:ident,$bit:ident) => {
         instruction! {
             InstructionStep::Instant(|cpu, _| {
-                cpu.set_flag_if_cond_else_clear((cpu.$reg.$bit & 0x0F) == 0x0F, Flag::H);
+                cpu.set_flag_if_cond_else_clear((cpu.$reg.$bit & 0x0F) == 0x00, Flag::H);
                 cpu.$reg.$bit = cpu.$reg.$bit.wrapping_sub(1);
                 cpu.handle_z_flag(cpu.$reg.$bit);
                 cpu.set_flag(Flag::N);
@@ -702,7 +720,7 @@ macro_rules! __and {
             cpu.handle_z_flag(r8!(cpu, a));
             cpu.clear_flag(Flag::C);
             cpu.clear_flag(Flag::N);
-            cpu.clear_flag(Flag::H);
+            cpu.set_flag(Flag::H);
             InstructionState::Finished
         })
     };
@@ -830,6 +848,139 @@ macro_rules! unused_opcode {
     };
 }
 
+fn daa() -> Instruction {
+    instruction! {
+        InstructionStep::Instant(|cpu, _| {
+            // https://forums.nesdev.com/viewtopic.php?t=15944
+            if cpu.is_flag_set(Flag::N) {
+                if cpu.is_flag_set(Flag::C) {
+                    r8!(cpu, a) = r8!(cpu, a).wrapping_sub(0x60);
+                }
+
+                if cpu.is_flag_set(Flag::H) {
+                    r8!(cpu, a) = r8!(cpu, a).wrapping_sub(0x6);
+                }
+            } else {
+                if cpu.is_flag_set(Flag::C) || r8!(cpu, a) > 0x99 {
+                    r8!(cpu, a) = r8!(cpu, a).wrapping_add(0x60);
+                    cpu.set_flag(Flag::C);
+                }
+
+                if cpu.is_flag_set(Flag::H) || (r8!(cpu, a) & 0xF) > 0x09 {
+                    r8!(cpu, a) = r8!(cpu, a).wrapping_add(0x6);
+                }
+            }
+
+            cpu.handle_z_flag(r8!(cpu, a));
+            cpu.clear_flag(Flag::H);
+            InstructionState::Finished
+        })
+    }
+}
+
+fn cpl() -> Instruction {
+    instruction! {
+        InstructionStep::Instant(|cpu, _| {
+            r8!(cpu, a) = !r8!(cpu, a);
+            cpu.set_flag(Flag::N);
+            cpu.set_flag(Flag::H);
+            InstructionState::Finished
+        })
+    }
+}
+
+fn scf() -> Instruction {
+    instruction! {
+        InstructionStep::Instant(|cpu, _| {
+            cpu.set_flag(Flag::C);
+            cpu.clear_flag(Flag::N);
+            cpu.clear_flag(Flag::H);
+            InstructionState::Finished
+        })
+    }
+}
+
+fn ccf() -> Instruction {
+    instruction! {
+        InstructionStep::Instant(|cpu, _| {
+            if cpu.is_flag_set(Flag::C) {
+                cpu.clear_flag(Flag::C);
+            } else {
+                cpu.set_flag(Flag::C);
+            }
+
+            cpu.clear_flag(Flag::N);
+            cpu.clear_flag(Flag::H);
+            InstructionState::Finished
+        })
+    }
+}
+
+fn rlca() -> Instruction {
+    instruction! {
+        InstructionStep::Instant(|cpu, _| {
+            let carry = (r8!(cpu, a) & 0x80) >> 7;
+            cpu.set_flag_if_cond_else_clear(carry != 0, Flag::C);
+
+            r8!(cpu, a) = (r8!(cpu, a) << 1).wrapping_add(carry);
+
+            cpu.clear_flag(Flag::N);
+            cpu.clear_flag(Flag::Z);
+            cpu.clear_flag(Flag::H);
+            InstructionState::Finished
+        })
+    }
+}
+
+fn rrca() -> Instruction {
+    instruction! {
+        InstructionStep::Instant(|cpu, _| {
+            let carry = r8!(cpu, a) & 0b00000001 > 0;
+            r8!(cpu, a) = r8!(cpu, a) >> 1;
+            if carry { r8!(cpu, a) = r8!(cpu, a) | 0b10000000; }
+
+            cpu.set_flag_if_cond_else_clear(carry, Flag::C);
+            cpu.clear_flag(Flag::Z);
+            cpu.clear_flag(Flag::N);
+            cpu.clear_flag(Flag::H);
+            InstructionState::Finished
+        })
+    }
+}
+
+fn rla() -> Instruction {
+    instruction! {
+        InstructionStep::Instant(|cpu, _| {
+            let is_carry_set = cpu.is_flag_set(Flag::C);
+            cpu.set_flag_if_cond_else_clear(r8!(cpu, a) & 0x80 > 0, Flag::C);
+
+            r8!(cpu, a) = r8!(cpu, a) << 1;
+            if is_carry_set { r8!(cpu, a) += 1 };
+
+            cpu.clear_flag(Flag::N);
+            cpu.clear_flag(Flag::Z);
+            cpu.clear_flag(Flag::H);
+            InstructionState::Finished
+        })
+    }
+}
+
+fn rra() -> Instruction {
+    instruction! {
+        InstructionStep::Instant(|cpu, _| {
+            let carry = if cpu.is_flag_set(Flag::C) {1 << 7} else {0};
+            cpu.set_flag_if_cond_else_clear(r8!(cpu, a) & 0x01 != 0, Flag::C);
+
+            r8!(cpu, a) = (r8!(cpu, a) >> 1).wrapping_add(carry);
+
+            cpu.clear_flag(Flag::N);
+            cpu.clear_flag(Flag::Z);
+            cpu.clear_flag(Flag::H);
+            InstructionState::Finished
+        })
+    }
+}
+
 fn inc_hl() -> Instruction {
     instruction! {
         InstructionStep::Standard(|cpu, bus| {
@@ -855,7 +1006,7 @@ fn dec_hl() -> Instruction {
             InstructionState::InProgress
         }),
         InstructionStep::Standard(|cpu, bus| {
-            cpu.set_flag_if_cond_else_clear((cpu.temp8 & 0x0F) == 0x0F, Flag::H);
+            cpu.set_flag_if_cond_else_clear((cpu.temp8 & 0x0F) == 0, Flag::H);
             cpu.temp8 = cpu.temp8.wrapping_sub(1);
             cpu.handle_z_flag(cpu.temp8);
             cpu.set_flag(Flag::N);
@@ -1076,7 +1227,159 @@ fn interrupt_service_routine() -> Instruction {
     }
 }
 
+macro_rules! bit {
+    ($bit:expr, $reg:tt) => {
+        instruction! {
+            BLANK_PROGRESS,
+            InstructionStep::Instant(|cpu, _| {
+                cpu.set_flag_if_cond_else_clear(r8!(cpu, $reg) & (1 << $bit) == 0, Flag::Z);
+                cpu.clear_flag(Flag::N);
+                cpu.set_flag(Flag::H);
+
+                InstructionState::Finished
+            })
+        }
+    };
+}
+
+macro_rules! res {
+    ($bit:expr, $reg:tt) => {
+        instruction! {
+            BLANK_PROGRESS,
+            InstructionStep::Instant(|cpu, _| {
+                r8!(cpu, $reg) = r8!(cpu, $reg) & !(1 << $bit);
+                InstructionState::Finished
+            })
+        }
+    };
+}
+
+macro_rules! set {
+    ($bit:expr, $reg:tt) => {
+        instruction! {
+            BLANK_PROGRESS,
+            InstructionStep::Instant(|cpu, _| {
+                r8!(cpu, $reg) = r8!(cpu, $reg) | (1 << $bit);
+                InstructionState::Finished
+            })
+        }
+    };
+}
+
+macro_rules! cb_op_instr {
+    ($func:ident, $reg:tt) => {
+        instruction! {
+            BLANK_PROGRESS,
+            InstructionStep::Instant(|cpu, _| {
+                r8!(cpu, $reg) = cpu.$func(r8!(cpu, $reg));
+                InstructionState::Finished
+            })
+        }
+    };
+}
+
 impl Cpu {
+    fn rlc(&mut self, val: u8) -> u8 {
+        self.set_flag_if_cond_else_clear((val & 0x80) != 0, Flag::C);
+
+        let carry = (val & 0x80) >> 7;
+        let result = (val << 1).wrapping_add(carry);
+
+        self.handle_z_flag(val);
+        self.clear_flag(Flag::N);
+        self.clear_flag(Flag::H);
+
+        result
+    }
+
+    fn rrc(&mut self, val: u8) -> u8 {
+        let carry = val & 0x01;
+        let mut result = val >> 1;
+
+        if carry != 0 {
+            self.set_flag(Flag::C);
+            result = result | 0x80;
+        } else {
+            self.clear_flag(Flag::C);
+        }
+
+        self.handle_z_flag(result);
+        self.clear_flag(Flag::N);
+        self.clear_flag(Flag::H);
+
+        result
+    }
+
+    fn rl(&mut self, val: u8) -> u8 {
+        let carry = if self.is_flag_set(Flag::C) { 1 } else { 0 };
+        let result = (val << 1).wrapping_add(carry);
+
+        self.set_flag_if_cond_else_clear(val & 0x80 != 0, Flag::C);
+        self.handle_z_flag(result);
+        self.clear_flag(Flag::N);
+        self.clear_flag(Flag::H);
+
+        result
+    }
+
+    fn rr(&mut self, val: u8) -> u8 {
+        let mut result = val >> 1;
+        if self.is_flag_set(Flag::C) {
+            result = result | 0x80;
+        }
+
+        self.set_flag_if_cond_else_clear(val & 0x01 != 0, Flag::C);
+        self.handle_z_flag(result);
+        self.clear_flag(Flag::N);
+        self.clear_flag(Flag::H);
+
+        result
+    }
+
+    fn sla(&mut self, val: u8) -> u8 {
+        let result = val << 1;
+
+        self.set_flag_if_cond_else_clear(val & 0x80 != 0, Flag::C);
+        self.handle_z_flag(result);
+        self.clear_flag(Flag::N);
+        self.clear_flag(Flag::H);
+
+        result
+    }
+
+    fn sra(&mut self, val: u8) -> u8 {
+        let result = (val & 0x80) | (val >> 1);
+
+        self.set_flag_if_cond_else_clear(val & 0x01 != 0, Flag::C);
+        self.handle_z_flag(result);
+        self.clear_flag(Flag::N);
+        self.clear_flag(Flag::H);
+
+        result
+    }
+
+    fn swap(&mut self, val: u8) -> u8 {
+        let result = ((val & 0x0F) << 4) | ((val & 0xF0) >> 4);
+
+        self.handle_z_flag(result);
+        self.clear_flag(Flag::C);
+        self.clear_flag(Flag::N);
+        self.clear_flag(Flag::H);
+
+        result
+    }
+
+    fn srl(&mut self, val: u8) -> u8 {
+        let result = val >> 1;
+
+        self.set_flag_if_cond_else_clear(val & 0x01 != 0, Flag::C);
+        self.handle_z_flag(result);
+        self.clear_flag(Flag::N);
+        self.clear_flag(Flag::H);
+
+        result
+    }
+
     #[inline(always)]
     fn set_flag(&mut self, flag: Flag) {
         self.af.lo |= flag as u8;
@@ -1130,7 +1433,7 @@ impl Cpu {
 pub struct InstructionCache {
     interrupt_service_routine: Instruction,
     instructions: [Instruction; 256],
-    // cb_instructions: [Instruction; 256],
+    cb_instructions: [Instruction; 256],
 }
 
 impl InstructionCache {
@@ -1138,7 +1441,7 @@ impl InstructionCache {
         Self {
             interrupt_service_routine: interrupt_service_routine(),
             instructions: Self::gen_instructions(),
-            // cb_instructions: Self::gen_cb_instructions(),
+            cb_instructions: Self::gen_cb_instructions(),
         }
     }
 
@@ -1151,7 +1454,7 @@ impl InstructionCache {
             0x04 => inc_r8!(bc, hi),
             0x05 => dec_r8!(bc, hi),
             0x06 => ld_r8_u8!(bc, hi),
-            0x07 => instruction!(InstructionStep::Instant(|_, _| unimplemented!("RLCA"))),
+            0x07 => rlca(),
             0x08 => instruction! { // LD (u16), SP
                 fetch16,
                 BLANK_PROGRESS,
@@ -1166,7 +1469,7 @@ impl InstructionCache {
             0x0C => inc_r8!(bc, lo),
             0x0D => dec_r8!(bc, lo),
             0x0E => ld_r8_u8!(bc, lo),
-            0x0F => instruction!(InstructionStep::Instant(|_, _| unimplemented!("RRCA"))),
+            0x0F => rrca(),
 
             0x10 => instruction!(InstructionStep::Instant(|_, _| unimplemented!("STOP"))),
             0x11 => ld_r16_u16!(de),
@@ -1175,7 +1478,7 @@ impl InstructionCache {
             0x14 => inc_r8!(de, hi),
             0x15 => dec_r8!(de, hi),
             0x16 => ld_r8_u8!(de, hi),
-            0x17 => instruction!(InstructionStep::Instant(|_, _| unimplemented!("RLA"))),
+            0x17 => rla(),
             0x18 => jr_i8!(),
             0x19 => add_hl_r16!(de),
             0x1A => ld_a_mem!(de),
@@ -1183,7 +1486,7 @@ impl InstructionCache {
             0x1C => inc_r8!(de, lo),
             0x1D => dec_r8!(de, lo),
             0x1E => ld_r8_u8!(de, lo),
-            0x1F => instruction!(InstructionStep::Instant(|_, _| unimplemented!("RRA"))),
+            0x1F => rra(),
 
             0x20 => jr_i8!(NZ),
             0x21 => ld_r16_u16!(hl),
@@ -1192,7 +1495,7 @@ impl InstructionCache {
             0x24 => inc_r8!(hl, hi),
             0x25 => dec_r8!(hl, hi),
             0x26 => ld_r8_u8!(hl, hi),
-            0x27 => instruction!(InstructionStep::Instant(|_, _| unimplemented!("DAA"))),
+            0x27 => daa(),
             0x28 => jr_i8!(Z),
             0x29 => add_hl_r16!(hl),
             0x2A => ld_a_mem!(hlplus),
@@ -1200,7 +1503,7 @@ impl InstructionCache {
             0x2C => inc_r8!(hl, lo),
             0x2D => dec_r8!(hl, lo),
             0x2E => ld_r8_u8!(hl, lo),
-            0x2F => instruction!(InstructionStep::Instant(|_, _| unimplemented!("CPL"))),
+            0x2F => cpl(),
 
             0x30 => jr_i8!(NC),
             0x31 => ld_r16_u16!(sp),
@@ -1209,7 +1512,7 @@ impl InstructionCache {
             0x34 => inc_hl(),
             0x35 => dec_hl(),
             0x36 => ld_hlmem_u8(),
-            0x37 => instruction!(InstructionStep::Instant(|_, _| unimplemented!("SCF"))),
+            0x37 => scf(),
             0x38 => jr_i8!(C),
             0x39 => add_hl_r16!(sp),
             0x3A => ld_a_mem!(hlminus),
@@ -1217,7 +1520,7 @@ impl InstructionCache {
             0x3C => inc_r8!(af, hi),
             0x3D => dec_r8!(af, hi),
             0x3E => ld_r8_u8!(af, hi),
-            0x3F => instruction!(InstructionStep::Instant(|_, _| unimplemented!("CCF"))),
+            0x3F => ccf(),
 
             // ld b, r8
             0x40 => ld_r8_r8!(bc, hi <= bc, hi),
@@ -1400,7 +1703,7 @@ impl InstructionCache {
             0xD1 => pop_r16!(de),
             0xD2 => jp_cc_u16!(NC),
             0xD3 => unused_opcode!("0xD3"),
-            0xD4 => call_cc_u16!(NZ),
+            0xD4 => call_cc_u16!(NC),
             0xD5 => push_r16!(de),
             0xD6 => sub_a_r8!(u8),
             0xD7 => rst_yy!(0x10),
@@ -1459,7 +1762,304 @@ impl InstructionCache {
     }
 
     fn gen_cb_instructions() -> [Instruction; 256] {
-        todo!()
+        let helper = |opcode: u8| match opcode {
+            0x00 => cb_op_instr!(rlc, b),
+            0x01 => cb_op_instr!(rlc, c),
+            0x02 => cb_op_instr!(rlc, d),
+            0x03 => cb_op_instr!(rlc, e),
+            0x04 => cb_op_instr!(rlc, h),
+            0x05 => cb_op_instr!(rlc, l),
+            0x06 => instruction! {InstructionStep::Instant(|_, _| todo!("rlc HL"))},
+            0x07 => cb_op_instr!(rlc, a),
+
+            0x08 => cb_op_instr!(rrc, b),
+            0x09 => cb_op_instr!(rrc, c),
+            0x0A => cb_op_instr!(rrc, d),
+            0x0B => cb_op_instr!(rrc, e),
+            0x0C => cb_op_instr!(rrc, h),
+            0x0D => cb_op_instr!(rrc, l),
+            0x0E => instruction! {InstructionStep::Instant(|_, _| todo!("rrc HL"))},
+            0x0F => cb_op_instr!(rrc, a),
+
+            0x10 => cb_op_instr!(rl, b),
+            0x11 => cb_op_instr!(rl, c),
+            0x12 => cb_op_instr!(rl, d),
+            0x13 => cb_op_instr!(rl, e),
+            0x14 => cb_op_instr!(rl, h),
+            0x15 => cb_op_instr!(rl, l),
+            0x16 => instruction! {InstructionStep::Instant(|_, _| todo!("rl HL"))},
+            0x17 => cb_op_instr!(rl, a),
+
+            0x18 => cb_op_instr!(rr, b),
+            0x19 => cb_op_instr!(rr, c),
+            0x1A => cb_op_instr!(rr, d),
+            0x1B => cb_op_instr!(rr, e),
+            0x1C => cb_op_instr!(rr, h),
+            0x1D => cb_op_instr!(rr, l),
+            0x1E => instruction! {InstructionStep::Instant(|_, _| todo!("rr HL"))},
+            0x1F => cb_op_instr!(rr, a),
+
+            0x20 => cb_op_instr!(sla, b),
+            0x21 => cb_op_instr!(sla, c),
+            0x22 => cb_op_instr!(sla, d),
+            0x23 => cb_op_instr!(sla, e),
+            0x24 => cb_op_instr!(sla, h),
+            0x25 => cb_op_instr!(sla, l),
+            0x26 => instruction! {InstructionStep::Instant(|_, _| todo!("sla HL"))},
+            0x27 => cb_op_instr!(sla, a),
+
+            0x28 => cb_op_instr!(sra, b),
+            0x29 => cb_op_instr!(sra, c),
+            0x2A => cb_op_instr!(sra, d),
+            0x2B => cb_op_instr!(sra, e),
+            0x2C => cb_op_instr!(sra, h),
+            0x2D => cb_op_instr!(sra, l),
+            0x2E => instruction! {InstructionStep::Instant(|_, _| todo!("sra HL"))},
+            0x2F => cb_op_instr!(sra, a),
+
+            0x30 => cb_op_instr!(swap, b),
+            0x31 => cb_op_instr!(swap, c),
+            0x32 => cb_op_instr!(swap, d),
+            0x33 => cb_op_instr!(swap, e),
+            0x34 => cb_op_instr!(swap, h),
+            0x35 => cb_op_instr!(swap, l),
+            0x36 => instruction! {InstructionStep::Instant(|_, _| todo!("swap HL"))},
+            0x37 => cb_op_instr!(swap, a),
+
+            0x38 => cb_op_instr!(srl, b),
+            0x39 => cb_op_instr!(srl, c),
+            0x3A => cb_op_instr!(srl, d),
+            0x3B => cb_op_instr!(srl, e),
+            0x3C => cb_op_instr!(srl, h),
+            0x3D => cb_op_instr!(srl, l),
+            0x3E => instruction! {InstructionStep::Instant(|_, _| todo!("srl HL"))},
+            0x3F => cb_op_instr!(srl, a),
+
+            0x40 => bit!(0, b),
+            0x41 => bit!(0, c),
+            0x42 => bit!(0, d),
+            0x43 => bit!(0, e),
+            0x44 => bit!(0, h),
+            0x45 => bit!(0, l),
+            0x46 => instruction! {InstructionStep::Instant(|_, _| todo!("BIT 0, HL"))},
+            0x47 => bit!(0, a),
+
+            0x48 => bit!(1, b),
+            0x49 => bit!(1, c),
+            0x4A => bit!(1, d),
+            0x4B => bit!(1, e),
+            0x4C => bit!(1, h),
+            0x4D => bit!(1, l),
+            0x4E => instruction! {InstructionStep::Instant(|_, _| todo!("BIT 1, HL"))},
+            0x4F => bit!(1, a),
+
+            0x50 => bit!(2, b),
+            0x51 => bit!(2, c),
+            0x52 => bit!(2, d),
+            0x53 => bit!(2, e),
+            0x54 => bit!(2, h),
+            0x55 => bit!(2, l),
+            0x56 => instruction! {InstructionStep::Instant(|_, _| todo!("BIT 2, HL"))},
+            0x57 => bit!(2, a),
+
+            0x58 => bit!(3, b),
+            0x59 => bit!(3, c),
+            0x5A => bit!(3, d),
+            0x5B => bit!(3, e),
+            0x5C => bit!(3, h),
+            0x5D => bit!(3, l),
+            0x5E => instruction! {InstructionStep::Instant(|_, _| todo!("BIT 3, HL"))},
+            0x5F => bit!(3, a),
+
+            0x60 => bit!(4, b),
+            0x61 => bit!(4, c),
+            0x62 => bit!(4, d),
+            0x63 => bit!(4, e),
+            0x64 => bit!(4, h),
+            0x65 => bit!(4, l),
+            0x66 => instruction! {InstructionStep::Instant(|_, _| todo!("BIT 4, HL"))},
+            0x67 => bit!(4, a),
+
+            0x68 => bit!(5, b),
+            0x69 => bit!(5, c),
+            0x6A => bit!(5, d),
+            0x6B => bit!(5, e),
+            0x6C => bit!(5, h),
+            0x6D => bit!(5, l),
+            0x6E => instruction! {InstructionStep::Instant(|_, _| todo!("BIT 5, HL"))},
+            0x6F => bit!(5, a),
+
+            0x70 => bit!(6, b),
+            0x71 => bit!(6, c),
+            0x72 => bit!(6, d),
+            0x73 => bit!(6, e),
+            0x74 => bit!(6, h),
+            0x75 => bit!(6, l),
+            0x76 => instruction! {InstructionStep::Instant(|_, _| todo!("BIT 6, HL"))},
+            0x77 => bit!(6, a),
+
+            0x78 => bit!(7, b),
+            0x79 => bit!(7, c),
+            0x7A => bit!(7, d),
+            0x7B => bit!(7, e),
+            0x7C => bit!(7, h),
+            0x7D => bit!(7, l),
+            0x7E => instruction! {InstructionStep::Instant(|_, _| todo!("BIT 7, HL"))},
+            0x7F => bit!(7, a),
+
+            0x80 => res!(0, b),
+            0x81 => res!(0, c),
+            0x82 => res!(0, d),
+            0x83 => res!(0, e),
+            0x84 => res!(0, h),
+            0x85 => res!(0, l),
+            0x86 => instruction! {InstructionStep::Instant(|_, _| todo!("res 0, HL"))},
+            0x87 => res!(0, a),
+
+            0x88 => res!(1, b),
+            0x89 => res!(1, c),
+            0x8A => res!(1, d),
+            0x8B => res!(1, e),
+            0x8C => res!(1, h),
+            0x8D => res!(1, l),
+            0x8E => instruction! {InstructionStep::Instant(|_, _| todo!("res 1, HL"))},
+            0x8F => res!(1, a),
+
+            0x90 => res!(2, b),
+            0x91 => res!(2, c),
+            0x92 => res!(2, d),
+            0x93 => res!(2, e),
+            0x94 => res!(2, h),
+            0x95 => res!(2, l),
+            0x96 => instruction! {InstructionStep::Instant(|_, _| todo!("res 2, HL"))},
+            0x97 => res!(2, a),
+
+            0x98 => res!(3, b),
+            0x99 => res!(3, c),
+            0x9A => res!(3, d),
+            0x9B => res!(3, e),
+            0x9C => res!(3, h),
+            0x9D => res!(3, l),
+            0x9E => instruction! {InstructionStep::Instant(|_, _| todo!("res 3, HL"))},
+            0x9F => res!(3, a),
+
+            0xA0 => res!(4, b),
+            0xA1 => res!(4, c),
+            0xA2 => res!(4, d),
+            0xA3 => res!(4, e),
+            0xA4 => res!(4, h),
+            0xA5 => res!(4, l),
+            0xA6 => instruction! {InstructionStep::Instant(|_, _| todo!("res 4, HL"))},
+            0xA7 => res!(4, a),
+
+            0xA8 => res!(5, b),
+            0xA9 => res!(5, c),
+            0xAA => res!(5, d),
+            0xAB => res!(5, e),
+            0xAC => res!(5, h),
+            0xAD => res!(5, l),
+            0xAE => instruction! {InstructionStep::Instant(|_, _| todo!("res 5, HL"))},
+            0xAF => res!(5, a),
+
+            0xB0 => res!(6, b),
+            0xB1 => res!(6, c),
+            0xB2 => res!(6, d),
+            0xB3 => res!(6, e),
+            0xB4 => res!(6, h),
+            0xB5 => res!(6, l),
+            0xB6 => instruction! {InstructionStep::Instant(|_, _| todo!("res 6, HL"))},
+            0xB7 => res!(6, a),
+
+            0xB8 => res!(7, b),
+            0xB9 => res!(7, c),
+            0xBA => res!(7, d),
+            0xBB => res!(7, e),
+            0xBC => res!(7, h),
+            0xBD => res!(7, l),
+            0xBE => instruction! {InstructionStep::Instant(|_, _| todo!("res 7, HL"))},
+            0xBF => res!(7, a),
+
+            0xC0 => set!(0, b),
+            0xC1 => set!(0, c),
+            0xC2 => set!(0, d),
+            0xC3 => set!(0, e),
+            0xC4 => set!(0, h),
+            0xC5 => set!(0, l),
+            0xC6 => instruction! {InstructionStep::Instant(|_, _| todo!("set 0, HL"))},
+            0xC7 => set!(0, a),
+
+            0xC8 => set!(1, b),
+            0xC9 => set!(1, c),
+            0xCA => set!(1, d),
+            0xCB => set!(1, e),
+            0xCC => set!(1, h),
+            0xCD => set!(1, l),
+            0xCE => instruction! {InstructionStep::Instant(|_, _| todo!("set 1, HL"))},
+            0xCF => set!(1, a),
+
+            0xD0 => set!(2, b),
+            0xD1 => set!(2, c),
+            0xD2 => set!(2, d),
+            0xD3 => set!(2, e),
+            0xD4 => set!(2, h),
+            0xD5 => set!(2, l),
+            0xD6 => instruction! {InstructionStep::Instant(|_, _| todo!("set 2, HL"))},
+            0xD7 => set!(2, a),
+
+            0xD8 => set!(3, b),
+            0xD9 => set!(3, c),
+            0xDA => set!(3, d),
+            0xDB => set!(3, e),
+            0xDC => set!(3, h),
+            0xDD => set!(3, l),
+            0xDE => instruction! {InstructionStep::Instant(|_, _| todo!("set 3, HL"))},
+            0xDF => set!(3, a),
+
+            0xE0 => set!(4, b),
+            0xE1 => set!(4, c),
+            0xE2 => set!(4, d),
+            0xE3 => set!(4, e),
+            0xE4 => set!(4, h),
+            0xE5 => set!(4, l),
+            0xE6 => instruction! {InstructionStep::Instant(|_, _| todo!("set 4, HL"))},
+            0xE7 => set!(4, a),
+
+            0xE8 => set!(5, b),
+            0xE9 => set!(5, c),
+            0xEA => set!(5, d),
+            0xEB => set!(5, e),
+            0xEC => set!(5, h),
+            0xED => set!(5, l),
+            0xEE => instruction! {InstructionStep::Instant(|_, _| todo!("set 5, HL"))},
+            0xEF => set!(5, a),
+
+            0xF0 => set!(6, b),
+            0xF1 => set!(6, c),
+            0xF2 => set!(6, d),
+            0xF3 => set!(6, e),
+            0xF4 => set!(6, h),
+            0xF5 => set!(6, l),
+            0xF6 => instruction! {InstructionStep::Instant(|_, _| todo!("set 6, HL"))},
+            0xF7 => set!(6, a),
+
+            0xF8 => set!(7, b),
+            0xF9 => set!(7, c),
+            0xFA => set!(7, d),
+            0xFB => set!(7, e),
+            0xFC => set!(7, h),
+            0xFD => set!(7, l),
+            0xFE => instruction! {InstructionStep::Instant(|_, _| todo!("set 7, HL"))},
+            0xFF => set!(7, a),
+        };
+
+        let mut instructions = Vec::new();
+        for opcode in 0..=255 {
+            instructions.push(helper(opcode));
+        }
+
+        instructions
+            .try_into()
+            .unwrap_or_else(|_| panic!("Unable to convert instruction vec into array."))
     }
 
     pub fn exec(
@@ -1472,7 +2072,9 @@ impl InstructionCache {
             InstructionOpcode::Unprefixed(opcode) => {
                 self.instructions[opcode as usize].exec(cpu, bus)
             }
-            InstructionOpcode::Prefixed(opcode) => todo!(),
+            InstructionOpcode::Prefixed(opcode) => {
+                self.cb_instructions[opcode as usize].exec(cpu, bus)
+            }
             InstructionOpcode::InterruptServiceRoutine => {
                 self.interrupt_service_routine.exec(cpu, bus)
             }
@@ -1482,7 +2084,7 @@ impl InstructionCache {
     pub fn get(&mut self, opcode: InstructionOpcode) -> &InstructionStep {
         match opcode {
             InstructionOpcode::Unprefixed(opcode) => self.instructions[opcode as usize].get(),
-            InstructionOpcode::Prefixed(_) => todo!(),
+            InstructionOpcode::Prefixed(opcode) => self.cb_instructions[opcode as usize].get(),
             InstructionOpcode::InterruptServiceRoutine => self.interrupt_service_routine.get(),
         }
     }
@@ -1490,7 +2092,7 @@ impl InstructionCache {
     pub fn reset(&mut self, opcode: InstructionOpcode) {
         match opcode {
             InstructionOpcode::Unprefixed(opcode) => self.instructions[opcode as usize].reset(),
-            InstructionOpcode::Prefixed(_) => todo!(),
+            InstructionOpcode::Prefixed(opcode) => self.cb_instructions[opcode as usize].reset(),
             InstructionOpcode::InterruptServiceRoutine => self.interrupt_service_routine.reset(),
         }
     }

@@ -147,12 +147,17 @@ impl Cpu {
             }
 
             self.instruction_opcode = match self.fetch(bus) {
-                0xCB => todo!(),
-                opcode => {
-                    log::debug!("Fetching Opcode {:#06X}", opcode);
-                    Some(InstructionOpcode::Unprefixed(opcode))
-                }
+                0xCB => Some(InstructionOpcode::Prefixed(self.fetch(bus))),
+                opcode => Some(InstructionOpcode::Unprefixed(opcode)),
             };
+
+            match self.instruction_opcode.unwrap() {
+                InstructionOpcode::InterruptServiceRoutine => log::debug!("Fetched the isr??"),
+                InstructionOpcode::Unprefixed(opcode) => log::debug!("Fetched {:#04X}", opcode),
+                InstructionOpcode::Prefixed(opcode) => {
+                    log::debug!("Fetched {:#06X}", 0xCB00 + (opcode as u16))
+                }
+            }
 
             self.cycle += 1;
             return;

@@ -16,7 +16,7 @@ mod gameboy;
 fn main() {
     #[cfg(debug_assertions)]
     if env::var("RUST_LOG").is_err() {
-        env::set_var("RUST_LOG", "debug")
+        env::set_var("RUST_LOG", "info")
     }
 
     #[cfg(debug_assertions)]
@@ -41,7 +41,7 @@ fn main() {
     env_logger::init();
     log_panics::init();
 
-    let mut gb = GameBoy::new("/mnt/i/Dev/gb-rs/06.gb");
+    let mut gb = GameBoy::new("/mnt/i/Dev/gb-rs/01.gb");
     log::info!("Initialized gameboy.");
 
     loop {

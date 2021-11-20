@@ -9,3 +9,6 @@ Blargg
 
 MBC4
 - https://twitter.com/LuigiBlood/status/1444084664952664073
+
+Sound Libraries
+- https://discord.com/channels/465585922579103744/551430933836988438/911694138095829072

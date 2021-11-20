@@ -71,7 +71,7 @@ impl Timer {
         let prev_bit = (prev_div >> bit_to_check) & 1;
         let bit = (current_div >> bit_to_check) & 1;
 
-        return prev_bit == 1 && bit == 0;
+        prev_bit == 1 && bit == 0
     }
 
     fn incr_tima(&mut self) {

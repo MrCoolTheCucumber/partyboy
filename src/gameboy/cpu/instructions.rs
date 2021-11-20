@@ -1175,21 +1175,18 @@ fn halt() -> Instruction {
                 // IME set
                 cpu.halted = true;
             }
+            else if bus.interrupts.enable & bus.interrupts.flags & 0x1F != 0 {
+                // IME not set, interupt pending
+                // continue execution, but the next byte is read twice
+                // or in other words, after the next byte is read the pc gets
+                // decremented back to what it was
+                cpu.halt_bug_triggered = true;
+            }
             else {
-                if bus.interrupts.enable & bus.interrupts.flags & 0x1F != 0 {
-                    // IME not set, interupt pending
-                    // continue execution, but the next byte is read twice
-                    // or in other words, after the next byte is read the pc gets
-                    // decremented back to what it was
-                    cpu.halt_bug_triggered = true;
-                }
-                else {
-                    // IME not set, no interupt pending
-                    cpu.halted = true;
-                    cpu.halted_waiting_for_interrupt_pending = true;
-                    bus.interrupts.waiting_for_halt_if = true;
-
-                }
+                // IME not set, no interupt pending
+                cpu.halted = true;
+                cpu.halted_waiting_for_interrupt_pending = true;
+                bus.interrupts.waiting_for_halt_if = true;
             }
 
             InstructionState::Finished
@@ -1298,7 +1295,7 @@ impl Cpu {
 
         if carry != 0 {
             self.set_flag(Flag::C);
-            result = result | 0x80;
+            result |= 0x80;
         } else {
             self.clear_flag(Flag::C);
         }

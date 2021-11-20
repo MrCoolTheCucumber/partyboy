@@ -155,8 +155,8 @@ fn try_read_save_file(
                         load_new_ram(ram_banks, num_ram_banks);
                         let mut index: usize = 0;
                         for bank in ram_banks {
-                            for i in 0..0x2000 {
-                                bank[i] = buf[index];
+                            for val in bank.iter_mut().take(0x2000) {
+                                *val = buf[index];
                                 index += 1;
                             }
                         }

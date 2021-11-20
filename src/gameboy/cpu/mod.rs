@@ -32,6 +32,7 @@ pub struct Cpu {
     is_fetching: bool,
     instruction_opcode: Option<InstructionOpcode>,
 
+    stopped: bool,
     halted: bool,
     halted_waiting_for_interrupt_pending: bool,
     halt_bug_triggered: bool,
@@ -80,6 +81,7 @@ impl Cpu {
             is_fetching: false,
             instruction_opcode: None,
 
+            stopped: false,
             halted: false,
             halted_waiting_for_interrupt_pending: false,
             halt_bug_triggered: false,
@@ -98,6 +100,10 @@ impl Cpu {
         self.instruction_opcode = Some(InstructionOpcode::InterruptServiceRoutine);
         self.is_fetching = false;
         self.halted = false; // TODO: un-halting should take extra 4t (TCAGBD 4.9?)
+    }
+
+    pub fn stopped(&self) -> bool {
+        self.stopped
     }
 
     pub fn is_fetching(&self) -> bool {

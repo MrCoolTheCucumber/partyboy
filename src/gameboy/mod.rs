@@ -29,6 +29,10 @@ impl GameBoy {
     }
 
     pub fn tick(&mut self) {
+        if self.cpu.stopped() {
+            return;
+        }
+
         Interrupts::tick(&mut self.bus.interrupts, &mut self.cpu);
         self.cpu.tick(&mut self.bus, &mut self.instruction_cache);
         self.bus.timer.tick(&mut self.bus.interrupts);

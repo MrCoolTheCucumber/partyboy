@@ -1118,6 +1118,16 @@ fn jp_hl() -> Instruction {
     }
 }
 
+fn stop() -> Instruction {
+    instruction! {
+        InstructionStep::Instant(|_, _| {
+            // TODO: for now lets just do nothing!
+            // cpu.stopped = true;
+            InstructionState::Finished
+        })
+    }
+}
+
 fn ld_sp_hl() -> Instruction {
     instruction! {
         InstructionStep::Standard(|cpu, _| {
@@ -1229,6 +1239,21 @@ fn interrupt_service_routine() -> Instruction {
 }
 
 macro_rules! bit {
+    ($bit:expr, hl) => {
+        instruction! {
+            BLANK_PROGRESS,
+            InstructionStep::Standard(|cpu, bus| {
+                let arg = bus.read_u8(cpu.hl.into());
+
+                cpu.set_flag_if_cond_else_clear(arg & (1 << $bit) == 0, Flag::Z);
+                cpu.clear_flag(Flag::N);
+                cpu.set_flag(Flag::H);
+
+                InstructionState::Finished
+            })
+        }
+    };
+
     ($bit:expr, $reg:tt) => {
         instruction! {
             BLANK_PROGRESS,
@@ -1244,6 +1269,21 @@ macro_rules! bit {
 }
 
 macro_rules! res {
+    ($bit:expr, hl) => {
+        instruction! {
+            BLANK_PROGRESS,
+            InstructionStep::Standard(|cpu, bus| {
+                cpu.temp8 = bus.read_u8(cpu.hl.into());
+                InstructionState::InProgress
+            }),
+            InstructionStep::Standard(|cpu, bus| {
+                let result = cpu.temp8 & !(1 << $bit);
+                bus.write_u8(cpu.hl.into(), result);
+                InstructionState::Finished
+            })
+        }
+    };
+
     ($bit:expr, $reg:tt) => {
         instruction! {
             BLANK_PROGRESS,
@@ -1256,6 +1296,21 @@ macro_rules! res {
 }
 
 macro_rules! set {
+    ($bit:expr, hl) => {
+        instruction! {
+            BLANK_PROGRESS,
+            InstructionStep::Standard(|cpu, bus| {
+                cpu.temp8 = bus.read_u8(cpu.hl.into());
+                InstructionState::InProgress
+            }),
+            InstructionStep::Standard(|cpu, bus| {
+                let result = cpu.temp8 | (1 << $bit);
+                bus.write_u8(cpu.hl.into(), result);
+                InstructionState::Finished
+            })
+        }
+    };
+
     ($bit:expr, $reg:tt) => {
         instruction! {
             BLANK_PROGRESS,
@@ -1273,6 +1328,23 @@ macro_rules! cb_op_instr {
             BLANK_PROGRESS,
             InstructionStep::Instant(|cpu, _| {
                 r8!(cpu, $reg) = cpu.$func(r8!(cpu, $reg));
+                InstructionState::Finished
+            })
+        }
+    };
+}
+
+macro_rules! cb_op_hl_instr {
+    ($func:ident, hl) => {
+        instruction! {
+            BLANK_PROGRESS,
+            InstructionStep::Standard(|cpu, bus| {
+                cpu.temp8 = bus.read_u8(cpu.hl.into());
+                InstructionState::InProgress
+            }),
+            InstructionStep::Standard(|cpu, bus| {
+                let result = cpu.$func(cpu.temp8);
+                bus.write_u8(cpu.hl.into(), result);
                 InstructionState::Finished
             })
         }
@@ -1472,7 +1544,7 @@ impl InstructionCache {
             0x0E => ld_r8_u8!(bc, lo),
             0x0F => rrca(),
 
-            0x10 => instruction!(InstructionStep::Instant(|_, _| unimplemented!("STOP"))),
+            0x10 => stop(),
             0x11 => ld_r16_u16!(de),
             0x12 => ld_mem_a!(de),
             0x13 => inc_r16!(de),
@@ -1770,7 +1842,7 @@ impl InstructionCache {
             0x03 => cb_op_instr!(rlc, e),
             0x04 => cb_op_instr!(rlc, h),
             0x05 => cb_op_instr!(rlc, l),
-            0x06 => instruction! {InstructionStep::Instant(|_, _| todo!("rlc HL"))},
+            0x06 => cb_op_hl_instr!(rlc, hl),
             0x07 => cb_op_instr!(rlc, a),
 
             0x08 => cb_op_instr!(rrc, b),
@@ -1779,7 +1851,7 @@ impl InstructionCache {
             0x0B => cb_op_instr!(rrc, e),
             0x0C => cb_op_instr!(rrc, h),
             0x0D => cb_op_instr!(rrc, l),
-            0x0E => instruction! {InstructionStep::Instant(|_, _| todo!("rrc HL"))},
+            0x0E => cb_op_hl_instr!(rrc, hl),
             0x0F => cb_op_instr!(rrc, a),
 
             0x10 => cb_op_instr!(rl, b),
@@ -1788,7 +1860,7 @@ impl InstructionCache {
             0x13 => cb_op_instr!(rl, e),
             0x14 => cb_op_instr!(rl, h),
             0x15 => cb_op_instr!(rl, l),
-            0x16 => instruction! {InstructionStep::Instant(|_, _| todo!("rl HL"))},
+            0x16 => cb_op_hl_instr!(rl, hl),
             0x17 => cb_op_instr!(rl, a),
 
             0x18 => cb_op_instr!(rr, b),
@@ -1797,7 +1869,7 @@ impl InstructionCache {
             0x1B => cb_op_instr!(rr, e),
             0x1C => cb_op_instr!(rr, h),
             0x1D => cb_op_instr!(rr, l),
-            0x1E => instruction! {InstructionStep::Instant(|_, _| todo!("rr HL"))},
+            0x1E => cb_op_hl_instr!(rr, hl),
             0x1F => cb_op_instr!(rr, a),
 
             0x20 => cb_op_instr!(sla, b),
@@ -1806,7 +1878,7 @@ impl InstructionCache {
             0x23 => cb_op_instr!(sla, e),
             0x24 => cb_op_instr!(sla, h),
             0x25 => cb_op_instr!(sla, l),
-            0x26 => instruction! {InstructionStep::Instant(|_, _| todo!("sla HL"))},
+            0x26 => cb_op_hl_instr!(sla, hl),
             0x27 => cb_op_instr!(sla, a),
 
             0x28 => cb_op_instr!(sra, b),
@@ -1815,7 +1887,7 @@ impl InstructionCache {
             0x2B => cb_op_instr!(sra, e),
             0x2C => cb_op_instr!(sra, h),
             0x2D => cb_op_instr!(sra, l),
-            0x2E => instruction! {InstructionStep::Instant(|_, _| todo!("sra HL"))},
+            0x2E => cb_op_hl_instr!(sra, hl),
             0x2F => cb_op_instr!(sra, a),
 
             0x30 => cb_op_instr!(swap, b),
@@ -1824,7 +1896,7 @@ impl InstructionCache {
             0x33 => cb_op_instr!(swap, e),
             0x34 => cb_op_instr!(swap, h),
             0x35 => cb_op_instr!(swap, l),
-            0x36 => instruction! {InstructionStep::Instant(|_, _| todo!("swap HL"))},
+            0x36 => cb_op_hl_instr!(swap, hl),
             0x37 => cb_op_instr!(swap, a),
 
             0x38 => cb_op_instr!(srl, b),
@@ -1833,7 +1905,7 @@ impl InstructionCache {
             0x3B => cb_op_instr!(srl, e),
             0x3C => cb_op_instr!(srl, h),
             0x3D => cb_op_instr!(srl, l),
-            0x3E => instruction! {InstructionStep::Instant(|_, _| todo!("srl HL"))},
+            0x3E => cb_op_hl_instr!(srl, hl),
             0x3F => cb_op_instr!(srl, a),
 
             0x40 => bit!(0, b),
@@ -1842,7 +1914,7 @@ impl InstructionCache {
             0x43 => bit!(0, e),
             0x44 => bit!(0, h),
             0x45 => bit!(0, l),
-            0x46 => instruction! {InstructionStep::Instant(|_, _| todo!("BIT 0, HL"))},
+            0x46 => bit!(0, hl),
             0x47 => bit!(0, a),
 
             0x48 => bit!(1, b),
@@ -1851,7 +1923,7 @@ impl InstructionCache {
             0x4B => bit!(1, e),
             0x4C => bit!(1, h),
             0x4D => bit!(1, l),
-            0x4E => instruction! {InstructionStep::Instant(|_, _| todo!("BIT 1, HL"))},
+            0x4E => bit!(1, hl),
             0x4F => bit!(1, a),
 
             0x50 => bit!(2, b),
@@ -1860,7 +1932,7 @@ impl InstructionCache {
             0x53 => bit!(2, e),
             0x54 => bit!(2, h),
             0x55 => bit!(2, l),
-            0x56 => instruction! {InstructionStep::Instant(|_, _| todo!("BIT 2, HL"))},
+            0x56 => bit!(2, hl),
             0x57 => bit!(2, a),
 
             0x58 => bit!(3, b),
@@ -1869,7 +1941,7 @@ impl InstructionCache {
             0x5B => bit!(3, e),
             0x5C => bit!(3, h),
             0x5D => bit!(3, l),
-            0x5E => instruction! {InstructionStep::Instant(|_, _| todo!("BIT 3, HL"))},
+            0x5E => bit!(3, hl),
             0x5F => bit!(3, a),
 
             0x60 => bit!(4, b),
@@ -1878,7 +1950,7 @@ impl InstructionCache {
             0x63 => bit!(4, e),
             0x64 => bit!(4, h),
             0x65 => bit!(4, l),
-            0x66 => instruction! {InstructionStep::Instant(|_, _| todo!("BIT 4, HL"))},
+            0x66 => bit!(4, hl),
             0x67 => bit!(4, a),
 
             0x68 => bit!(5, b),
@@ -1887,7 +1959,7 @@ impl InstructionCache {
             0x6B => bit!(5, e),
             0x6C => bit!(5, h),
             0x6D => bit!(5, l),
-            0x6E => instruction! {InstructionStep::Instant(|_, _| todo!("BIT 5, HL"))},
+            0x6E => bit!(5, hl),
             0x6F => bit!(5, a),
 
             0x70 => bit!(6, b),
@@ -1896,7 +1968,7 @@ impl InstructionCache {
             0x73 => bit!(6, e),
             0x74 => bit!(6, h),
             0x75 => bit!(6, l),
-            0x76 => instruction! {InstructionStep::Instant(|_, _| todo!("BIT 6, HL"))},
+            0x76 => bit!(6, hl),
             0x77 => bit!(6, a),
 
             0x78 => bit!(7, b),
@@ -1905,7 +1977,7 @@ impl InstructionCache {
             0x7B => bit!(7, e),
             0x7C => bit!(7, h),
             0x7D => bit!(7, l),
-            0x7E => instruction! {InstructionStep::Instant(|_, _| todo!("BIT 7, HL"))},
+            0x7E => bit!(7, hl),
             0x7F => bit!(7, a),
 
             0x80 => res!(0, b),
@@ -1914,7 +1986,7 @@ impl InstructionCache {
             0x83 => res!(0, e),
             0x84 => res!(0, h),
             0x85 => res!(0, l),
-            0x86 => instruction! {InstructionStep::Instant(|_, _| todo!("res 0, HL"))},
+            0x86 => res!(0, hl),
             0x87 => res!(0, a),
 
             0x88 => res!(1, b),
@@ -1923,7 +1995,7 @@ impl InstructionCache {
             0x8B => res!(1, e),
             0x8C => res!(1, h),
             0x8D => res!(1, l),
-            0x8E => instruction! {InstructionStep::Instant(|_, _| todo!("res 1, HL"))},
+            0x8E => res!(1, hl),
             0x8F => res!(1, a),
 
             0x90 => res!(2, b),
@@ -1932,7 +2004,7 @@ impl InstructionCache {
             0x93 => res!(2, e),
             0x94 => res!(2, h),
             0x95 => res!(2, l),
-            0x96 => instruction! {InstructionStep::Instant(|_, _| todo!("res 2, HL"))},
+            0x96 => res!(2, hl),
             0x97 => res!(2, a),
 
             0x98 => res!(3, b),
@@ -1941,7 +2013,7 @@ impl InstructionCache {
             0x9B => res!(3, e),
             0x9C => res!(3, h),
             0x9D => res!(3, l),
-            0x9E => instruction! {InstructionStep::Instant(|_, _| todo!("res 3, HL"))},
+            0x9E => res!(3, hl),
             0x9F => res!(3, a),
 
             0xA0 => res!(4, b),
@@ -1950,7 +2022,7 @@ impl InstructionCache {
             0xA3 => res!(4, e),
             0xA4 => res!(4, h),
             0xA5 => res!(4, l),
-            0xA6 => instruction! {InstructionStep::Instant(|_, _| todo!("res 4, HL"))},
+            0xA6 => res!(4, hl),
             0xA7 => res!(4, a),
 
             0xA8 => res!(5, b),
@@ -1959,7 +2031,7 @@ impl InstructionCache {
             0xAB => res!(5, e),
             0xAC => res!(5, h),
             0xAD => res!(5, l),
-            0xAE => instruction! {InstructionStep::Instant(|_, _| todo!("res 5, HL"))},
+            0xAE => res!(5, hl),
             0xAF => res!(5, a),
 
             0xB0 => res!(6, b),
@@ -1968,7 +2040,7 @@ impl InstructionCache {
             0xB3 => res!(6, e),
             0xB4 => res!(6, h),
             0xB5 => res!(6, l),
-            0xB6 => instruction! {InstructionStep::Instant(|_, _| todo!("res 6, HL"))},
+            0xB6 => res!(6, hl),
             0xB7 => res!(6, a),
 
             0xB8 => res!(7, b),
@@ -1977,7 +2049,7 @@ impl InstructionCache {
             0xBB => res!(7, e),
             0xBC => res!(7, h),
             0xBD => res!(7, l),
-            0xBE => instruction! {InstructionStep::Instant(|_, _| todo!("res 7, HL"))},
+            0xBE => res!(7, hl),
             0xBF => res!(7, a),
 
             0xC0 => set!(0, b),
@@ -1986,7 +2058,7 @@ impl InstructionCache {
             0xC3 => set!(0, e),
             0xC4 => set!(0, h),
             0xC5 => set!(0, l),
-            0xC6 => instruction! {InstructionStep::Instant(|_, _| todo!("set 0, HL"))},
+            0xC6 => set!(0, hl),
             0xC7 => set!(0, a),
 
             0xC8 => set!(1, b),
@@ -1995,7 +2067,7 @@ impl InstructionCache {
             0xCB => set!(1, e),
             0xCC => set!(1, h),
             0xCD => set!(1, l),
-            0xCE => instruction! {InstructionStep::Instant(|_, _| todo!("set 1, HL"))},
+            0xCE => set!(1, hl),
             0xCF => set!(1, a),
 
             0xD0 => set!(2, b),
@@ -2004,7 +2076,7 @@ impl InstructionCache {
             0xD3 => set!(2, e),
             0xD4 => set!(2, h),
             0xD5 => set!(2, l),
-            0xD6 => instruction! {InstructionStep::Instant(|_, _| todo!("set 2, HL"))},
+            0xD6 => set!(2, hl),
             0xD7 => set!(2, a),
 
             0xD8 => set!(3, b),
@@ -2013,7 +2085,7 @@ impl InstructionCache {
             0xDB => set!(3, e),
             0xDC => set!(3, h),
             0xDD => set!(3, l),
-            0xDE => instruction! {InstructionStep::Instant(|_, _| todo!("set 3, HL"))},
+            0xDE => set!(3, hl),
             0xDF => set!(3, a),
 
             0xE0 => set!(4, b),
@@ -2022,7 +2094,7 @@ impl InstructionCache {
             0xE3 => set!(4, e),
             0xE4 => set!(4, h),
             0xE5 => set!(4, l),
-            0xE6 => instruction! {InstructionStep::Instant(|_, _| todo!("set 4, HL"))},
+            0xE6 => set!(4, hl),
             0xE7 => set!(4, a),
 
             0xE8 => set!(5, b),
@@ -2031,7 +2103,7 @@ impl InstructionCache {
             0xEB => set!(5, e),
             0xEC => set!(5, h),
             0xED => set!(5, l),
-            0xEE => instruction! {InstructionStep::Instant(|_, _| todo!("set 5, HL"))},
+            0xEE => set!(5, hl),
             0xEF => set!(5, a),
 
             0xF0 => set!(6, b),
@@ -2040,7 +2112,7 @@ impl InstructionCache {
             0xF3 => set!(6, e),
             0xF4 => set!(6, h),
             0xF5 => set!(6, l),
-            0xF6 => instruction! {InstructionStep::Instant(|_, _| todo!("set 6, HL"))},
+            0xF6 => set!(6, hl),
             0xF7 => set!(6, a),
 
             0xF8 => set!(7, b),
@@ -2049,7 +2121,7 @@ impl InstructionCache {
             0xFB => set!(7, e),
             0xFC => set!(7, h),
             0xFD => set!(7, l),
-            0xFE => instruction! {InstructionStep::Instant(|_, _| todo!("set 7, HL"))},
+            0xFE => set!(7, hl),
             0xFF => set!(7, a),
         };
 

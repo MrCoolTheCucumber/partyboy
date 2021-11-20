@@ -18,7 +18,7 @@ pub enum InstructionState {
     /// We've finished fully executing the opcode
     Finished,
 
-    /// TODO
+    /// Are we finishing the instruction early?
     Branch(bool),
 }
 

@@ -2,12 +2,12 @@ use std::{fs::File, io::Read};
 
 use super::Cartridge;
 
-pub struct ROM {
+pub struct Rom {
     rom_bank_0: [u8; 0x4000],
     rom_bank_1: [u8; 0x4000],
 }
 
-impl ROM {
+impl Rom {
     pub fn new(mut file: File, rom_bank_0: [u8; 0x4000]) -> Self {
         let mut rom_bank_1: [u8; 0x4000] = [0; 0x4000];
         file.read_exact(&mut rom_bank_1).ok();
@@ -19,7 +19,7 @@ impl ROM {
     }
 }
 
-impl Cartridge for ROM {
+impl Cartridge for Rom {
     fn read_rom(&self, addr: u16) -> u8 {
         match addr & 0xF000 {
             0x0000 | 0x1000 | 0x2000 | 0x3000 => self.rom_bank_0[addr as usize],

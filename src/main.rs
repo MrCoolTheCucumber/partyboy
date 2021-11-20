@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use std::env;
 
 use gameboy::GameBoy;
@@ -41,7 +39,7 @@ fn main() {
     env_logger::init();
     log_panics::init();
 
-    let mut gb = GameBoy::new("/mnt/i/Dev/gb-rs/01.gb");
+    let mut gb = GameBoy::new("/mnt/i/Dev/gb-rs/cpu_instrs.gb");
     log::info!("Initialized gameboy.");
 
     loop {

@@ -7,7 +7,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::gameboy::cartridge::{mbc1::MBC1, rom::ROM};
+use crate::gameboy::cartridge::{mbc1::Mbc1, rom::Rom};
 
 pub trait Cartridge {
     fn read_rom(&self, addr: u16) -> u8;
@@ -78,11 +78,11 @@ pub fn create(rom_path: &str) -> Box<dyn Cartridge> {
     };
 
     match cartridge_type_code {
-        0x00 => Box::new(ROM::new(file, rom_bank_0)),
+        0x00 => Box::new(Rom::new(file, rom_bank_0)),
 
         0x01 | 0x02 | 0x03 => {
-            println!("MBC1 cart created!");
-            Box::new(MBC1::new(
+            log::info!("MBC1 cart created!");
+            Box::new(Mbc1::new(
                 file,
                 path,
                 rom_bank_0,
@@ -160,7 +160,7 @@ fn try_read_save_file(
                                 index += 1;
                             }
                         }
-                        println!("Save file loaded!");
+                        log::info!("Save file loaded!");
                     }
                 }
 

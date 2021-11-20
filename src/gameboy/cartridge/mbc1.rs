@@ -6,7 +6,7 @@ use std::{
 
 use super::{get_save_file_path_from_rom_path, try_read_save_file, Cartridge};
 
-pub struct MBC1 {
+pub struct Mbc1 {
     is_ram_enabled: bool,
     current_rom_bank: usize,
     current_ram_bank: usize,
@@ -18,7 +18,7 @@ pub struct MBC1 {
     save_file_path: PathBuf,
 }
 
-impl MBC1 {
+impl Mbc1 {
     pub fn new(
         mut file: File,
         path: &Path,
@@ -56,7 +56,7 @@ impl MBC1 {
     }
 }
 
-impl Drop for MBC1 {
+impl Drop for Mbc1 {
     fn drop(&mut self) {
         // create save file
         let mut sav_file = File::create(&self.save_file_path).unwrap();
@@ -67,7 +67,7 @@ impl Drop for MBC1 {
     }
 }
 
-impl Cartridge for MBC1 {
+impl Cartridge for Mbc1 {
     fn read_rom(&self, addr: u16) -> u8 {
         match addr & 0xF000 {
             0x0000 | 0x1000 | 0x2000 | 0x3000 => self.rom_banks[0][addr as usize],

@@ -529,6 +529,7 @@ macro_rules! ld_r8_r8 {
 
     ($dest_reg:ident,$dest_bit:ident <= $src_reg:ident,$src_bit:ident) => {
         instruction! {
+            #[allow(clippy::self_assignment)]
             InstructionStep::Instant(|cpu, _| {
                 cpu.$dest_reg.$dest_bit = cpu.$src_reg.$src_bit;
                 InstructionState::Finished
@@ -1212,7 +1213,10 @@ fn interrupt_service_routine() -> Instruction {
         InstructionStep::Standard(|cpu, bus| {
             let interrupt_state = bus.interrupts.get_interupt_state_latched(cpu.temp8, cpu.temp16 as u8);
             let vector = match interrupt_state {
-                Some(flag) => flag.vector(),
+                Some(flag) => {
+                    bus.interrupts.clear_interupt(flag);
+                    flag.vector()
+                },
                 None => 0
             };
 

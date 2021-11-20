@@ -123,7 +123,7 @@ impl Bus {
                 0x0E00 => { /* TODO: Sprite Table */ }
 
                 0x0F00 => match addr {
-                    0xFF01 => log::info!("{}", val as char),
+                    0xFF01 => print!("{}", val as char),
                     0xFF04..=0xFF07 => self.timer.write(addr, val),
                     0xFF0F => self.interrupts.flags = val,
                     0xFFFF => self.interrupts.enable = val,

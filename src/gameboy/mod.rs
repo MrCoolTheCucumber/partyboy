@@ -37,4 +37,8 @@ impl GameBoy {
         self.cpu.tick(&mut self.bus, &mut self.instruction_cache);
         self.bus.timer.tick(&mut self.bus.interrupts);
     }
+
+    pub fn get_frame_buffer(&self) -> &[u8] {
+        todo!();
+    }
 }

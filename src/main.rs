@@ -1,6 +1,7 @@
-use std::env;
+use std::{env, time::Duration};
 
 use gameboy::GameBoy;
+use gl::types::GLuint;
 use log::{log_enabled, LevelFilter};
 use log4rs::{
     append::file::FileAppender,
@@ -10,6 +11,11 @@ use log4rs::{
 };
 
 mod gameboy;
+mod render;
+
+pub const SCALE: u32 = 2;
+pub const WIDTH: u32 = 160;
+pub const HEIGHT: u32 = 144;
 
 fn init_logger() {
     if env::var("RUST_LOG").is_err() {
@@ -45,7 +51,51 @@ fn main() {
     let mut gb = GameBoy::new("/mnt/i/Dev/gb-rs/cpu_instrs.gb");
     log::info!("Initialized gameboy.");
 
-    loop {
+    let sdl = sdl2::init().unwrap();
+    let video = sdl.video().unwrap();
+
+    {
+        let gl_attr = video.gl_attr();
+        gl_attr.set_context_profile(sdl2::video::GLProfile::Core);
+        gl_attr.set_context_version(3, 0);
+    }
+
+    let mut window = video
+        .window("Partyboy", WIDTH * SCALE, HEIGHT * SCALE)
+        .position_centered()
+        .opengl()
+        .allow_highdpi()
+        .build()
+        .unwrap();
+
+    let _gl_context = window
+        .gl_create_context()
+        .expect("Couldn't create GL context");
+    gl::load_with(|s| video.gl_get_proc_address(s) as _);
+
+    let mut event_pump = sdl.event_pump().unwrap();
+
+    let mut fb_id: GLuint = 0;
+    let mut tex_id: GLuint = 0;
+    render::init_gl_state(&mut tex_id, &mut fb_id);
+
+    'running: loop {
+        use sdl2::event::Event;
+
+        for event in event_pump.poll_iter() {
+            match event {
+                Event::Quit { .. } => break 'running,
+                _ => {}
+            }
+        }
+
+        unsafe {
+            gl::ClearColor(0.4549, 0.92549, 0.968627, 0.7);
+            gl::Clear(gl::COLOR_BUFFER_BIT);
+        }
+
+        std::thread::sleep(Duration::from_millis(16));
+
         gb.tick();
     }
 }

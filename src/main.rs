@@ -1,7 +1,7 @@
 use std::env;
 
 use gameboy::GameBoy;
-use log::LevelFilter;
+use log::{log_enabled, LevelFilter};
 use log4rs::{
     append::file::FileAppender,
     config::{Appender, Root},
@@ -11,14 +11,12 @@ use log4rs::{
 
 mod gameboy;
 
-fn main() {
-    #[cfg(debug_assertions)]
+fn init_logger() {
     if env::var("RUST_LOG").is_err() {
         env::set_var("RUST_LOG", "info")
     }
 
-    #[cfg(debug_assertions)]
-    {
+    if log_enabled!(log::Level::Debug) {
         let logfile = FileAppender::builder()
             .encoder(Box::new(PatternEncoder::new("{l} - {m}\n")))
             .build("log/output.log")
@@ -33,11 +31,16 @@ fn main() {
             )
             .unwrap();
 
-        // log4rs::init_config(config).unwrap();
+        log4rs::init_config(config).unwrap();
+    } else {
+        env_logger::init();
     }
 
-    env_logger::init();
     log_panics::init();
+}
+
+fn main() {
+    init_logger();
 
     let mut gb = GameBoy::new("/mnt/i/Dev/gb-rs/cpu_instrs.gb");
     log::info!("Initialized gameboy.");

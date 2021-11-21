@@ -225,6 +225,13 @@ impl Ppu {
         }
     }
 
+    fn get_window_map_start_addr(&self) -> u16 {
+        match (self.lcdc & LcdControlFlag::WindowTileMapAddress as u8) != 0 {
+            true => 0x9C00,
+            false => 0x9800,
+        }
+    }
+
     fn get_adjusted_tile_index(&self, addr: u16, signed_tile_index: bool) -> u16 {
         let addr = (addr - 0x8000) as usize;
         if signed_tile_index {
@@ -315,6 +322,17 @@ impl Ppu {
         if self.lcdc & LcdControlFlag::BGEnable as u8 != 0 {
             self.draw_background(&mut scan_line_row);
         }
+
+        let skip_window_draw =
+            self.wy > 166 || (self.wx.wrapping_sub(7)) > 143 || self.wy > self.ly;
+
+        if self.lcdc & LcdControlFlag::WindowEnable as u8 != 0 && !skip_window_draw {
+            self.draw_window(&mut scan_line_row);
+        }
+
+        if self.lcdc & LcdControlFlag::OBJEnable as u8 != 0 {
+            self.draw_sprites(&mut scan_line_row);
+        }
     }
 
     fn draw_background(&mut self, scan_line_row: &mut [u8; 160]) {
@@ -386,6 +404,157 @@ impl Ppu {
                 tile_address = (tile_index * 16) + (tile_local_y as u16 * 2);
                 b1 = self.gpu_vram[tile_address as usize];
                 b2 = self.gpu_vram[tile_address as usize + 1];
+            }
+        }
+    }
+
+    fn draw_window(&mut self, scan_line_row: &mut [u8; 160]) {
+        let wd_map_start_addr = self.get_window_map_start_addr();
+        self.window_internal_line_counter += 1;
+
+        let y = self.window_internal_line_counter - 1; //scan_line - window_y;
+        let mut x = self.wx.wrapping_sub(7);
+
+        let tile_y = y / 8;
+
+        let mut tile_map_offset = tile_y as u16 * 32;
+        // tile_map_offset = (tile_y as u16) + tile_x as u16;
+        // are we using signed addressing for accessing the tile data (not map)
+        let signed_tile_addressing: bool =
+            self.lcdc & LcdControlFlag::BGAndWindowTileData as u8 == 0;
+
+        // get the tile index from the map
+        let mut tile_index = self
+            .get_adjusted_tile_index(wd_map_start_addr + tile_map_offset, signed_tile_addressing);
+
+        // above x and y are where we are relative to the whole bg map (256 * 256)
+        // we need x and y to be relative to the tile we want to draw
+        // so modulo by 8 (or & 7)
+        // shadow over old x an y variables
+        let tile_local_y = y & 7;
+        let mut tile_local_x = x & 7;
+
+        let mut tile_address = (tile_index * 16) + (tile_local_y as u16 * 2);
+        let mut b1 = self.gpu_vram[tile_address as usize];
+        let mut b2 = self.gpu_vram[tile_address as usize + 1];
+
+        let mut frame_buffer_offset = (self.ly as usize * 160) + x as usize;
+
+        let mut pixels_drawn_for_current_tile: u8 = 0;
+        let start = x.clone();
+        for i in start..160 {
+            let bx = 7 - tile_local_x;
+            let color_bit = ((b1 & (1 << bx)) >> bx) | ((b2 & (1 << bx)) >> bx) << 1;
+            let color = self.bg_palette[color_bit as usize];
+
+            scan_line_row[i as usize] = color.clone();
+            self.frame_buffer[frame_buffer_offset] = color;
+            frame_buffer_offset += 1;
+
+            tile_local_x += 1;
+            pixels_drawn_for_current_tile += 1;
+
+            if tile_local_x == 8 {
+                tile_local_x = 0;
+
+                // set up the next tile
+                // need to be carefull here (i think?) becaucse the view port can
+                // wrap around?
+
+                x = x.wrapping_add(pixels_drawn_for_current_tile);
+                pixels_drawn_for_current_tile = 0;
+
+                tile_map_offset += 1;
+                tile_index = self.get_adjusted_tile_index(
+                    wd_map_start_addr + tile_map_offset,
+                    signed_tile_addressing,
+                );
+
+                tile_address = (tile_index * 16) + (tile_local_y as u16 * 2);
+                b1 = self.gpu_vram[tile_address as usize];
+                b2 = self.gpu_vram[tile_address as usize + 1];
+            }
+        }
+    }
+
+    fn draw_sprites(&mut self, scan_line_row: &mut [u8; 160]) {
+        let sprite_size: i32 = if self.lcdc & LcdControlFlag::OBJSize as u8 != 0 {
+            16
+        } else {
+            8
+        };
+
+        let mut total_objects_drawn = 0;
+        let mut obj_same_x_prio = [i32::MAX; 160];
+
+        for i in 0..40 {
+            let sprite_addr = (i as usize) * 4;
+
+            let sprite_y = self.sprite_table[sprite_addr] as u16 as i32 - 16;
+            let sprite_x = self.sprite_table[sprite_addr + 1] as u16 as i32 - 8;
+            let tile_num = (self.sprite_table[sprite_addr + 2]
+                & (if sprite_size == 16 { 0xFE } else { 0xFF })) as u16;
+
+            let flags = self.sprite_table[sprite_addr + 3];
+            let sprite_palette: usize = if flags & (1 << 4) != 0 { 1 } else { 0 };
+            let xflip: bool = flags & (1 << 5) != 0;
+            let yflip: bool = flags & (1 << 6) != 0;
+            let belowbg: bool = flags & (1 << 7) != 0;
+
+            let scan_line = self.ly as i32;
+
+            // exit early if sprite is off screen
+            if scan_line < sprite_y || scan_line >= sprite_y + sprite_size {
+                continue;
+            }
+            if sprite_x < -7 || sprite_x >= 160 {
+                continue;
+            }
+
+            total_objects_drawn += 1;
+            if total_objects_drawn > 10 {
+                break;
+            }
+
+            // fetch sprite tile
+            let tile_y: u16 = if yflip {
+                (sprite_size - 1 - (scan_line - sprite_y)) as u16
+            } else {
+                (scan_line - sprite_y) as u16
+            };
+
+            let tile_address = tile_num * 16 + tile_y * 2;
+            let b1 = self.gpu_vram[tile_address as usize];
+            let b2 = self.gpu_vram[tile_address as usize + 1];
+
+            // draw each pixel of the sprite tile
+            'inner: for x in 0..8 {
+                if sprite_x + x < 0 || sprite_x + x >= 160 {
+                    continue;
+                }
+                // if sprite prio is below bg, and the drawn bg pixel is 0 (nothing) then skip to the next pixel
+                if belowbg && scan_line_row[(sprite_x + x) as usize] != self.bg_palette[0] {
+                    continue 'inner;
+                }
+
+                // has another sprite already been drawn on this pixel
+                // that has a lower or eq sprite_x val?
+                if obj_same_x_prio[(sprite_x + x) as usize] <= sprite_x {
+                    continue 'inner;
+                }
+
+                let xbit = 1 << (if xflip { x } else { 7 - x } as u32);
+                let colnr =
+                    (if b1 & xbit != 0 { 1 } else { 0 }) | (if b2 & xbit != 0 { 2 } else { 0 });
+                if colnr == 0 {
+                    continue;
+                }
+
+                let color = self.sprite_palette[sprite_palette][colnr];
+                let pixel_offset = ((scan_line * 160) + sprite_x + x) as usize;
+
+                self.frame_buffer[pixel_offset] = color;
+                obj_same_x_prio[(sprite_x + x) as usize] = sprite_x;
             }
         }
     }

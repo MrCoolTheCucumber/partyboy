@@ -35,10 +35,16 @@ impl GameBoy {
 
         Interrupts::tick(&mut self.bus.interrupts, &mut self.cpu);
         self.cpu.tick(&mut self.bus, &mut self.instruction_cache);
+        self.bus.ppu.tick(&mut self.bus.interrupts);
+
         self.bus.timer.tick(&mut self.bus.interrupts);
     }
 
     pub fn get_frame_buffer(&self) -> &[u8] {
-        todo!();
+        self.bus.ppu.get_frame_buffer()
+    }
+
+    pub fn consume_draw_flag(&mut self) -> bool {
+        self.bus.ppu.consume_draw_flag()
     }
 }

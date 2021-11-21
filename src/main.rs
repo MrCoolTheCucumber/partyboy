@@ -12,6 +12,7 @@ use log4rs::{
 
 mod gameboy;
 mod render;
+mod util;
 
 pub const SCALE: u32 = 2;
 pub const WIDTH: u32 = 160;
@@ -39,7 +40,7 @@ fn init_logger() {
 
         log4rs::init_config(config).unwrap();
     } else {
-        env_logger::init();
+        env_logger::builder().format_timestamp(None).init();
     }
 
     log_panics::init();
@@ -60,7 +61,7 @@ fn main() {
         gl_attr.set_context_version(3, 0);
     }
 
-    let mut window = video
+    let window = video
         .window("Partyboy", WIDTH * SCALE, HEIGHT * SCALE)
         .position_centered()
         .opengl()
@@ -79,6 +80,11 @@ fn main() {
     let mut tex_id: GLuint = 0;
     render::init_gl_state(&mut tex_id, &mut fb_id);
 
+    unsafe {
+        gl::ClearColor(0.4549, 0.92549, 0.968627, 0.7);
+        gl::Clear(gl::COLOR_BUFFER_BIT);
+    }
+
     'running: loop {
         use sdl2::event::Event;
 
@@ -89,13 +95,14 @@ fn main() {
             }
         }
 
-        unsafe {
-            gl::ClearColor(0.4549, 0.92549, 0.968627, 0.7);
-            gl::Clear(gl::COLOR_BUFFER_BIT);
+        for _ in 0..(1024 * 4) {
+            gb.tick();
         }
 
-        std::thread::sleep(Duration::from_millis(16));
+        if gb.consume_draw_flag() {
+            render::render_gb(&gb, fb_id, tex_id);
+        }
 
-        gb.tick();
+        window.gl_swap_window();
     }
 }

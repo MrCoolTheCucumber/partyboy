@@ -1,9 +1,8 @@
 use std::ffi::c_void;
 
 use gl::types::GLuint;
-use partyboy::gameboy::GameBoy;
 
-use crate::{HEIGHT, SCALE, WIDTH};
+use crate::{gameboy::GameBoy, HEIGHT, SCALE, WIDTH};
 
 pub fn init_gl_state(tex_id: &mut u32, fb_id: &mut u32) {
     unsafe {

@@ -9,6 +9,7 @@ use log4rs::{
     encode::pattern::PatternEncoder,
     Config,
 };
+use sdl2::sys::SDL_GetTicks;
 
 mod gameboy;
 mod render;
@@ -49,7 +50,7 @@ fn init_logger() {
 fn main() {
     init_logger();
 
-    let mut gb = GameBoy::new("/mnt/i/Dev/gb-rs/cpu_instrs.gb");
+    let mut gb = GameBoy::new("/mnt/i/Dev/gb-rs/dmg-acid2.gb");
     log::info!("Initialized gameboy.");
 
     let sdl = sdl2::init().unwrap();
@@ -61,7 +62,7 @@ fn main() {
         gl_attr.set_context_version(3, 0);
     }
 
-    let window = video
+    let mut window = video
         .window("Partyboy", WIDTH * SCALE, HEIGHT * SCALE)
         .position_centered()
         .opengl()
@@ -85,6 +86,10 @@ fn main() {
         gl::Clear(gl::COLOR_BUFFER_BIT);
     }
 
+    let start_time = unsafe { SDL_GetTicks() } as f32;
+    let mut frames: f32 = 0f32;
+    let mut elapsed: f32 = 1f32;
+
     'running: loop {
         use sdl2::event::Event;
 
@@ -95,12 +100,19 @@ fn main() {
             }
         }
 
-        for _ in 0..(1024 * 4) {
+        for _ in 0..(70_224) {
             gb.tick();
         }
 
         if gb.consume_draw_flag() {
             render::render_gb(&gb, fb_id, tex_id);
+
+            frames += 1f32;
+            elapsed = unsafe { SDL_GetTicks() as f32 - start_time };
+            let elapsed_secs = elapsed / 1000.0f32;
+            let fps = frames / elapsed_secs;
+
+            let _ = window.set_title(format!("{:.2}", fps).as_str());
         }
 
         window.gl_swap_window();

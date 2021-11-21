@@ -121,7 +121,9 @@ impl Bus {
                 }
 
                 0x0E00 => {
-                    self.ppu.sprite_table[(addr - 0xFE00) as usize] = val;
+                    if addr < 0xFEA0 {
+                        self.ppu.sprite_table[(addr - 0xFE00) as usize] = val;
+                    }
                 }
 
                 0x0F00 => match addr {

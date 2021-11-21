@@ -47,9 +47,10 @@ fn init_logger() {
 }
 
 fn main() {
+    #[cfg(debug_assertions)]
     init_logger();
 
-    let mut gb = GameBoy::new("/mnt/i/Dev/gb-rs/dmg-acid2.gb");
+    let mut gb = GameBoy::new("/mnt/i/Dev/gb-rs/sm.gb");
     log::info!("Initialized gameboy.");
 
     let sdl = sdl2::init().unwrap();
@@ -87,7 +88,10 @@ fn main() {
 
     let start_time = unsafe { SDL_GetTicks() } as f32;
     let mut frames: f32 = 0f32;
+    #[allow(unused_assignments)] // its clearly used..
     let mut elapsed: f32 = 1f32;
+
+    let mut time_since_last_window_update: f32 = 0f32;
 
     'running: loop {
         use sdl2::event::Event;
@@ -111,7 +115,10 @@ fn main() {
             let elapsed_secs = elapsed / 1000.0f32;
             let fps = frames / elapsed_secs;
 
-            // let _ = window.set_title(format!("{:.2}", fps).as_str());
+            if elapsed - time_since_last_window_update > 1000f32 {
+                let _ = window.set_title(format!("{:.2}", fps).as_str());
+                time_since_last_window_update = elapsed;
+            }
         }
 
         window.gl_swap_window();

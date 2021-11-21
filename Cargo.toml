@@ -20,3 +20,5 @@ overflow-checks = false
 
 [profile.release]
 lto = true
+panic = "abort"
+codegen-units = 1

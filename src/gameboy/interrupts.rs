@@ -28,6 +28,17 @@ impl InterruptFlag {
             InterruptFlag::Joypad => 0x60,
         }
     }
+
+    #[allow(unused)]
+    pub fn to_string(&self) -> &str {
+        match self {
+            InterruptFlag::VBlank => "VBlank",
+            InterruptFlag::Stat => "Stat",
+            InterruptFlag::Timer => "Timer",
+            InterruptFlag::Serial => "Serial",
+            InterruptFlag::Joypad => "Joypad",
+        }
+    }
 }
 
 impl Interrupts {

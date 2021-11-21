@@ -1,9 +1,4 @@
-use crate::util::{is_flag_set, is_flag_unset};
-
-use super::{
-    bus::Bus,
-    interrupts::{self, InterruptFlag, Interrupts},
-};
+use super::interrupts::{InterruptFlag, Interrupts};
 
 const PALETTE: [u8; 4] = [255, 192, 96, 0];
 
@@ -156,7 +151,7 @@ impl Ppu {
                 self.lcdc = val;
 
                 // is the lcd now off?
-                if is_flag_unset!(val, LcdControlFlag::LCDDisplayEnable) {
+                if self.lcdc & LcdControlFlag::LCDDisplayEnable as u8 == 0 {
                     self.ly = 0;
 
                     // TODO: oam/vram unlocking
@@ -173,7 +168,7 @@ impl Ppu {
             0xFF45 => {
                 self.lyc = val;
 
-                if is_flag_set!(self.lcdc, LcdControlFlag::LCDDisplayEnable) {
+                if self.lcdc & LcdControlFlag::LCDDisplayEnable as u8 != 0 {
                     self.update_ly_lyc();
                 }
             }
@@ -219,12 +214,12 @@ impl Ppu {
         }
     }
 
-    fn set_mode_lcdc(&mut self, mode: PpuMode) {
-        self.lcdc = (self.lcdc & 0b1111_1100) | (mode as u8);
+    fn set_mode_stat(&mut self, mode: PpuMode) {
+        self.stat = (self.stat & 0b1111_1100) | (mode as u8);
     }
 
     fn get_bg_map_start_addr(&self) -> u16 {
-        match is_flag_set!(self.lcdc, LcdControlFlag::BGTileMapAddress) {
+        match (self.lcdc & LcdControlFlag::BGTileMapAddress as u8) != 0 {
             true => 0x9C00,
             false => 0x9800,
         }
@@ -254,12 +249,12 @@ impl Ppu {
 
             if self.ly == 144 {
                 interrupts.request_interupt(InterruptFlag::VBlank);
-                self.set_mode_lcdc(PpuMode::VBlank);
+                self.set_mode_stat(PpuMode::VBlank);
                 self.mode = PpuMode::VBlank;
 
                 self.draw_flag = true;
             } else {
-                self.set_mode_lcdc(PpuMode::OAM);
+                self.set_mode_stat(PpuMode::OAM);
                 self.mode = PpuMode::OAM;
             }
         }
@@ -279,7 +274,7 @@ impl Ppu {
                 self.mode_clock_cycles = 0;
                 self.window_internal_line_counter = 0;
 
-                self.set_mode_lcdc(PpuMode::OAM);
+                self.set_mode_stat(PpuMode::OAM);
                 self.mode = PpuMode::OAM;
             }
         }
@@ -288,7 +283,7 @@ impl Ppu {
     fn oam(&mut self) {
         if self.mode_clock_cycles == 80 {
             self.mode_clock_cycles = 0;
-            self.set_mode_lcdc(PpuMode::VRAM);
+            self.set_mode_stat(PpuMode::VRAM);
             self.mode = PpuMode::VRAM;
         }
     }
@@ -297,7 +292,7 @@ impl Ppu {
         if self.mode_clock_cycles == 172 {
             self.mode_clock_cycles = 0;
             self.draw_scan_line(); // draw line!
-            self.set_mode_lcdc(PpuMode::HBlank);
+            self.set_mode_stat(PpuMode::HBlank);
             self.mode = PpuMode::HBlank;
         }
     }
@@ -317,7 +312,7 @@ impl Ppu {
     fn draw_scan_line(&mut self) {
         let mut scan_line_row: [u8; 160] = [0; 160];
 
-        if is_flag_set!(self.lcdc, LcdControlFlag::BGEnable) {
+        if self.lcdc & LcdControlFlag::BGEnable as u8 != 0 {
             self.draw_background(&mut scan_line_row);
         }
     }
@@ -339,7 +334,7 @@ impl Ppu {
         let mut tile_map_offset = (tile_y as u16 * 32) + tile_x as u16;
         // are we using signed addressing for accessing the tile data (not map)
         let signed_tile_addressing: bool =
-            is_flag_unset!(self.lcdc, LcdControlFlag::BGAndWindowTileData);
+            self.lcdc & LcdControlFlag::BGAndWindowTileData as u8 == 0;
 
         // get the tile index from the map
         let mut tile_index = self
@@ -364,7 +359,7 @@ impl Ppu {
             let color_bit = ((b1 & (1 << bx)) >> bx) | ((b2 & (1 << bx)) >> bx) << 1;
             let color = self.bg_palette[color_bit as usize];
 
-            scan_line_row[i] = color.clone();
+            scan_line_row[i] = color;
             self.frame_buffer[frame_buffer_offset] = color;
             frame_buffer_offset += 1;
 

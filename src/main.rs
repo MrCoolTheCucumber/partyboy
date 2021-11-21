@@ -13,7 +13,6 @@ use sdl2::sys::SDL_GetTicks;
 
 mod gameboy;
 mod render;
-mod util;
 
 pub const SCALE: u32 = 2;
 pub const WIDTH: u32 = 160;
@@ -112,7 +111,7 @@ fn main() {
             let elapsed_secs = elapsed / 1000.0f32;
             let fps = frames / elapsed_secs;
 
-            let _ = window.set_title(format!("{:.2}", fps).as_str());
+            // let _ = window.set_title(format!("{:.2}", fps).as_str());
         }
 
         window.gl_swap_window();

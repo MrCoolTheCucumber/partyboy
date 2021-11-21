@@ -133,7 +133,12 @@ impl Bus {
                     0xFFFF => self.interrupts.enable = val,
 
                     0xFF46 => {
-                        // TODO: trigger dma
+                        let source_addr: u16 = (val as u16) << 8;
+
+                        for i in 0..160 {
+                            let src_val = self.read_u8(source_addr + i);
+                            self.write_u8(0xFE00 + i, src_val);
+                        }
                     }
                     0xFF40..=0xFF4B => self.ppu.write_u8(addr, val),
 

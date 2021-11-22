@@ -1,4 +1,4 @@
-use super::{cartridge::Cartridge, interrupts::Interrupts, ppu::Ppu, timer::Timer};
+use super::{cartridge::Cartridge, input::Input, interrupts::Interrupts, ppu::Ppu, timer::Timer};
 
 pub struct Bus {
     blargg_output_buffer: Vec<char>,
@@ -13,6 +13,7 @@ pub struct Bus {
 
     pub interrupts: Interrupts,
     pub timer: Timer,
+    pub input: Input,
 }
 
 impl Bus {
@@ -50,6 +51,7 @@ impl Bus {
 
             interrupts: Interrupts::new(),
             timer: Timer::new(),
+            input: Input::new(),
         }
     }
 
@@ -85,6 +87,7 @@ impl Bus {
                 0x0E00 => self.ppu.sprite_table[(addr - 0xFE00) as usize],
 
                 0x0F00 => match addr {
+                    0xFF00 => self.input.read_joyp(),
                     0xFF04..=0xFF07 => self.timer.read(addr),
                     0xFF0F => 0b1110_0000 | (self.interrupts.flags & 0b0001_1111),
                     0xFFFF => self.interrupts.enable,
@@ -127,6 +130,7 @@ impl Bus {
                 }
 
                 0x0F00 => match addr {
+                    0xFF00 => self.input.set_column_line(val),
                     0xFF01 => self.handle_blargg_output(val as char),
                     0xFF04..=0xFF07 => self.timer.write(addr, val),
                     0xFF0F => self.interrupts.flags = val,

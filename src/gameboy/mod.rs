@@ -1,6 +1,7 @@
 mod bus;
 mod cartridge;
 pub mod cpu;
+mod input;
 mod interrupts;
 mod ppu;
 mod timer;
@@ -10,6 +11,7 @@ use self::{
     cpu::{instructions::InstructionCache, Cpu},
     interrupts::Interrupts,
 };
+use sdl2::keyboard::Keycode;
 
 pub struct GameBoy {
     instruction_cache: InstructionCache,
@@ -46,5 +48,18 @@ impl GameBoy {
 
     pub fn consume_draw_flag(&mut self) -> bool {
         self.bus.ppu.consume_draw_flag()
+    }
+
+    pub fn key_down(&mut self, key: Keycode) {
+        if self.bus.input.key_down(key) {
+            // self.cpu.stopped = false;
+            self.bus
+                .interrupts
+                .request_interupt(interrupts::InterruptFlag::Joypad)
+        }
+    }
+
+    pub fn key_up(&mut self, key: Keycode) {
+        self.bus.input.key_up(key);
     }
 }

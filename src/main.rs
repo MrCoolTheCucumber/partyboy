@@ -98,7 +98,24 @@ fn main() {
 
         for event in event_pump.poll_iter() {
             match event {
+                Event::KeyDown {
+                    keycode, repeat, ..
+                } => {
+                    if !repeat && keycode.is_some() {
+                        gb.key_down(keycode.unwrap());
+                    }
+                }
+
+                Event::KeyUp {
+                    keycode, repeat, ..
+                } => {
+                    if !repeat && keycode.is_some() {
+                        gb.key_up(keycode.unwrap());
+                    }
+                }
+
                 Event::Quit { .. } => break 'running,
+
                 _ => {}
             }
         }

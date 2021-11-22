@@ -1,14 +1,18 @@
-Architecture/Structure
+### Architecture/Structure
 - https://discord.com/channels/465585922579103744/551430933836988438/903821551097479219
 
-GBC
+### GBC
 - https://discord.com/channels/465585922579103744/465586075830845475/909386242897088543
 
-Blargg
+### Blargg
 - log ASCII to 0xFF01
 
-MBC4
+### MBC4
 - https://twitter.com/LuigiBlood/status/1444084664952664073
 
-Sound Libraries
+### Sound Libraries
 - https://discord.com/channels/465585922579103744/551430933836988438/911694138095829072
+
+### Cool test roms
+- https://github.com/pinobatch/little-things-gb
+  - https://github.com/pinobatch/little-things-gb/tree/master/firstwhite

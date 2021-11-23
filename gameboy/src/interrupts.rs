@@ -28,15 +28,16 @@ impl InterruptFlag {
             InterruptFlag::Joypad => 0x60,
         }
     }
+}
 
-    #[allow(unused)]
-    pub fn to_string(&self) -> &str {
+impl ToString for InterruptFlag {
+    fn to_string(&self) -> String {
         match self {
-            InterruptFlag::VBlank => "VBlank",
-            InterruptFlag::Stat => "Stat",
-            InterruptFlag::Timer => "Timer",
-            InterruptFlag::Serial => "Serial",
-            InterruptFlag::Joypad => "Joypad",
+            InterruptFlag::VBlank => String::from("VBlank"),
+            InterruptFlag::Stat => String::from("Stat"),
+            InterruptFlag::Timer => String::from("Timer"),
+            InterruptFlag::Serial => String::from("Serial"),
+            InterruptFlag::Joypad => String::from("Joypad"),
         }
     }
 }
@@ -102,11 +103,11 @@ impl Interrupts {
     }
 
     pub fn clear_interupt(&mut self, flag: InterruptFlag) {
-        self.flags = self.flags & !(flag as u8);
+        self.flags &= !(flag as u8);
     }
 
     pub fn request_interupt(&mut self, flag: InterruptFlag) {
-        self.flags = self.flags | flag as u8;
+        self.flags |= flag as u8;
 
         if self.waiting_for_halt_if {
             self.halt_interrupt_pending = true;

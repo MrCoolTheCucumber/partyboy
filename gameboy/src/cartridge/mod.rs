@@ -86,7 +86,6 @@ pub fn create(rom_path: &str) -> Box<dyn Cartridge> {
                 file,
                 path,
                 rom_bank_0,
-                cartridge_type_code,
                 num_rom_banks,
                 num_ram_banks,
             ))
@@ -145,7 +144,7 @@ fn try_read_save_file(
                 Ok(_) => {
                     let bytes_read = buf.len();
                     if bytes_read != num_ram_banks as usize * 0x2000 {
-                        println!(
+                        log::warn!(
                             "Save file was an unexpected length. Expected {}, actual: {}",
                             num_ram_banks as usize * 0x2000,
                             bytes_read

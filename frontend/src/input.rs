@@ -19,15 +19,13 @@ fn try_into_gameboy_input(code: Keycode) -> Option<gameboy::input::Keycode> {
 }
 
 pub fn handle_key_down(gb: &mut GameBoy, code: Keycode) {
-    match try_into_gameboy_input(code) {
-        Some(key) => gb.key_down(key),
-        None => {}
+    if let Some(key) = try_into_gameboy_input(code) {
+        gb.key_down(key)
     }
 }
 
 pub fn handle_key_up(gb: &mut GameBoy, code: Keycode) {
-    match try_into_gameboy_input(code) {
-        Some(key) => gb.key_up(key),
-        None => {}
+    if let Some(key) = try_into_gameboy_input(code) {
+        gb.key_up(key)
     }
 }

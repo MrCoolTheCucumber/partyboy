@@ -1,3 +1,4 @@
+#![allow(clippy::match_overlapping_arm)]
 use super::{cartridge::Cartridge, input::Input, interrupts::Interrupts, ppu::Ppu, timer::Timer};
 
 pub struct Bus {

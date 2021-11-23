@@ -101,30 +101,3 @@ pub fn render_gb(gb: &GameBoy, fb_id: GLuint, tex_id: GLuint) {
         gl::BindFramebuffer(gl::DRAW_FRAMEBUFFER, 0);
     }
 }
-
-pub fn render_paused_frame(fb_id: GLuint, tex_id: GLuint) {
-    unsafe {
-        gl::BindFramebuffer(gl::READ_FRAMEBUFFER, fb_id);
-        gl::FramebufferTexture2D(
-            gl::READ_FRAMEBUFFER,
-            gl::COLOR_ATTACHMENT0,
-            gl::TEXTURE_2D,
-            tex_id,
-            0,
-        );
-
-        gl::BlitFramebuffer(
-            0,
-            0,
-            WIDTH as i32,
-            HEIGHT as i32,
-            0,
-            (HEIGHT * SCALE) as i32,
-            (WIDTH * SCALE) as i32,
-            0,
-            gl::COLOR_BUFFER_BIT,
-            gl::NEAREST,
-        );
-        gl::BindFramebuffer(gl::DRAW_FRAMEBUFFER, 0);
-    }
-}

@@ -102,16 +102,15 @@ const BRANCH_CARRY: InstructionStep =
 const BRANCH_NOT_CARRY: InstructionStep =
     InstructionStep::Instant(|cpu, _| InstructionState::Branch(!cpu.is_flag_set(Flag::C)));
 
-// TODO: There's probably a more DRY way of doing this..
 macro_rules! instruction {
     (fetch8, $($step:expr),*) => {
         {
-            let mut steps: Vec<InstructionStep> = Vec::new();
-            steps.push(__FETCH_OPERAND8);
-
-            $(
-                steps.push($step);
-            )*
+            let steps: Vec<InstructionStep> = vec![
+                __FETCH_OPERAND8,
+                $(
+                    $step,
+                )*
+            ];
 
             Instruction {
                 index: 0,
@@ -122,13 +121,13 @@ macro_rules! instruction {
 
     (fetch16, $($step:expr),*) => {
         {
-            let mut steps: Vec<InstructionStep> = Vec::new();
-            steps.push(__FETCH_OPERAND8);
-            steps.push(__FETCH_OPERAND16);
-
-            $(
-                steps.push($step);
-            )*
+            let steps: Vec<InstructionStep> = vec![
+                __FETCH_OPERAND8,
+                __FETCH_OPERAND16,
+                $(
+                    $step,
+                )*
+            ];
 
             Instruction {
                 index: 0,
@@ -139,10 +138,11 @@ macro_rules! instruction {
 
     ($($step:expr),*) => {
         {
-            let mut steps: Vec<InstructionStep> = Vec::new();
-            $(
-                steps.push($step);
-            )*
+            let steps: Vec<InstructionStep> = vec![
+                $(
+                    $step,
+                )*
+            ];
 
             Instruction {
                 index: 0,
@@ -1398,7 +1398,7 @@ impl Cpu {
     fn rr(&mut self, val: u8) -> u8 {
         let mut result = val >> 1;
         if self.is_flag_set(Flag::C) {
-            result = result | 0x80;
+            result |= 0x80;
         }
 
         self.set_flag_if_cond_else_clear(val & 0x01 != 0, Flag::C);

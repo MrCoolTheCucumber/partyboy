@@ -23,7 +23,6 @@ impl Mbc1 {
         mut file: File,
         path: &Path,
         rom_bank_0: [u8; 0x4000],
-        cartridge_type_code: u8,
         num_rom_banks: u16,
         num_ram_banks: u16,
     ) -> Self {
@@ -63,7 +62,7 @@ impl Drop for Mbc1 {
         for bank in &self.ram_banks {
             sav_file.write_all(bank).unwrap();
         }
-        println!("Save file written!");
+        log::info!("Save file written!");
     }
 }
 

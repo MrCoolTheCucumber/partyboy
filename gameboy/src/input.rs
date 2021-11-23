@@ -11,6 +11,12 @@ pub struct Input {
     column_line: u8,
 }
 
+impl Default for Input {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Input {
     pub fn new() -> Self {
         Self {
@@ -35,19 +41,19 @@ impl Input {
         let joyp = match self.column_line {
             // 4th bit
             0x10 => {
-                let mut result = 0 | self.a;
-                result = result | (self.b << 1);
-                result = result | (self.select << 2);
-                result = result | (self.start << 3);
+                let mut result = self.a;
+                result |= self.b << 1;
+                result |= self.select << 2;
+                result |= self.start << 3;
                 result
             }
 
             // 5th bit
             0x20 => {
-                let mut result = 0 | self.right;
-                result = result | (self.left << 1);
-                result = result | (self.up << 2);
-                result = result | (self.down << 3);
+                let mut result = self.right;
+                result |= self.left << 1;
+                result |= self.up << 2;
+                result |= self.down << 3;
                 result
             }
 

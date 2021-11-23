@@ -51,7 +51,7 @@ fn main() {
     #[cfg(debug_assertions)]
     init_logger();
 
-    let mut gb = GameBoy::new("/mnt/i/Dev/gb-rs/tetris.gb");
+    let mut gb = GameBoy::new("/mnt/i/Dev/gb-rs/cpu_instrs.gb");
     log::info!("Initialized gameboy.");
 
     let sdl = sdl2::init().unwrap();
@@ -102,16 +102,20 @@ fn main() {
                 Event::KeyDown {
                     keycode, repeat, ..
                 } => {
-                    if !repeat && keycode.is_some() {
-                        handle_key_down(&mut gb, keycode.unwrap());
+                    if !repeat {
+                        if let Some(keycode) = keycode {
+                            handle_key_down(&mut gb, keycode);
+                        }
                     }
                 }
 
                 Event::KeyUp {
                     keycode, repeat, ..
                 } => {
-                    if !repeat && keycode.is_some() {
-                        handle_key_up(&mut gb, keycode.unwrap());
+                    if !repeat {
+                        if let Some(keycode) = keycode {
+                            handle_key_up(&mut gb, keycode);
+                        }
                     }
                 }
 

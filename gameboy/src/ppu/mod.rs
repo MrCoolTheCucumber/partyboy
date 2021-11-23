@@ -10,7 +10,6 @@ pub struct Ppu {
     frame_buffer: [u8; 160 * 144],
     draw_flag: bool,
 
-    tileset: [[[u8; 8]; 8]; 384],
     bg_palette: [u8; 4],
 
     mode: PpuMode,
@@ -71,6 +70,7 @@ pub enum LcdControlFlag {
 }
 
 #[derive(Clone, Copy)]
+#[allow(clippy::upper_case_acronyms)]
 enum PpuMode {
     HBlank = 0, // mode 0
     VBlank = 1, // mode 1
@@ -92,7 +92,6 @@ impl Ppu {
             draw_flag: false,
 
             // ppu
-            tileset: [[[0; 8]; 8]; 384],
             bg_palette: [PALETTE[0], PALETTE[1], PALETTE[2], PALETTE[3]],
 
             mode: PpuMode::OAM,
@@ -372,12 +371,12 @@ impl Ppu {
         let mut frame_buffer_offset = self.ly as usize * 160;
 
         let mut pixels_drawn_for_current_tile: u8 = 0;
-        for i in 0..160 {
+        for px in scan_line_row.iter_mut() {
             let bx = 7 - tile_local_x;
             let color_bit = ((b1 & (1 << bx)) >> bx) | ((b2 & (1 << bx)) >> bx) << 1;
             let color = self.bg_palette[color_bit as usize];
 
-            scan_line_row[i] = color;
+            *px = color;
             self.frame_buffer[frame_buffer_offset] = color;
             frame_buffer_offset += 1;
 
@@ -441,13 +440,13 @@ impl Ppu {
         let mut frame_buffer_offset = (self.ly as usize * 160) + x as usize;
 
         let mut pixels_drawn_for_current_tile: u8 = 0;
-        let start = x.clone();
+        let start = x;
         for i in start..160 {
             let bx = 7 - tile_local_x;
             let color_bit = ((b1 & (1 << bx)) >> bx) | ((b2 & (1 << bx)) >> bx) << 1;
             let color = self.bg_palette[color_bit as usize];
 
-            scan_line_row[i as usize] = color.clone();
+            scan_line_row[i as usize] = color;
             self.frame_buffer[frame_buffer_offset] = color;
             frame_buffer_offset += 1;
 

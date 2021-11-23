@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use criterion::{criterion_group, criterion_main, Criterion};
 use gameboy::GameBoy;
 
@@ -8,9 +10,14 @@ fn op_r_imm() {
     }
 }
 
-fn criterion_benchmark(c: &mut Criterion) {
-    c.bench_function("cpu_instrs", |b| b.iter(|| op_r_imm()));
+fn bench_blargg(c: &mut Criterion) {
+    let mut group = c.benchmark_group("blargg");
+    group.measurement_time(Duration::from_millis(12100));
+
+    group
+        .measurement_time(Duration::from_millis(12100))
+        .bench_function("cpu_instrs", |b| b.iter(|| op_r_imm()));
 }
 
-criterion_group!(benches, criterion_benchmark);
+criterion_group!(benches, bench_blargg);
 criterion_main!(benches);

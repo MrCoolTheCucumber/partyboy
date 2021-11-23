@@ -17,6 +17,8 @@ fn bench_blargg(c: &mut Criterion) {
     group
         .measurement_time(Duration::from_millis(12100))
         .bench_function("cpu_instrs", |b| b.iter(|| op_r_imm()));
+
+    group.finish();
 }
 
 criterion_group!(benches, bench_blargg);

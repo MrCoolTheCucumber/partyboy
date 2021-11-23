@@ -1,18 +1,18 @@
-use gameboy::gameboy::GameBoy;
+use gameboy::GameBoy;
 use sdl2::keyboard::Keycode;
 
-fn try_into_gameboy_input(code: Keycode) -> Option<gameboy::gameboy::input::Keycode> {
+fn try_into_gameboy_input(code: Keycode) -> Option<gameboy::input::Keycode> {
     match code {
-        Keycode::W => Some(gameboy::gameboy::input::Keycode::Up),
-        Keycode::A => Some(gameboy::gameboy::input::Keycode::Left),
-        Keycode::S => Some(gameboy::gameboy::input::Keycode::Down),
-        Keycode::D => Some(gameboy::gameboy::input::Keycode::Right),
+        Keycode::W => Some(gameboy::input::Keycode::Up),
+        Keycode::A => Some(gameboy::input::Keycode::Left),
+        Keycode::S => Some(gameboy::input::Keycode::Down),
+        Keycode::D => Some(gameboy::input::Keycode::Right),
 
-        Keycode::O => Some(gameboy::gameboy::input::Keycode::A),
-        Keycode::K => Some(gameboy::gameboy::input::Keycode::B),
+        Keycode::O => Some(gameboy::input::Keycode::A),
+        Keycode::K => Some(gameboy::input::Keycode::B),
 
-        Keycode::M => Some(gameboy::gameboy::input::Keycode::Start),
-        Keycode::N => Some(gameboy::gameboy::input::Keycode::Select),
+        Keycode::M => Some(gameboy::input::Keycode::Start),
+        Keycode::N => Some(gameboy::input::Keycode::Select),
 
         _ => None,
     }

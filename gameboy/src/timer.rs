@@ -1,4 +1,4 @@
-use crate::gameboy::interrupts::InterruptFlag;
+use crate::interrupts::InterruptFlag;
 
 use super::interrupts::Interrupts;
 

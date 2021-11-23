@@ -7,7 +7,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::gameboy::cartridge::{mbc1::Mbc1, rom::Rom};
+use crate::cartridge::{mbc1::Mbc1, rom::Rom};
 
 pub trait Cartridge {
     fn read_rom(&self, addr: u16) -> u8;

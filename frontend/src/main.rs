@@ -1,7 +1,7 @@
 use std::env;
 
 use crate::input::{handle_key_down, handle_key_up};
-use gameboy::gameboy::GameBoy;
+use gameboy::GameBoy;
 use gl::types::GLuint;
 use log::{log_enabled, LevelFilter};
 use log4rs::{

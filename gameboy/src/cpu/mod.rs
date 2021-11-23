@@ -3,7 +3,7 @@ pub mod register;
 
 use std::fmt::Debug;
 
-use crate::gameboy::cpu::instructions::InstructionStep;
+use crate::cpu::instructions::InstructionStep;
 
 use self::{
     instructions::{InstructionCache, InstructionOpcode, InstructionState},

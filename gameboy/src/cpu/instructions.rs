@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use crate::gameboy::bus::Bus;
+use crate::bus::Bus;
 
 use super::{register::Flag, Cpu};
 use paste::paste;

@@ -1,5 +1,5 @@
 use crate::{HEIGHT, SCALE, WIDTH};
-use gameboy::gameboy::GameBoy;
+use gameboy::GameBoy;
 use gl::types::GLuint;
 use std::ffi::c_void;
 

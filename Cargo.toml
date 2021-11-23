@@ -22,3 +22,4 @@ overflow-checks = false
 lto = true
 panic = "abort"
 codegen-units = 1
+debug = true # flamegraph only

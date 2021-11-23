@@ -27,17 +27,16 @@ impl Timer {
         }
     }
 
+    #[inline(always)]
     fn is_timer_enabled(&self) -> bool {
         self.tac & 0b0000_0100 != 0
     }
 
     pub fn tick(&mut self, interrupts: &mut Interrupts) {
-        let prev_div = self.div.clone();
-        self.div = self.div.wrapping_add(1);
+        let prev_div = self.div;
+        self.div += 1;
 
-        let mut request_timer_interrupt = false;
-
-        if self.div_falling_edge_occured(prev_div, self.div) && self.is_timer_enabled() {
+        if self.is_timer_enabled() && self.div_falling_edge_occured(prev_div, self.div) {
             self.incr_tima();
         }
 
@@ -45,27 +44,19 @@ impl Timer {
             self.ticks_since_tima_overflown += 1;
         }
 
-        match self.ticks_since_tima_overflown {
-            0 => {} // default value
-
-            1 => request_timer_interrupt = true,
-            2..=4 => {} // NOP
-            5 => self.tima = self.tma,
-            6 => {
-                self.tima = self.tma;
-                self.tima_overflown = false;
-                self.ticks_since_tima_overflown = 0;
-            }
-
-            _ => unreachable!(),
-        }
-
-        if request_timer_interrupt {
-            interrupts.request_interupt(InterruptFlag::Timer);
+        if self.ticks_since_tima_overflown == 1 {
+            interrupts.request_interupt(InterruptFlag::Timer)
+        } else if self.ticks_since_tima_overflown == 5 {
+            self.tima = self.tma
+        } else if self.ticks_since_tima_overflown == 6 {
+            self.tima = self.tma;
+            self.tima_overflown = false;
+            self.ticks_since_tima_overflown = 0;
         }
     }
 
     // "falling edge" = previously 1, now 0
+    #[inline(always)]
     fn div_falling_edge_occured(&mut self, prev_div: u16, current_div: u16) -> bool {
         let bit_to_check = self.tac_freq_bits[(self.tac & 3) as usize];
         let prev_bit = (prev_div >> bit_to_check) & 1;
@@ -74,8 +65,9 @@ impl Timer {
         prev_bit == 1 && bit == 0
     }
 
+    #[inline(always)]
     fn incr_tima(&mut self) {
-        self.tima = self.tima.wrapping_add(1);
+        self.tima += 1;
 
         if self.tima == 0 {
             self.tima_overflown = true;
@@ -98,7 +90,7 @@ impl Timer {
     pub fn write(&mut self, addr: u16, val: u8) {
         match addr {
             0xFF03 | 0xFF04 => {
-                let prev_div = self.div.clone();
+                let prev_div = self.div;
                 self.div = 0;
 
                 let falling_edge_occured = self.div_falling_edge_occured(prev_div, self.div);

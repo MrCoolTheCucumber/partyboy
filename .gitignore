@@ -1,3 +1,8 @@
 .vscode
 /target
 /log
+
+# flamegraph
+flamegraph.svg
+perf.data
+perf.data.old

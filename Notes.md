@@ -1,6 +1,11 @@
 ### Architecture/Structure
 - https://discord.com/channels/465585922579103744/551430933836988438/903821551097479219
 
+### GBC IPS concerns
+- https://discord.com/channels/465585922579103744/465586075830845475/912491020351078430
+  > I'm not aware of any CGB test ROMs affected by IPS screen replacements, but if you want to develop your own test ROMs its probably a good idea to have a stock screen available to test with.
+  > On the DMG there are test ROMs that are affected by biverting the original LCD, and some LCD <=> PPU desync behaviour that might not show up on replacement screens.
+
 ### GBC
 - https://discord.com/channels/465585922579103744/465586075830845475/909386242897088543
 

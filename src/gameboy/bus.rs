@@ -66,96 +66,73 @@ impl Bus {
     }
 
     pub fn read_u8(&self, addr: u16) -> u8 {
-        match addr & 0xF000 {
-            0x0000 | 0x1000 | 0x2000 | 0x3000 | 0x4000 | 0x5000 | 0x6000 | 0x7000 => {
+        match addr {
+            0x0000..=0x7FFF => {
                 if self.bios_enabled && addr < 0x100 {
                     return self.bios[addr as usize];
                 }
 
                 self.cartridge.read_rom(addr)
             }
-            0x8000 | 0x9000 => self.ppu.gpu_vram[(addr - 0x8000) as usize],
-            0xA000 | 0xB000 => self.cartridge.read_ram(addr - 0xA000),
-            0xC000 | 0xD000 => self.working_ram[(addr - 0xC000) as usize],
-            0xE000 => self.working_ram[(addr - 0xE000) as usize],
-            0xF000 => match addr & 0x0F00 {
-                0x0000 | 0x0100 | 0x0200 | 0x0300 | 0x0400 | 0x0500 | 0x0600 | 0x0700 | 0x0800
-                | 0x0900 | 0x0A00 | 0x0B00 | 0x0C00 | 0x0D00 => {
-                    self.working_ram[(addr - 0xE000) as usize]
-                }
+            0x8000..=0x9FFF => self.ppu.gpu_vram[(addr - 0x8000) as usize],
+            0xA000..=0xBFFF => self.cartridge.read_ram(addr - 0xA000),
+            0xC000..=0xDFFF => self.working_ram[(addr - 0xC000) as usize],
+            0xE000..=0xEFFF => self.working_ram[(addr - 0xE000) as usize],
+            0xF000..=0xFDFF => self.working_ram[(addr - 0xE000) as usize],
+            0xFE00..=0xFEFF => self.ppu.sprite_table[(addr - 0xFE00) as usize],
 
-                0x0E00 => self.ppu.sprite_table[(addr - 0xFE00) as usize],
+            // 0xFF00 and above
+            0xFF00 => self.input.read_joyp(),
+            0xFF04..=0xFF07 => self.timer.read(addr),
+            0xFF0F => 0b1110_0000 | (self.interrupts.flags & 0b0001_1111),
+            0xFFFF => self.interrupts.enable,
 
-                0x0F00 => match addr {
-                    0xFF00 => self.input.read_joyp(),
-                    0xFF04..=0xFF07 => self.timer.read(addr),
-                    0xFF0F => 0b1110_0000 | (self.interrupts.flags & 0b0001_1111),
-                    0xFFFF => self.interrupts.enable,
+            0xFF40..=0xFF4B => self.ppu.read_u8(addr),
 
-                    0xFF40..=0xFF4B => self.ppu.read_u8(addr),
-
-                    0xFF00..=0xFF7F => self.io[(addr - 0xFF00) as usize],
-                    0xFF80..=0xFFFE => self.zero_page[(addr - 0xFF80) as usize],
-
-                    _ => todo!("read u8 @{:#06X}", addr),
-                },
-
-                _ => todo!("read u8 @{:#06X}", addr),
-            },
-
-            _ => todo!("read u8 @{:#06X}", addr),
+            0xFF00..=0xFF7F => self.io[(addr - 0xFF00) as usize],
+            0xFF80..=0xFFFE => self.zero_page[(addr - 0xFF80) as usize],
         }
     }
 
     pub fn write_u8(&mut self, addr: u16, val: u8) {
-        match addr & 0xF000 {
-            0x0000 | 0x1000 | 0x2000 | 0x3000 | 0x4000 | 0x5000 | 0x6000 | 0x7000 => {
+        match addr {
+            0x0000..=0x7FFF => {
                 self.cartridge.write_rom(addr, val);
             }
-            0x8000 | 0x9000 => self.ppu.gpu_vram[(addr - 0x8000) as usize] = val,
-            0xA000 | 0xB000 => self.cartridge.write_ram(addr - 0xA000, val),
-            0xC000 | 0xD000 => self.working_ram[(addr - 0xC000) as usize] = val,
-            0xE000 => self.working_ram[(addr - 0xE000) as usize] = val,
+            0x8000..=0x9FFF => self.ppu.gpu_vram[(addr - 0x8000) as usize] = val,
+            0xA000..=0xBFFF => self.cartridge.write_ram(addr - 0xA000, val),
+            0xC000..=0xDFFF => self.working_ram[(addr - 0xC000) as usize] = val,
+            0xE000..=0xEFFF => self.working_ram[(addr - 0xE000) as usize] = val,
+            0xF000..=0xFDFF => self.working_ram[(addr - 0xE000) as usize] = val,
+            0xFE00..=0xFEFF => {
+                // TODO: redundant if? just add more match branches
+                if addr < 0xFEA0 {
+                    self.ppu.sprite_table[(addr - 0xFE00) as usize] = val;
+                }
+            }
 
-            0xF000 => match addr & 0x0F00 {
-                0x0000 | 0x0100 | 0x0200 | 0x0300 | 0x0400 | 0x0500 | 0x0600 | 0x0700 | 0x0800
-                | 0x0900 | 0x0A00 | 0x0B00 | 0x0C00 | 0x0D00 => {
-                    self.working_ram[(addr - 0xE000) as usize] = val;
+            // 0xFF00 and above
+            0xFF00 => self.input.set_column_line(val),
+            0xFF01 => self.handle_blargg_output(val as char),
+            0xFF04..=0xFF07 => self.timer.write(addr, val),
+            0xFF0F => self.interrupts.flags = val,
+            0xFFFF => self.interrupts.enable = val,
+
+            0xFF46 => {
+                let source_addr: u16 = (val as u16) << 8;
+
+                for i in 0..160 {
+                    let src_val = self.read_u8(source_addr + i);
+                    self.write_u8(0xFE00 + i, src_val);
                 }
 
-                0x0E00 => {
-                    if addr < 0xFEA0 {
-                        self.ppu.sprite_table[(addr - 0xFE00) as usize] = val;
-                    }
-                }
+                // write the inderlying value
+                self.ppu.write_u8(addr, val);
+            }
+            0xFF40..=0xFF4B => self.ppu.write_u8(addr, val),
 
-                0x0F00 => match addr {
-                    0xFF00 => self.input.set_column_line(val),
-                    0xFF01 => self.handle_blargg_output(val as char),
-                    0xFF04..=0xFF07 => self.timer.write(addr, val),
-                    0xFF0F => self.interrupts.flags = val,
-                    0xFFFF => self.interrupts.enable = val,
-
-                    0xFF46 => {
-                        let source_addr: u16 = (val as u16) << 8;
-
-                        for i in 0..160 {
-                            let src_val = self.read_u8(source_addr + i);
-                            self.write_u8(0xFE00 + i, src_val);
-                        }
-                    }
-                    0xFF40..=0xFF4B => self.ppu.write_u8(addr, val),
-
-                    0xFF00..=0xFF7F => self.io[(addr - 0xFF00) as usize] = val,
-                    0xFF80..=0xFFFE => self.zero_page[(addr - 0xFF80) as usize] = val,
-
-                    _ => unreachable!(),
-                },
-
-                _ => todo!("read u8 @{:#06X}", addr),
-            },
-
-            _ => todo!("write u8 @{:#06X}", addr),
+            0xFF00..=0xFF7F => self.io[(addr - 0xFF00) as usize] = val,
+            0xFF80..=0xFFFE => self.zero_page[(addr - 0xFF80) as usize] = val,
         }
     }
 

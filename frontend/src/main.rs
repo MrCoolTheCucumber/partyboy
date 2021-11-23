@@ -1,6 +1,7 @@
-use std::{env, time::Duration};
+use std::env;
 
-use gameboy::GameBoy;
+use crate::input::{handle_key_down, handle_key_up};
+use gameboy::gameboy::GameBoy;
 use gl::types::GLuint;
 use log::{log_enabled, LevelFilter};
 use log4rs::{
@@ -11,7 +12,7 @@ use log4rs::{
 };
 use sdl2::sys::SDL_GetTicks;
 
-mod gameboy;
+mod input;
 mod render;
 
 pub const SCALE: u32 = 2;
@@ -50,7 +51,7 @@ fn main() {
     #[cfg(debug_assertions)]
     init_logger();
 
-    let mut gb = GameBoy::new("/mnt/i/Dev/gb-rs/sm.gb");
+    let mut gb = GameBoy::new("/mnt/i/Dev/gb-rs/tetris.gb");
     log::info!("Initialized gameboy.");
 
     let sdl = sdl2::init().unwrap();
@@ -102,7 +103,7 @@ fn main() {
                     keycode, repeat, ..
                 } => {
                     if !repeat && keycode.is_some() {
-                        gb.key_down(keycode.unwrap());
+                        handle_key_down(&mut gb, keycode.unwrap());
                     }
                 }
 
@@ -110,7 +111,7 @@ fn main() {
                     keycode, repeat, ..
                 } => {
                     if !repeat && keycode.is_some() {
-                        gb.key_up(keycode.unwrap());
+                        handle_key_up(&mut gb, keycode.unwrap());
                     }
                 }
 

@@ -1,8 +1,7 @@
-use std::ffi::c_void;
-
+use crate::{HEIGHT, SCALE, WIDTH};
+use gameboy::gameboy::GameBoy;
 use gl::types::GLuint;
-
-use crate::{gameboy::GameBoy, HEIGHT, SCALE, WIDTH};
+use std::ffi::c_void;
 
 pub fn init_gl_state(tex_id: &mut u32, fb_id: &mut u32) {
     unsafe {

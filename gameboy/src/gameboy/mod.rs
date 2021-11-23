@@ -1,7 +1,7 @@
 mod bus;
 mod cartridge;
-pub mod cpu;
-mod input;
+mod cpu;
+pub mod input;
 mod interrupts;
 mod ppu;
 mod timer;
@@ -9,9 +9,9 @@ mod timer;
 use self::{
     bus::Bus,
     cpu::{instructions::InstructionCache, Cpu},
+    input::Keycode,
     interrupts::Interrupts,
 };
-use sdl2::keyboard::Keycode;
 
 pub struct GameBoy {
     instruction_cache: InstructionCache,

@@ -1,5 +1,3 @@
-use sdl2::keyboard::Keycode;
-
 pub struct Input {
     pub up: u8,
     pub down: u8,
@@ -72,15 +70,14 @@ impl Input {
 
     pub fn key_down(&mut self, code: Keycode) -> bool {
         match code {
-            Keycode::W => self.up = 0,
-            Keycode::A => self.left = 0,
-            Keycode::S => self.down = 0,
-            Keycode::D => self.right = 0,
-            Keycode::O => self.a = 0,
-            Keycode::K => self.b = 0,
-            Keycode::N => self.select = 0,
-            Keycode::M => self.start = 0,
-            _ => return false,
+            Keycode::Up => self.up = 0,
+            Keycode::Left => self.left = 0,
+            Keycode::Down => self.down = 0,
+            Keycode::Right => self.right = 0,
+            Keycode::A => self.a = 0,
+            Keycode::B => self.b = 0,
+            Keycode::Select => self.select = 0,
+            Keycode::Start => self.start = 0,
         };
 
         true
@@ -88,15 +85,25 @@ impl Input {
 
     pub fn key_up(&mut self, code: Keycode) {
         match code {
-            Keycode::W => self.up = 1,
-            Keycode::A => self.left = 1,
-            Keycode::S => self.down = 1,
-            Keycode::D => self.right = 1,
-            Keycode::O => self.a = 1,
-            Keycode::K => self.b = 1,
-            Keycode::N => self.select = 1,
-            Keycode::M => self.start = 1,
-            _ => {} // do nothing
+            Keycode::Up => self.up = 1,
+            Keycode::Left => self.left = 1,
+            Keycode::Down => self.down = 1,
+            Keycode::Right => self.right = 1,
+            Keycode::A => self.a = 1,
+            Keycode::B => self.b = 1,
+            Keycode::Select => self.select = 1,
+            Keycode::Start => self.start = 1,
         }
     }
+}
+
+pub enum Keycode {
+    Up,
+    Down,
+    Left,
+    Right,
+    A,
+    B,
+    Start,
+    Select,
 }

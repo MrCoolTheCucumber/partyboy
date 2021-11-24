@@ -31,7 +31,7 @@ macro_rules! test_opcode_timing {
     ($op:expr) => {
         paste! {
             #[test]
-            fn [<timing_test_ $op>]() {
+            fn [<opcode_timing_ $op>]() {
                 let expected_cycles = CYCLE_TABLE[$op];
                 if expected_cycles == 0 {
                     return;
@@ -62,11 +62,11 @@ macro_rules! test_opcode_timing {
 }
 
 macro_rules! define_unprefix_opcode_timing_tests {
-        () => {
-            seq!(N in 0..=255 {
-                test_opcode_timing!(N);
-            });
-        };
-    }
+    () => {
+        seq!(N in 0..=255 {
+            test_opcode_timing!(N);
+        });
+    };
+}
 
 define_unprefix_opcode_timing_tests!();

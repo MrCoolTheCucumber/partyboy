@@ -41,3 +41,11 @@ impl Cartridge for Rom {
 
     fn write_ram(&mut self, _addr: u16, _value: u8) {}
 }
+
+#[cfg(test)]
+pub fn create_test_rom() -> Rom {
+    Rom {
+        rom_bank_0: [0; 0x4000],
+        rom_bank_1: [0; 0x4000],
+    }
+}

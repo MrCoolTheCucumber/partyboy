@@ -1,5 +1,6 @@
 pub mod instructions;
 pub mod register;
+mod tests;
 
 use std::fmt::Debug;
 

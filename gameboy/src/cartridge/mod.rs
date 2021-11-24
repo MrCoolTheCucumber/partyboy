@@ -1,5 +1,5 @@
 mod mbc1;
-mod rom;
+pub mod rom;
 
 use std::{
     fs::File,

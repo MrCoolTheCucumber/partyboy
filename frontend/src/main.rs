@@ -30,8 +30,9 @@ fn init_logger() {
     };
 
     if enable_log_file {
+        const LOG_PATTERN: &str = "{m}\n";
         let logfile = FileAppender::builder()
-            .encoder(Box::new(PatternEncoder::new("{l} - {m}\n")))
+            .encoder(Box::new(PatternEncoder::new(LOG_PATTERN)))
             .build("log/output.log")
             .unwrap();
 
@@ -56,7 +57,7 @@ fn main() {
     #[cfg(debug_assertions)]
     init_logger();
 
-    let mut gb = GameBoy::new("/mnt/i/Dev/gb-rs/mem_timing.gb");
+    let mut gb = GameBoy::new("/mnt/i/Dev/gb-rs/timing/intr_timing.gb");
     log::info!("Initialized gameboy.");
 
     let sdl = sdl2::init().unwrap();

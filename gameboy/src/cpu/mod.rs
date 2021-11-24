@@ -63,13 +63,13 @@ impl Debug for Cpu {
 impl Cpu {
     pub fn new() -> Self {
         Self {
-            af: Register::new(0x01, 0xB0),
-            bc: Register::new(0x00, 0x13),
-            de: Register::new(0x00, 0xD8),
-            hl: Register::new(0x01, 0x4D),
+            af: Register::new(0x00, 0x00),
+            bc: Register::new(0x00, 0x00),
+            de: Register::new(0x00, 0x00),
+            hl: Register::new(0x00, 0x00),
 
-            pc: 0x100,
-            sp: 0xFFFE,
+            pc: 0x0,
+            sp: 0x0,
 
             operand8: 0x0,
             operand16: 0x0,

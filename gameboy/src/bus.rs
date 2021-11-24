@@ -27,7 +27,7 @@ impl Bus {
             io: [0; 0x100],
             zero_page: [0; 0x80],
 
-            bios_enabled: false,
+            bios_enabled: true,
             bios: [
                 0x31, 0xFE, 0xFF, 0x21, 0xFF, 0x9F, 0xAF, 0x32, 0xCB, 0x7C, 0x20, 0xFA, 0x0E, 0x11,
                 0x21, 0x26, 0xFF, 0x3E, 0x80, 0x32, 0xE2, 0x0C, 0x3E, 0xF3, 0x32, 0xE2, 0x0C, 0x3E,
@@ -115,7 +115,7 @@ impl Bus {
             // 0xFF00 and above
             0xFF00 => self.input.set_column_line(val),
             0xFF01 => self.handle_blargg_output(val as char),
-            0xFF04..=0xFF07 => self.timer.write(addr, val),
+            0xFF03..=0xFF07 => self.timer.write(addr, val),
             0xFF0F => self.interrupts.flags = val,
             0xFFFF => self.interrupts.enable = val,
 

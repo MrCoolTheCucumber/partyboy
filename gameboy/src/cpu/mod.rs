@@ -152,7 +152,14 @@ impl Cpu {
                 bus.bios_enabled = false;
             }
 
-            self.instruction_opcode = match self.fetch(bus) {
+            let opcode = self.fetch(bus);
+
+            if self.halt_bug_triggered {
+                self.pc -= 1;
+                self.halt_bug_triggered = false;
+            }
+
+            self.instruction_opcode = match opcode {
                 0xCB => Some(InstructionOpcode::Prefixed(self.fetch(bus))),
                 opcode => Some(InstructionOpcode::Unprefixed(opcode)),
             };

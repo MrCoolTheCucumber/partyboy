@@ -306,7 +306,7 @@ macro_rules! dec_r8 {
 macro_rules! ld_r8_u8 {
     ($reg:ident,$bit:ident) => {
         instruction! {
-            fetch8,
+            FETCH_OP8_EXECNEXTINSTANT,
             InstructionStep::Instant(|cpu, _| {
                 cpu.$reg.$bit = cpu.operand8;
                 InstructionState::Finished

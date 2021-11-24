@@ -17,6 +17,18 @@ const CYCLE_TABLE: [u64; 0x100] = [
     12, 12, 8, 4, 0, 16, 8, 16, 12, 8, 16, 4, 0, 0, 8, 16,
 ];
 
+const CB_CYCLE_TABLE: [u64; 0x100] = [
+    8, 8, 8, 8, 8, 8, 16, 8, 8, 8, 8, 8, 8, 8, 16, 8, 8, 8, 8, 8, 8, 8, 16, 8, 8, 8, 8, 8, 8, 8,
+    16, 8, 8, 8, 8, 8, 8, 8, 16, 8, 8, 8, 8, 8, 8, 8, 16, 8, 8, 8, 8, 8, 8, 8, 16, 8, 8, 8, 8, 8,
+    8, 8, 16, 8, 8, 8, 8, 8, 8, 8, 12, 8, 8, 8, 8, 8, 8, 8, 12, 8, 8, 8, 8, 8, 8, 8, 12, 8, 8, 8,
+    8, 8, 8, 8, 12, 8, 8, 8, 8, 8, 8, 8, 12, 8, 8, 8, 8, 8, 8, 8, 12, 8, 8, 8, 8, 8, 8, 8, 12, 8,
+    8, 8, 8, 8, 8, 8, 12, 8, 8, 8, 8, 8, 8, 8, 16, 8, 8, 8, 8, 8, 8, 8, 16, 8, 8, 8, 8, 8, 8, 8,
+    16, 8, 8, 8, 8, 8, 8, 8, 16, 8, 8, 8, 8, 8, 8, 8, 16, 8, 8, 8, 8, 8, 8, 8, 16, 8, 8, 8, 8, 8,
+    8, 8, 16, 8, 8, 8, 8, 8, 8, 8, 16, 8, 8, 8, 8, 8, 8, 8, 16, 8, 8, 8, 8, 8, 8, 8, 16, 8, 8, 8,
+    8, 8, 8, 8, 16, 8, 8, 8, 8, 8, 8, 8, 16, 8, 8, 8, 8, 8, 8, 8, 16, 8, 8, 8, 8, 8, 8, 8, 16, 8,
+    8, 8, 8, 8, 8, 8, 16, 8, 8, 8, 8, 8, 8, 8, 16, 8,
+];
+
 fn init_default_state() -> (Cpu, Bus, InstructionCache) {
     let mut cpu = Cpu::new();
     cpu.is_fetching = true;
@@ -59,14 +71,51 @@ macro_rules! test_opcode_timing {
             }
         }
     };
+
+    (CB $op:expr) => {
+        paste! {
+            #[test]
+            fn [<cb_opcode_timing_ $op>]() {
+                let expected_cycles = CB_CYCLE_TABLE[$op];
+
+                let (mut cpu, mut bus, mut instruction_cache) = init_default_state();
+                let opcode = InstructionOpcode::Prefixed($op);
+
+                let mut cycles: u64 = 0;
+                cpu.instruction_opcode = Some(opcode);
+
+                while cpu.instruction_opcode.is_some() {
+                    cpu.tick(&mut bus, &mut instruction_cache);
+                    cycles += 1;
+                }
+
+                assert_eq!(
+                    cycles,
+                    expected_cycles,
+                    "Opcode {:#06X} failed timing test. Expected: {}, Result: {}",
+                    0xCB00 + $op,
+                    expected_cycles,
+                    cycles
+                );
+            }
+        }
+    };
 }
 
-macro_rules! define_unprefix_opcode_timing_tests {
+macro_rules! define_opcode_timing_tests {
     () => {
         seq!(N in 0..=255 {
             test_opcode_timing!(N);
         });
     };
+
+    (CB) => {
+        seq!(N in 0..=255 {
+            test_opcode_timing!(CB N);
+        });
+    };
 }
 
-define_unprefix_opcode_timing_tests!();
+define_opcode_timing_tests!();
+
+define_opcode_timing_tests!(CB);

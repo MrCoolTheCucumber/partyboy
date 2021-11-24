@@ -1256,7 +1256,7 @@ macro_rules! bit {
 
     ($bit:expr, $reg:tt) => {
         instruction! {
-            BLANK_PROGRESS,
+            BLANK_PROGRESS_EXEC_NEXT_INSTANT,
             InstructionStep::Instant(|cpu, _| {
                 cpu.set_flag_if_cond_else_clear(r8!(cpu, $reg) & (1 << $bit) == 0, Flag::Z);
                 cpu.clear_flag(Flag::N);
@@ -1286,7 +1286,7 @@ macro_rules! res {
 
     ($bit:expr, $reg:tt) => {
         instruction! {
-            BLANK_PROGRESS,
+            BLANK_PROGRESS_EXEC_NEXT_INSTANT,
             InstructionStep::Instant(|cpu, _| {
                 r8!(cpu, $reg) = r8!(cpu, $reg) & !(1 << $bit);
                 InstructionState::Finished
@@ -1313,7 +1313,7 @@ macro_rules! set {
 
     ($bit:expr, $reg:tt) => {
         instruction! {
-            BLANK_PROGRESS,
+            BLANK_PROGRESS_EXEC_NEXT_INSTANT,
             InstructionStep::Instant(|cpu, _| {
                 r8!(cpu, $reg) = r8!(cpu, $reg) | (1 << $bit);
                 InstructionState::Finished
@@ -1325,7 +1325,7 @@ macro_rules! set {
 macro_rules! cb_op_instr {
     ($func:ident, $reg:tt) => {
         instruction! {
-            BLANK_PROGRESS,
+            BLANK_PROGRESS_EXEC_NEXT_INSTANT,
             InstructionStep::Instant(|cpu, _| {
                 r8!(cpu, $reg) = cpu.$func(r8!(cpu, $reg));
                 InstructionState::Finished

@@ -24,7 +24,12 @@ fn init_logger() {
         env::set_var("RUST_LOG", "info")
     }
 
-    if log_enabled!(log::Level::Debug) {
+    let enable_log_file: bool = match env::var("RUST_LOG") {
+        Ok(val) => val.to_lowercase().contains("debug"),
+        Err(_) => false,
+    };
+
+    if enable_log_file {
         let logfile = FileAppender::builder()
             .encoder(Box::new(PatternEncoder::new("{l} - {m}\n")))
             .build("log/output.log")
@@ -51,7 +56,7 @@ fn main() {
     #[cfg(debug_assertions)]
     init_logger();
 
-    let mut gb = GameBoy::new("/mnt/i/Dev/gb-rs/cpu_instrs.gb");
+    let mut gb = GameBoy::new("/mnt/i/Dev/gb-rs/mem_timing.gb");
     log::info!("Initialized gameboy.");
 
     let sdl = sdl2::init().unwrap();

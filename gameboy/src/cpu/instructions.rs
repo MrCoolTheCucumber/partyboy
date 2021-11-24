@@ -605,7 +605,7 @@ macro_rules! __define_op_macro {
 
                 (u8) => {
                     instruction! {
-                        fetch8,
+                        FETCH_OP8_EXECNEXTINSTANT,
                         [<__ $op>]!(u8)
                     }
                 };

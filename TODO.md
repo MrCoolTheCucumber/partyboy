@@ -1,0 +1,2 @@
+- change the main cpu tick loop to not se exec or get (or reset?). This should reduce the amount of calls we do
+- create a disassembler to make reading logs easier (opcode num => str)

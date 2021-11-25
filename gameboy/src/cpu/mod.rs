@@ -189,6 +189,7 @@ impl Cpu {
             InstructionStep::Standard(_) => {
                 if self.is_fetching {
                     self.is_fetching = false;
+                    // return so we emulate another 4t for executing the step
                     return;
                 }
 

@@ -1,6 +1,7 @@
 use std::env;
 
 use crate::input::{handle_key_down, handle_key_up};
+use clap::clap_app;
 use gameboy::GameBoy;
 use gl::types::GLuint;
 use log::LevelFilter;
@@ -18,6 +19,10 @@ mod render;
 pub const SCALE: u32 = 2;
 pub const WIDTH: u32 = 160;
 pub const HEIGHT: u32 = 144;
+
+struct Args {
+    rom_path: String,
+}
 
 fn init_logger() {
     if env::var("RUST_LOG").is_err() {
@@ -53,11 +58,25 @@ fn init_logger() {
     log_panics::init();
 }
 
+fn parse_args() -> Args {
+    let matches = clap_app!(partyboy =>
+        (version: "1.0")
+        (about: "A Gameboy (color?) emulator")
+        (@arg rom_path: -r --rom +takes_value +required "The path to the rom to load")
+    )
+    .get_matches();
+
+    let rom_path = matches.value_of("ROM").unwrap().to_owned();
+    Args { rom_path }
+}
+
 fn main() {
     #[cfg(debug_assertions)]
     init_logger();
 
-    let mut gb = GameBoy::new("/mnt/i/Dev/gb-rs/timing/intr_timing.gb");
+    let args = parse_args();
+
+    let mut gb = GameBoy::new(&args.rom_path);
     log::info!("Initialized gameboy.");
 
     let sdl = sdl2::init().unwrap();
@@ -95,8 +114,7 @@ fn main() {
 
     let start_time = unsafe { SDL_GetTicks() } as f32;
     let mut frames: f32 = 0f32;
-    #[allow(unused_assignments)] // its clearly used..
-    let mut elapsed: f32 = 1f32;
+    let mut elapsed: f32;
 
     let mut time_since_last_window_update: f32 = 0f32;
 

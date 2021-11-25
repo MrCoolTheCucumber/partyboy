@@ -24,3 +24,8 @@
 
 ### SDL2 wasm example
 - https://github.com/tanis2000/rust-sdl2-wasm
+
+### Pinball
+Just search for "pinball" in the #gb channel
+- https://discord.com/channels/465585922579103744/465586075830845475/825443415188570143
+- https://discord.com/channels/465585922579103744/465586075830845475/778959603257311263

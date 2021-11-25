@@ -7,7 +7,7 @@ use std::fmt::Debug;
 use crate::cpu::instructions::InstructionStep;
 
 use self::{
-    instructions::{InstructionCache, InstructionOpcode, InstructionState},
+    instructions::{Instruction, InstructionCache, InstructionOpcode, InstructionState},
     register::Register,
 };
 use super::bus::Bus;
@@ -185,44 +185,52 @@ impl Cpu {
         self.cycle = 0;
 
         let opcode = self.instruction_opcode.unwrap();
-        match instruction_cache.get(opcode) {
-            InstructionStep::Standard(_) => {
+        let instruction = instruction_cache.get(opcode);
+        self.exec(instruction, bus);
+    }
+
+    fn exec(&mut self, instruction: &mut Instruction, bus: &mut Bus) {
+        let instruction_step = &instruction.steps[instruction.index];
+        let result = match instruction_step {
+            InstructionStep::Standard(instr_step_func) => {
                 if self.is_fetching {
+                    // if is_fetching is true then we just finished fetching
+                    // so we need to wait another 4T before execing this step.
+                    // We return now, and then self.cycle will have to reach 4 again
+                    // to get back here.
+                    //
+                    // We cant do this earlier because the first instruction might be an exec instant
                     self.is_fetching = false;
-                    // return so we emulate another 4t for executing the step
                     return;
                 }
 
-                self.exec(opcode, bus, instruction_cache);
+                instr_step_func(self, bus)
             }
-            InstructionStep::Instant(_) => {
+            InstructionStep::Instant(instr_step_func) => {
                 self.is_fetching = false;
-                self.exec(opcode, bus, instruction_cache);
+                instr_step_func(self, bus)
+            }
+        };
+
+        instruction.index += 1;
+
+        match result {
+            InstructionState::InProgress => return,
+            InstructionState::ExecNextInstantly => self.exec(instruction, bus),
+            InstructionState::Finished => {
+                self.handle_instruction_finish(instruction);
+            }
+            InstructionState::Branch(continue_exec) => {
+                if !continue_exec {
+                    self.handle_instruction_finish(instruction);
+                }
             }
         }
     }
 
-    fn exec(
-        &mut self,
-        opcode: InstructionOpcode,
-        bus: &mut Bus,
-        instruction_cache: &mut InstructionCache,
-    ) {
-        match instruction_cache.exec(opcode, self, bus) {
-            InstructionState::InProgress => {}
-            InstructionState::ExecNextInstantly => {
-                self.exec(opcode, bus, instruction_cache);
-            }
-            InstructionState::Branch(continue_exec) => {
-                if !continue_exec {
-                    instruction_cache.reset(opcode);
-                    self.instruction_opcode = None;
-                }
-            }
-            InstructionState::Finished => {
-                instruction_cache.reset(opcode);
-                self.instruction_opcode = None
-            }
-        }
+    #[inline(always)]
+    fn handle_instruction_finish(&mut self, instruction: &mut Instruction) {
+        self.instruction_opcode = None;
+        instruction.index = 0;
     }
 }

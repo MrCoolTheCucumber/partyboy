@@ -44,28 +44,9 @@ impl Debug for InstructionOpcode {
     }
 }
 
-pub struct Instruction {
-    index: usize,
-    steps: Vec<InstructionStep>,
-}
-
-impl Instruction {
-    pub fn exec(&mut self, cpu: &mut Cpu, bus: &mut Bus) -> InstructionState {
-        let state = match self.steps[self.index] {
-            InstructionStep::Standard(step) => step(cpu, bus),
-            InstructionStep::Instant(step) => step(cpu, bus),
-        };
-        self.index += 1;
-        state
-    }
-
-    pub fn get(&self) -> &InstructionStep {
-        &self.steps[self.index]
-    }
-
-    pub fn reset(&mut self) {
-        self.index = 0;
-    }
+pub(super) struct Instruction {
+    pub index: usize,
+    pub steps: Vec<InstructionStep>,
 }
 
 const __FETCH_OPERAND8: InstructionStep = InstructionStep::Standard(|cpu, bus| {
@@ -2135,38 +2116,11 @@ impl InstructionCache {
             .unwrap_or_else(|_| panic!("Unable to convert instruction vec into array."))
     }
 
-    pub fn exec(
-        &mut self,
-        opcode: InstructionOpcode,
-        cpu: &mut Cpu,
-        bus: &mut Bus,
-    ) -> InstructionState {
+    pub(super) fn get(&mut self, opcode: InstructionOpcode) -> &mut Instruction {
         match opcode {
-            InstructionOpcode::Unprefixed(opcode) => {
-                self.instructions[opcode as usize].exec(cpu, bus)
-            }
-            InstructionOpcode::Prefixed(opcode) => {
-                self.cb_instructions[opcode as usize].exec(cpu, bus)
-            }
-            InstructionOpcode::InterruptServiceRoutine => {
-                self.interrupt_service_routine.exec(cpu, bus)
-            }
-        }
-    }
-
-    pub fn get(&mut self, opcode: InstructionOpcode) -> &InstructionStep {
-        match opcode {
-            InstructionOpcode::Unprefixed(opcode) => self.instructions[opcode as usize].get(),
-            InstructionOpcode::Prefixed(opcode) => self.cb_instructions[opcode as usize].get(),
-            InstructionOpcode::InterruptServiceRoutine => self.interrupt_service_routine.get(),
-        }
-    }
-
-    pub fn reset(&mut self, opcode: InstructionOpcode) {
-        match opcode {
-            InstructionOpcode::Unprefixed(opcode) => self.instructions[opcode as usize].reset(),
-            InstructionOpcode::Prefixed(opcode) => self.cb_instructions[opcode as usize].reset(),
-            InstructionOpcode::InterruptServiceRoutine => self.interrupt_service_routine.reset(),
+            InstructionOpcode::Unprefixed(opcode) => &mut self.instructions[opcode as usize],
+            InstructionOpcode::Prefixed(opcode) => &mut self.cb_instructions[opcode as usize],
+            InstructionOpcode::InterruptServiceRoutine => &mut self.interrupt_service_routine,
         }
     }
 }

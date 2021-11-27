@@ -11,7 +11,7 @@ use log4rs::{
     encode::pattern::PatternEncoder,
     Config,
 };
-use sdl2::sys::SDL_GetTicks;
+use sdl2::sys::{SDL_Delay, SDL_GetPerformanceCounter, SDL_GetPerformanceFrequency, SDL_GetTicks};
 
 mod input;
 mod render;
@@ -153,6 +153,8 @@ fn main() {
             }
         }
 
+        let start = unsafe { SDL_GetPerformanceCounter() };
+
         for _ in 0..(70_224) {
             gb.tick();
         }
@@ -169,6 +171,13 @@ fn main() {
                 let _ = window.set_title(format!("{:.2}", fps).as_str());
                 time_since_last_window_update = elapsed;
             }
+
+            unsafe {
+                let end = SDL_GetPerformanceCounter();
+                let elapsed =
+                    (end - start) as f64 / (SDL_GetPerformanceFrequency() as f64 * 1000.0f64);
+                SDL_Delay((16.6666f64 - elapsed) as u32);
+            };
         }
 
         window.gl_swap_window();

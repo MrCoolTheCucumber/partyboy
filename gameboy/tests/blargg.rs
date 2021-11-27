@@ -2,7 +2,6 @@ mod common;
 
 use common::APPROX_CYCLES_PER_SCREEN_DRAW;
 use gameboy::{builder::SerialWriteHandler, GameBoy};
-use paste::paste;
 use std::{cell::RefCell, path::PathBuf, rc::Rc};
 
 fn get_root_path() -> PathBuf {

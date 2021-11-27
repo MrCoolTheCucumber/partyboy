@@ -14,6 +14,12 @@ pub struct GameBoyBuilder {
     serial_write_handler: Option<SerialWriteHandler>,
 }
 
+impl Default for GameBoyBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl GameBoyBuilder {
     pub fn new() -> Self {
         GameBoyBuilder {
@@ -41,7 +47,7 @@ impl GameBoyBuilder {
 
         let serial_write_handler = self
             .serial_write_handler
-            .unwrap_or(Box::new(Bus::get_handle_blargg_output()));
+            .unwrap_or_else(|| Box::new(Bus::get_handle_blargg_output()));
 
         Ok(GameBoy::new(
             self.rom_path.unwrap().as_str(),

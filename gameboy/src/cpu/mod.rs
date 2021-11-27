@@ -215,7 +215,7 @@ impl Cpu {
         instruction.index += 1;
 
         match result {
-            InstructionState::InProgress => return,
+            InstructionState::InProgress => {}
             InstructionState::ExecNextInstantly => self.exec(instruction, bus),
             InstructionState::Finished => {
                 self.handle_instruction_finish(instruction);

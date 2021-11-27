@@ -3,7 +3,7 @@ pub mod rom;
 
 use std::{
     fs::File,
-    io::{Error, Read},
+    io::Read,
     path::{Path, PathBuf},
 };
 
@@ -131,46 +131,33 @@ fn get_save_file_path_from_rom_path(path: &Path) -> PathBuf {
     save_file_path
 }
 
-fn try_read_save_file(
-    sav_file: Result<File, Error>,
-    num_ram_banks: u16,
-    ram_banks: &mut Vec<[u8; 0x2000]>,
-) {
-    match sav_file {
-        Ok(mut file) => {
-            let mut buf: Vec<u8> = Vec::new();
-            let read_result = file.read_to_end(&mut buf);
-            match read_result {
-                Ok(_) => {
-                    let bytes_read = buf.len();
-                    if bytes_read != num_ram_banks as usize * 0x2000 {
-                        log::warn!(
-                            "Save file was an unexpected length. Expected {}, actual: {}",
-                            num_ram_banks as usize * 0x2000,
-                            bytes_read
-                        );
-                    } else {
-                        // load save file
-                        load_new_ram(ram_banks, num_ram_banks);
-                        let mut index: usize = 0;
-                        for bank in ram_banks {
-                            for val in bank.iter_mut().take(0x2000) {
-                                *val = buf[index];
-                                index += 1;
-                            }
-                        }
-                        log::info!("Save file loaded!");
-                    }
-                }
+fn try_read_save_file(sav_file_path: &Path, num_ram_banks: u16, ram_banks: &mut Vec<[u8; 0x2000]>) {
+    load_new_ram(ram_banks, num_ram_banks);
 
-                Err(_) => {
-                    load_new_ram(ram_banks, num_ram_banks);
+    let save_file = File::open(sav_file_path);
+    if let Ok(mut file) = save_file {
+        let mut buf: Vec<u8> = Vec::new();
+
+        if let Ok(bytes_read) = file.read_to_end(&mut buf) {
+            if bytes_read != num_ram_banks as usize * 0x2000 {
+                log::warn!(
+                    "Save file was an unexpected length. Expected {}, actual: {}",
+                    num_ram_banks as usize * 0x2000,
+                    bytes_read
+                );
+                return;
+            }
+
+            // load save file
+            let mut index: usize = 0;
+            for bank in ram_banks {
+                for val in bank.iter_mut().take(0x2000) {
+                    *val = buf[index];
+                    index += 1;
                 }
             }
-        }
 
-        Err(_) => {
-            load_new_ram(ram_banks, num_ram_banks);
+            log::info!("Save file loaded!");
         }
     }
 }

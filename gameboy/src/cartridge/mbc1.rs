@@ -38,8 +38,7 @@ impl Mbc1 {
         let save_file_path = get_save_file_path_from_rom_path(path);
 
         // try to open save file
-        let sav_file = File::open(&save_file_path);
-        try_read_save_file(sav_file, num_ram_banks, &mut ram_banks);
+        try_read_save_file(&save_file_path, num_ram_banks, &mut ram_banks);
 
         Self {
             is_ram_enabled: false,

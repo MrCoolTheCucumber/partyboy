@@ -148,10 +148,6 @@ impl Cpu {
         if self.instruction_opcode.is_none() {
             self.is_fetching = true;
 
-            if bus.bios_enabled && self.pc >= 0x100 {
-                bus.bios_enabled = false;
-            }
-
             let opcode = self.fetch(bus);
 
             if self.halt_bug_triggered {

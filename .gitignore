@@ -7,4 +7,5 @@ flamegraph.svg
 perf.data
 perf.data.old
 
+# tests
 /test_roms

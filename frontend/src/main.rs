@@ -66,7 +66,7 @@ fn parse_args() -> Args {
     )
     .get_matches();
 
-    let rom_path = matches.value_of("ROM").unwrap().to_owned();
+    let rom_path = matches.value_of("rom_path").unwrap().to_owned();
     Args { rom_path }
 }
 
@@ -76,7 +76,11 @@ fn main() {
 
     let args = parse_args();
 
-    let mut gb = GameBoy::new(&args.rom_path);
+    // let mut gb = GameBoy::new(&args.rom_path);
+    let mut gb = GameBoy::builder()
+        .rom_path(args.rom_path.as_str())
+        .build()
+        .unwrap();
     log::info!("Initialized gameboy.");
 
     let sdl = sdl2::init().unwrap();

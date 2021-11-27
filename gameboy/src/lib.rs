@@ -1,3 +1,4 @@
+pub mod builder;
 mod bus;
 mod cartridge;
 mod cpu;
@@ -6,7 +7,10 @@ mod interrupts;
 mod ppu;
 mod timer;
 
+use builder::SerialWriteHandler;
+
 use self::{
+    builder::GameBoyBuilder,
     bus::Bus,
     cpu::{instructions::InstructionCache, Cpu},
     input::Keycode,
@@ -20,14 +24,18 @@ pub struct GameBoy {
 }
 
 impl GameBoy {
-    pub fn new(rom_path: &str) -> Self {
+    fn new(rom_path: &str, serial_write_handler: SerialWriteHandler) -> Self {
         let cartridge = cartridge::create(rom_path);
 
         Self {
             instruction_cache: InstructionCache::new(),
             cpu: Cpu::new(),
-            bus: Bus::new(cartridge),
+            bus: Bus::new(cartridge, serial_write_handler),
         }
+    }
+
+    pub fn builder() -> GameBoyBuilder {
+        GameBoyBuilder::new()
     }
 
     pub fn tick(&mut self) {

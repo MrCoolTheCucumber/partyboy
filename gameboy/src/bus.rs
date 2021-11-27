@@ -1,8 +1,11 @@
 #![allow(clippy::match_overlapping_arm)]
+use crate::builder::SerialWriteHandler;
+
 use super::{cartridge::Cartridge, input::Input, interrupts::Interrupts, ppu::Ppu, timer::Timer};
 
 pub struct Bus {
-    blargg_output_buffer: Vec<char>,
+    serial_write_handler: SerialWriteHandler,
+
     pub cartridge: Box<dyn Cartridge>,
     pub ppu: Ppu,
     pub working_ram: [u8; 0x2000],
@@ -18,9 +21,10 @@ pub struct Bus {
 }
 
 impl Bus {
-    pub fn new(cartridge: Box<dyn Cartridge>) -> Self {
+    pub fn new(cartridge: Box<dyn Cartridge>, serial_write_handler: SerialWriteHandler) -> Self {
         Self {
-            blargg_output_buffer: Vec::new(),
+            serial_write_handler,
+
             cartridge,
             ppu: Ppu::new(),
             working_ram: [0; 0x2000],
@@ -56,14 +60,21 @@ impl Bus {
         }
     }
 
-    fn handle_blargg_output(&mut self, c: char) {
-        if c == "\n".chars().next().unwrap() {
-            let string = String::from_iter(self.blargg_output_buffer.iter());
-            log::info!("{}", string);
-            self.blargg_output_buffer.clear();
-        } else {
-            self.blargg_output_buffer.push(c);
-        }
+    pub(crate) fn get_handle_blargg_output() -> SerialWriteHandler {
+        let mut blargg_output_buffer: Vec<char> = Vec::new();
+
+        let handler: SerialWriteHandler = Box::new(move |val| {
+            let c = val as char;
+            if c == "\n".chars().next().unwrap() {
+                let string = String::from_iter(blargg_output_buffer.iter());
+                log::info!("{}", string);
+                blargg_output_buffer.clear();
+            } else {
+                blargg_output_buffer.push(c);
+            }
+        });
+
+        handler
     }
 
     pub fn read_u8(&self, addr: u16) -> u8 {
@@ -114,7 +125,7 @@ impl Bus {
 
             // 0xFF00 and above
             0xFF00 => self.input.set_column_line(val),
-            0xFF01 => self.handle_blargg_output(val as char),
+            0xFF01 => (self.serial_write_handler)(val),
             0xFF03..=0xFF07 => self.timer.write(addr, val),
             0xFF0F => self.interrupts.flags = val,
             0xFFFF => self.interrupts.enable = val,

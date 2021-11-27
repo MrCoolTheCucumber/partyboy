@@ -92,8 +92,7 @@ impl Cpu {
     }
 
     pub fn initiate_interrupt_service_routin(&mut self) {
-        // TODO: this should only run in debug mode
-        // make it a debug_assert?
+        #[cfg(debug_assertions)]
         if self.instruction_opcode.is_some() {
             panic!("ISR was fired whilst running an instruction");
         }

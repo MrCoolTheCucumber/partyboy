@@ -79,7 +79,7 @@ impl Bus {
             0xFFFF => self.interrupts.enable,
 
             0xFF40..=0xFF4B => self.ppu.read_u8(addr),
-            0xFF68 | 0xFF69 => self.ppu.read_u8(addr),
+            0xFF68..=0xFF6B => self.ppu.read_u8(addr),
 
             0xFF00..=0xFF7F => self.io[(addr - 0xFF00) as usize],
             0xFF80..=0xFFFE => self.zero_page[(addr - 0xFF80) as usize],
@@ -123,10 +123,7 @@ impl Bus {
                 self.ppu.write_u8(addr, val);
             }
             0xFF40..=0xFF4B => self.ppu.write_u8(addr, val),
-
-            0xFF68 | 0xFF69 => {
-                self.ppu.write_u8(addr, val);
-            }
+            0xFF68..=0xFF6B => self.ppu.write_u8(addr, val),
 
             0xFF00..=0xFF7F => self.io[(addr - 0xFF00) as usize] = val,
             0xFF80..=0xFFFE => self.zero_page[(addr - 0xFF80) as usize] = val,

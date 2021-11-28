@@ -4,19 +4,12 @@ use self::rgb::Rgb;
 
 use super::interrupts::{InterruptFlag, Interrupts};
 
-const PALETTE: [Rgb; 4] = [
-    Rgb::const_mono(255),
-    Rgb::const_mono(192),
-    Rgb::const_mono(96),
-    Rgb::const_mono(0),
-];
-
 const CGB_PTR_PALETTE: [usize; 4] = [0, 1, 2, 3];
 
 pub(crate) struct Ppu {
     pub gpu_vram: [u8; 0x2000],
     pub sprite_table: [u8; 0xA0],
-    pub sprite_palette: [[Rgb; 4]; 2],
+    pub sprite_palette: [[usize; 4]; 2],
 
     frame_buffer: [Rgb; 160 * 144],
     draw_flag: bool,
@@ -42,9 +35,15 @@ pub(crate) struct Ppu {
 
     bg_color_palette_ram: [u8; 64],
     bg_color_palette: [[Rgb; 4]; 8],
-    bg_color_palette_speciication: u8, // FF68
+    bg_color_palette_specification: u8, // FF68
     bg_color_palette_index: usize,
-    bg_color_palette_auto_incremet: bool,
+    bg_color_palette_auto_increment: bool,
+
+    sprite_color_palette_ram: [u8; 64],
+    sprite_color_palette: [[Rgb; 4]; 8],
+    sprite_color_palette_specification: u8, // FF6A
+    sprite_color_palette_index: usize,
+    sprite_color_palette_auto_increment: bool,
 
     line_clock_cycles: u64,
     mode_clock_cycles: u64,
@@ -101,8 +100,18 @@ impl Ppu {
             gpu_vram: [0; 0x2000],
             sprite_table: [0; 0xA0],
             sprite_palette: [
-                [PALETTE[0], PALETTE[1], PALETTE[2], PALETTE[3]],
-                [PALETTE[0], PALETTE[1], PALETTE[2], PALETTE[3]],
+                [
+                    CGB_PTR_PALETTE[0],
+                    CGB_PTR_PALETTE[1],
+                    CGB_PTR_PALETTE[2],
+                    CGB_PTR_PALETTE[3],
+                ],
+                [
+                    CGB_PTR_PALETTE[0],
+                    CGB_PTR_PALETTE[1],
+                    CGB_PTR_PALETTE[2],
+                    CGB_PTR_PALETTE[3],
+                ],
             ],
 
             frame_buffer: [Rgb::default(); 160 * 144],
@@ -132,11 +141,17 @@ impl Ppu {
             wy: 0x0,
             wx: 0x0,
 
-            bg_color_palette_ram: [0; 64],
+            bg_color_palette_ram: [0xFF; 64],
             bg_color_palette: [[Rgb::default(); 4]; 8],
-            bg_color_palette_speciication: 0xFF,
+            bg_color_palette_specification: 0xFF,
             bg_color_palette_index: 0,
-            bg_color_palette_auto_incremet: false,
+            bg_color_palette_auto_increment: false,
+
+            sprite_color_palette_ram: [0xFF; 64],
+            sprite_color_palette: [[Rgb::default(); 4]; 8],
+            sprite_color_palette_specification: 0xFF,
+            sprite_color_palette_index: 0,
+            sprite_color_palette_auto_increment: false,
 
             line_clock_cycles: 0,
             mode_clock_cycles: 0,
@@ -168,8 +183,10 @@ impl Ppu {
             0xFF4A => self.wy,
             0xFF4B => self.wx,
 
-            0xFF68 => self.bg_color_palette_speciication,
+            0xFF68 => self.bg_color_palette_specification,
             0xFF69 => self.bg_color_palette_ram[self.bg_color_palette_index],
+            0xFF6A => self.sprite_color_palette_specification,
+            0xFF6B => self.sprite_color_palette_ram[self.sprite_color_palette_index],
 
             _ => panic!("Ppu doesnt handle reading from address: {:#06X}", addr),
         }
@@ -204,37 +221,32 @@ impl Ppu {
             }
             0xFF46 => self.dma = val,
             0xFF47 => {
-                log::info!("palette shuffle recieved: {:#10b}", val);
                 self.bgp = val;
-                self.bg_palette[0] = (val & 0b0000_0011) as usize;
-                self.bg_palette[1] = ((val & 0b0000_1100) >> 2) as usize;
-                self.bg_palette[2] = ((val & 0b0011_0000) >> 4) as usize;
-                self.bg_palette[3] = ((val & 0b1100_0000) >> 6) as usize;
-                // for i in 0..4 {
-                //     self.bg_palette[i] = CGB_PTR_PALETTE[((val >> (i * 2)) & 3) as usize];
-                // }
+                for i in 0..4 {
+                    self.bg_palette[i] = CGB_PTR_PALETTE[((val >> (i * 2)) & 3) as usize];
+                }
             }
             0xFF48 => {
                 self.obp0 = val;
                 for i in 0..4 {
-                    self.sprite_palette[0][i] = PALETTE[((val >> (i * 2)) & 3) as usize];
+                    self.sprite_palette[0][i] = CGB_PTR_PALETTE[((val >> (i * 2)) & 3) as usize];
                 }
             }
             0xFF49 => {
                 self.obp1 = val;
                 for i in 0..4 {
-                    self.sprite_palette[1][i] = PALETTE[((val >> (i * 2)) & 3) as usize];
+                    self.sprite_palette[1][i] = CGB_PTR_PALETTE[((val >> (i * 2)) & 3) as usize];
                 }
             }
             0xFF4A => self.wy = val,
             0xFF4B => self.wx = val,
 
             0xFF68 => {
-                self.bg_color_palette_speciication = val;
+                self.bg_color_palette_specification = val;
                 self.bg_color_palette_index =
-                    (self.bg_color_palette_speciication & 0b0011_1111) as usize;
-                self.bg_color_palette_auto_incremet =
-                    self.bg_color_palette_speciication & 0b1000_0000 != 0;
+                    (self.bg_color_palette_specification & 0b0011_1111) as usize;
+                self.bg_color_palette_auto_increment =
+                    self.bg_color_palette_specification & 0b1000_0000 != 0;
             }
             0xFF69 => {
                 let index = self.bg_color_palette_index;
@@ -248,9 +260,34 @@ impl Ppu {
                 let palette_color_bit = (self.bg_color_palette_index & 7) >> 1;
                 self.bg_color_palette[palette_index][palette_color_bit] = rgb;
 
-                if self.bg_color_palette_auto_incremet {
+                if self.bg_color_palette_auto_increment {
                     self.bg_color_palette_index += 1;
                     self.bg_color_palette_index &= 0x3F // handle 5bit overflow
+                }
+            }
+
+            0xFF6A => {
+                self.sprite_color_palette_specification = val;
+                self.sprite_color_palette_index =
+                    (self.sprite_color_palette_specification & 0b0011_1111) as usize;
+                self.sprite_color_palette_auto_increment =
+                    self.sprite_color_palette_specification & 0b1000_0000 != 0;
+            }
+            0xFF6B => {
+                let index = self.sprite_color_palette_index;
+                self.sprite_color_palette_ram[self.sprite_color_palette_index] = val;
+
+                let bgr555: u16 = ((self.sprite_color_palette_ram[index | 1] as u16) << 8)
+                    | (self.sprite_color_palette_ram[index & !1] as u16);
+                let rgb = Rgb::from_bgr555(bgr555);
+
+                let palette_index = self.sprite_color_palette_index >> 3;
+                let palette_color_bit = (self.sprite_color_palette_index & 7) >> 1;
+                self.sprite_color_palette[palette_index][palette_color_bit] = rgb;
+
+                if self.sprite_color_palette_auto_increment {
+                    self.sprite_color_palette_index += 1;
+                    self.sprite_color_palette_index &= 0x3F // handle 5bit overflow
                 }
             }
 
@@ -613,7 +650,9 @@ impl Ppu {
                     continue;
                 }
 
-                let color = self.sprite_palette[sprite_palette][colnr];
+                let color_bit = self.sprite_palette[sprite_palette][colnr];
+                let color = self.sprite_color_palette[sprite_palette][color_bit];
+
                 let pixel_offset = ((scan_line * 160) + sprite_x + x) as usize;
 
                 self.frame_buffer[pixel_offset] = color;

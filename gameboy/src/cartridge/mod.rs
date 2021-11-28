@@ -57,7 +57,7 @@ pub fn create(rom_path: &str) -> Box<dyn Cartridge> {
     // CGB flag
     log::info!("CGB compat mode: {:#04X}", rom_bank_0[0x143]);
     if rom_bank_0[0x143] == 0xC0 {
-        panic!("This rom is only supported for game boy color");
+        log::warn!("This rom is only supported for game boy color");
     }
 
     let cartridge_type_code = rom_bank_0[0x147];

@@ -7,7 +7,9 @@ use super::interrupts::{InterruptFlag, Interrupts};
 const CGB_PTR_PALETTE: [usize; 4] = [0, 1, 2, 3];
 
 pub(crate) struct Ppu {
-    pub gpu_vram: [u8; 0x2000],
+    gpu_vram: [[u8; 0x2000]; 2],
+    gpu_vram_bank: u8,
+
     pub sprite_table: [u8; 0xA0],
     pub sprite_palette: [[usize; 4]; 2],
 
@@ -97,7 +99,9 @@ enum PpuMode {
 impl Ppu {
     pub fn new() -> Self {
         Self {
-            gpu_vram: [0; 0x2000],
+            gpu_vram: [[0; 0x2000]; 2],
+            gpu_vram_bank: 0b1111_1110,
+
             sprite_table: [0; 0xA0],
             sprite_palette: [
                 [
@@ -168,6 +172,14 @@ impl Ppu {
         flag
     }
 
+    pub fn read_vram(&self, addr: u16) -> u8 {
+        self.gpu_vram[(self.gpu_vram_bank & 1) as usize][addr as usize]
+    }
+
+    pub fn write_vram(&mut self, addr: u16, val: u8) {
+        self.gpu_vram[(self.gpu_vram_bank & 1) as usize][addr as usize] = val;
+    }
+
     pub fn read_u8(&self, addr: u16) -> u8 {
         match addr {
             0xFF40 => self.lcdc,
@@ -182,6 +194,8 @@ impl Ppu {
             0xFF49 => self.obp1,
             0xFF4A => self.wy,
             0xFF4B => self.wx,
+
+            0xFF4F => self.gpu_vram_bank,
 
             0xFF68 => self.bg_color_palette_specification,
             0xFF69 => self.bg_color_palette_ram[self.bg_color_palette_index],
@@ -241,6 +255,8 @@ impl Ppu {
             0xFF4A => self.wy = val,
             0xFF4B => self.wx = val,
 
+            0xFF4F => self.gpu_vram_bank = val | 0b1111_1110,
+
             0xFF68 => {
                 self.bg_color_palette_specification = val;
                 self.bg_color_palette_index =
@@ -295,6 +311,11 @@ impl Ppu {
         }
     }
 
+    #[inline(always)]
+    fn access_vram(&self, index: usize) -> u8 {
+        self.gpu_vram[(self.gpu_vram_bank & 1) as usize][index]
+    }
+
     fn update_ly_lyc(&mut self) {
         if self.ly == self.lyc {
             self.stat |= 0b0000_0100;
@@ -332,14 +353,14 @@ impl Ppu {
     fn get_adjusted_tile_index(&self, addr: u16, signed_tile_index: bool) -> u16 {
         let addr = (addr - 0x8000) as usize;
         if signed_tile_index {
-            let tile = self.gpu_vram[addr] as i8 as i16;
+            let tile = self.access_vram(addr) as i8 as i16;
             if tile >= 0 {
                 tile as u16 + 256
             } else {
                 256 - (tile.abs() as u16)
             }
         } else {
-            self.gpu_vram[addr] as u16
+            self.access_vram(addr) as u16
         }
     }
 
@@ -463,8 +484,9 @@ impl Ppu {
         let mut tile_local_x = x & 7;
 
         let mut tile_address = (tile_index * 16) + (tile_local_y as u16 * 2);
-        let mut b1 = self.gpu_vram[tile_address as usize];
-        let mut b2 = self.gpu_vram[tile_address as usize + 1];
+
+        let mut b1 = self.access_vram(tile_address as usize);
+        let mut b2 = self.access_vram(tile_address as usize + 1);
 
         let mut frame_buffer_offset = self.ly as usize * 160;
 
@@ -500,8 +522,8 @@ impl Ppu {
                 );
 
                 tile_address = (tile_index * 16) + (tile_local_y as u16 * 2);
-                b1 = self.gpu_vram[tile_address as usize];
-                b2 = self.gpu_vram[tile_address as usize + 1];
+                b1 = self.access_vram(tile_address as usize);
+                b2 = self.access_vram(tile_address as usize + 1);
             }
         }
     }
@@ -533,8 +555,8 @@ impl Ppu {
         let mut tile_local_x = x & 7;
 
         let mut tile_address = (tile_index * 16) + (tile_local_y as u16 * 2);
-        let mut b1 = self.gpu_vram[tile_address as usize];
-        let mut b2 = self.gpu_vram[tile_address as usize + 1];
+        let mut b1 = self.access_vram(tile_address as usize);
+        let mut b2 = self.access_vram(tile_address as usize + 1);
 
         let mut frame_buffer_offset = (self.ly as usize * 160) + x as usize;
 
@@ -570,8 +592,8 @@ impl Ppu {
                 );
 
                 tile_address = (tile_index * 16) + (tile_local_y as u16 * 2);
-                b1 = self.gpu_vram[tile_address as usize];
-                b2 = self.gpu_vram[tile_address as usize + 1];
+                b1 = self.access_vram(tile_address as usize);
+                b2 = self.access_vram(tile_address as usize + 1);
             }
         }
     }
@@ -623,8 +645,9 @@ impl Ppu {
             };
 
             let tile_address = tile_num * 16 + tile_y * 2;
-            let b1 = self.gpu_vram[tile_address as usize];
-            let b2 = self.gpu_vram[tile_address as usize + 1];
+
+            let b1 = self.access_vram(tile_address as usize);
+            let b2 = self.access_vram(tile_address as usize + 1);
 
             // draw each pixel of the sprite tile
             'inner: for x in 0..8 {

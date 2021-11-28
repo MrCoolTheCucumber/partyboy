@@ -65,7 +65,7 @@ impl Bus {
             0x0200..=0x08FF if self.bios_enabled => return self.bios[addr as usize],
 
             0x0000..=0x7FFF => self.cartridge.read_rom(addr),
-            0x8000..=0x9FFF => self.ppu.gpu_vram[(addr - 0x8000) as usize],
+            0x8000..=0x9FFF => self.ppu.read_vram(addr - 0x8000),
             0xA000..=0xBFFF => self.cartridge.read_ram(addr - 0xA000),
             0xC000..=0xDFFF => self.working_ram[(addr - 0xC000) as usize],
             0xE000..=0xEFFF => self.working_ram[(addr - 0xE000) as usize],
@@ -91,7 +91,7 @@ impl Bus {
             0x0000..=0x7FFF => {
                 self.cartridge.write_rom(addr, val);
             }
-            0x8000..=0x9FFF => self.ppu.gpu_vram[(addr - 0x8000) as usize] = val,
+            0x8000..=0x9FFF => self.ppu.write_vram(addr - 0x8000, val),
             0xA000..=0xBFFF => self.cartridge.write_ram(addr - 0xA000, val),
             0xC000..=0xDFFF => self.working_ram[(addr - 0xC000) as usize] = val,
             0xE000..=0xEFFF => self.working_ram[(addr - 0xE000) as usize] = val,

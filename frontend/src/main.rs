@@ -1,4 +1,4 @@
-use std::env;
+use std::{env, time::Duration};
 
 use crate::input::{handle_key_down, handle_key_up};
 use clap::clap_app;
@@ -11,7 +11,7 @@ use log4rs::{
     encode::pattern::PatternEncoder,
     Config,
 };
-use sdl2::sys::{SDL_Delay, SDL_GetPerformanceCounter, SDL_GetPerformanceFrequency, SDL_GetTicks};
+use spin_sleep::LoopHelper;
 
 mod input;
 mod render;
@@ -116,14 +116,14 @@ fn main() {
         gl::Clear(gl::COLOR_BUFFER_BIT);
     }
 
-    let start_time = unsafe { SDL_GetTicks() } as f32;
-    let mut frames: f32 = 0f32;
-    let mut elapsed: f32;
-
-    let mut time_since_last_window_update: f32 = 0f32;
+    let mut loop_helper = LoopHelper::builder()
+        .report_interval(Duration::from_millis(500))
+        .build_with_target_rate(59.73);
 
     'running: loop {
         use sdl2::event::Event;
+
+        let _ = loop_helper.loop_start();
 
         for event in event_pump.poll_iter() {
             match event {
@@ -153,33 +153,17 @@ fn main() {
             }
         }
 
-        let start = unsafe { SDL_GetPerformanceCounter() };
-
-        for _ in 0..(70_224) {
+        while !gb.consume_draw_flag() {
             gb.tick();
         }
 
-        if gb.consume_draw_flag() {
-            render::render_gb(&gb, fb_id, tex_id);
+        render::render_gb(&gb, fb_id, tex_id);
+        window.gl_swap_window();
 
-            frames += 1f32;
-            elapsed = unsafe { SDL_GetTicks() as f32 - start_time };
-            let elapsed_secs = elapsed / 1000.0f32;
-            let fps = frames / elapsed_secs;
-
-            if elapsed - time_since_last_window_update > 1000f32 {
-                let _ = window.set_title(format!("{:.2}", fps).as_str());
-                time_since_last_window_update = elapsed;
-            }
-
-            unsafe {
-                let end = SDL_GetPerformanceCounter();
-                let elapsed =
-                    (end - start) as f64 / (SDL_GetPerformanceFrequency() as f64 * 1000.0f64);
-                SDL_Delay((16.6666f64 - elapsed) as u32);
-            };
+        if let Some(fps) = loop_helper.report_rate() {
+            let _ = window.set_title(format!("{:.2}", fps).as_str());
         }
 
-        window.gl_swap_window();
+        loop_helper.loop_sleep();
     }
 }

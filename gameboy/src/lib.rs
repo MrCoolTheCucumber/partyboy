@@ -8,6 +8,7 @@ mod ppu;
 mod timer;
 
 use builder::SerialWriteHandler;
+use ppu::rgb::Rgb;
 
 use self::{
     builder::GameBoyBuilder,
@@ -50,7 +51,7 @@ impl GameBoy {
         self.bus.timer.tick(&mut self.bus.interrupts);
     }
 
-    pub fn get_frame_buffer(&self) -> &[u8] {
+    pub fn get_frame_buffer(&self) -> &[Rgb] {
         self.bus.ppu.get_frame_buffer()
     }
 

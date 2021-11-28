@@ -12,7 +12,7 @@ use self::{
 };
 use super::bus::Bus;
 
-pub struct Cpu {
+pub(crate) struct Cpu {
     af: Register,
     bc: Register,
     de: Register,

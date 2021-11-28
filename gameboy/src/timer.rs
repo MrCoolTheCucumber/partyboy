@@ -2,7 +2,7 @@ use crate::interrupts::InterruptFlag;
 
 use super::interrupts::Interrupts;
 
-pub struct Timer {
+pub(crate) struct Timer {
     div: u16,
     tima: u8,
     tma: u8,

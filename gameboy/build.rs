@@ -11,7 +11,12 @@ fn main() {
 
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.pop();
-    path.push("bin/cgb_boot.bin");
+    path.push("bin/_cgb_boot.bin");
+
+    if !path.exists() {
+        path.pop();
+        path.push("cgb_boot.bin")
+    }
 
     let mut file = File::open(path).unwrap();
     let mut buffer = [0u8; 0x900];

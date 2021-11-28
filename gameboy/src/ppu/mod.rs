@@ -1,16 +1,27 @@
+pub mod rgb;
+
+use self::rgb::Rgb;
+
 use super::interrupts::{InterruptFlag, Interrupts};
 
-const PALETTE: [u8; 4] = [255, 192, 96, 0];
+const PALETTE: [Rgb; 4] = [
+    Rgb::const_mono(255),
+    Rgb::const_mono(192),
+    Rgb::const_mono(96),
+    Rgb::const_mono(0),
+];
 
-pub struct Ppu {
+const CGB_PTR_PALETTE: [usize; 4] = [0, 1, 2, 3];
+
+pub(crate) struct Ppu {
     pub gpu_vram: [u8; 0x2000],
     pub sprite_table: [u8; 0xA0],
-    pub sprite_palette: [[u8; 4]; 2],
+    pub sprite_palette: [[Rgb; 4]; 2],
 
-    frame_buffer: [u8; 160 * 144],
+    frame_buffer: [Rgb; 160 * 144],
     draw_flag: bool,
 
-    bg_palette: [u8; 4],
+    bg_palette: [usize; 4],
 
     mode: PpuMode,
     window_internal_line_counter: u8,
@@ -28,6 +39,12 @@ pub struct Ppu {
     pub obp1: u8, // FF49
     pub wy: u8,   // FF4A
     pub wx: u8,   // FF4B
+
+    bg_color_palette_ram: [u8; 64],
+    bg_color_palette: [[Rgb; 4]; 8],
+    bg_color_palette_speciication: u8, // FF68
+    bg_color_palette_index: usize,
+    bg_color_palette_auto_incremet: bool,
 
     line_clock_cycles: u64,
     mode_clock_cycles: u64,
@@ -88,11 +105,16 @@ impl Ppu {
                 [PALETTE[0], PALETTE[1], PALETTE[2], PALETTE[3]],
             ],
 
-            frame_buffer: [0; 160 * 144],
+            frame_buffer: [Rgb::default(); 160 * 144],
             draw_flag: false,
 
             // ppu
-            bg_palette: [PALETTE[0], PALETTE[1], PALETTE[2], PALETTE[3]],
+            bg_palette: [
+                CGB_PTR_PALETTE[0],
+                CGB_PTR_PALETTE[1],
+                CGB_PTR_PALETTE[2],
+                CGB_PTR_PALETTE[3],
+            ],
 
             mode: PpuMode::OAM,
             window_internal_line_counter: 0,
@@ -110,12 +132,18 @@ impl Ppu {
             wy: 0x0,
             wx: 0x0,
 
+            bg_color_palette_ram: [0; 64],
+            bg_color_palette: [[Rgb::default(); 4]; 8],
+            bg_color_palette_speciication: 0xFF,
+            bg_color_palette_index: 0,
+            bg_color_palette_auto_incremet: false,
+
             line_clock_cycles: 0,
             mode_clock_cycles: 0,
         }
     }
 
-    pub fn get_frame_buffer(&self) -> &[u8] {
+    pub fn get_frame_buffer(&self) -> &[Rgb] {
         &self.frame_buffer
     }
 
@@ -139,6 +167,9 @@ impl Ppu {
             0xFF49 => self.obp1,
             0xFF4A => self.wy,
             0xFF4B => self.wx,
+
+            0xFF68 => self.bg_color_palette_speciication,
+            0xFF69 => self.bg_color_palette_ram[self.bg_color_palette_index],
 
             _ => panic!("Ppu doesnt handle reading from address: {:#06X}", addr),
         }
@@ -173,10 +204,15 @@ impl Ppu {
             }
             0xFF46 => self.dma = val,
             0xFF47 => {
+                log::info!("palette shuffle recieved: {:#10b}", val);
                 self.bgp = val;
-                for i in 0..4 {
-                    self.bg_palette[i] = PALETTE[((val >> (i * 2)) & 3) as usize];
-                }
+                self.bg_palette[0] = (val & 0b0000_0011) as usize;
+                self.bg_palette[1] = ((val & 0b0000_1100) >> 2) as usize;
+                self.bg_palette[2] = ((val & 0b0011_0000) >> 4) as usize;
+                self.bg_palette[3] = ((val & 0b1100_0000) >> 6) as usize;
+                // for i in 0..4 {
+                //     self.bg_palette[i] = CGB_PTR_PALETTE[((val >> (i * 2)) & 3) as usize];
+                // }
             }
             0xFF48 => {
                 self.obp0 = val;
@@ -192,6 +228,31 @@ impl Ppu {
             }
             0xFF4A => self.wy = val,
             0xFF4B => self.wx = val,
+
+            0xFF68 => {
+                self.bg_color_palette_speciication = val;
+                self.bg_color_palette_index =
+                    (self.bg_color_palette_speciication & 0b0011_1111) as usize;
+                self.bg_color_palette_auto_incremet =
+                    self.bg_color_palette_speciication & 0b1000_0000 != 0;
+            }
+            0xFF69 => {
+                let index = self.bg_color_palette_index;
+                self.bg_color_palette_ram[self.bg_color_palette_index] = val;
+
+                let bgr555: u16 = ((self.bg_color_palette_ram[index | 1] as u16) << 8)
+                    | (self.bg_color_palette_ram[index & !1] as u16);
+                let rgb = Rgb::from_bgr555(bgr555);
+
+                let palette_index = self.bg_color_palette_index >> 3;
+                let palette_color_bit = (self.bg_color_palette_index & 7) >> 1;
+                self.bg_color_palette[palette_index][palette_color_bit] = rgb;
+
+                if self.bg_color_palette_auto_incremet {
+                    self.bg_color_palette_index += 1;
+                    self.bg_color_palette_index &= 0x3F // handle 5bit overflow
+                }
+            }
 
             _ => panic!("Ppu doesnt handle writing to address: {:#06X}", addr),
         }
@@ -374,9 +435,10 @@ impl Ppu {
         for px in scan_line_row.iter_mut() {
             let bx = 7 - tile_local_x;
             let color_bit = ((b1 & (1 << bx)) >> bx) | ((b2 & (1 << bx)) >> bx) << 1;
-            let color = self.bg_palette[color_bit as usize];
+            let color_index = self.bg_palette[color_bit as usize];
+            let color = self.bg_color_palette[0][color_index];
 
-            *px = color;
+            *px = color_index as u8;
             self.frame_buffer[frame_buffer_offset] = color;
             frame_buffer_offset += 1;
 
@@ -444,9 +506,10 @@ impl Ppu {
         for i in start..160 {
             let bx = 7 - tile_local_x;
             let color_bit = ((b1 & (1 << bx)) >> bx) | ((b2 & (1 << bx)) >> bx) << 1;
-            let color = self.bg_palette[color_bit as usize];
+            let color_index = self.bg_palette[color_bit as usize];
+            let color = self.bg_color_palette[0][color_index];
 
-            scan_line_row[i as usize] = color;
+            scan_line_row[i as usize] = color_index as u8;
             self.frame_buffer[frame_buffer_offset] = color;
             frame_buffer_offset += 1;
 
@@ -531,8 +594,9 @@ impl Ppu {
                 if sprite_x + x < 0 || sprite_x + x >= 160 {
                     continue;
                 }
+
                 // if sprite prio is below bg, and the drawn bg pixel is 0 (nothing) then skip to the next pixel
-                if belowbg && scan_line_row[(sprite_x + x) as usize] != self.bg_palette[0] {
+                if belowbg && scan_line_row[(sprite_x + x) as usize] != self.bg_palette[0] as u8 {
                     continue 'inner;
                 }
 

@@ -55,9 +55,9 @@ pub fn render_gb(gb: &GameBoy, fb_id: GLuint, tex_id: GLuint) {
         let index = i / 3;
         let color = frame_buffer[index];
 
-        tex_data[i] = color;
-        tex_data[i + 1] = color;
-        tex_data[i + 2] = color;
+        tex_data[i] = color.r;
+        tex_data[i + 1] = color.g;
+        tex_data[i + 2] = color.b;
 
         i += 3;
     }

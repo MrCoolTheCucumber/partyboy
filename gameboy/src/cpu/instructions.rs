@@ -22,7 +22,7 @@ pub enum InstructionState {
     Branch(bool),
 }
 
-pub enum InstructionStep {
+pub(crate) enum InstructionStep {
     Standard(InstructionFn),
     Instant(InstructionFn),
 }

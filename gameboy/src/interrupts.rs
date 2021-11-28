@@ -1,6 +1,6 @@
 use super::cpu::Cpu;
 
-pub struct Interrupts {
+pub(crate) struct Interrupts {
     pub master: u8,
     pub enable: u8,
     pub flags: u8,

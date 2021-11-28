@@ -1,4 +1,5 @@
 mod mbc1;
+mod mbc3;
 pub mod rom;
 
 use std::{
@@ -7,7 +8,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::cartridge::{mbc1::Mbc1, rom::Rom};
+use crate::cartridge::{mbc1::Mbc1, mbc3::Mbc3, rom::Rom};
 
 #[derive(Clone, Copy)]
 pub enum CgbCompatibility {
@@ -115,17 +116,16 @@ pub fn create(rom_path: &str) -> Box<dyn Cartridge> {
             ))
         }
 
-        // 0x0F..=0x13 => {
-        //     println!("MBC3 cart created!");
-        //     Box::new(MBC3::new(
-        //         file,
-        //         path,
-        //         rom_bank_0,
-        //         cartridge_type_code,
-        //         num_rom_banks,
-        //         num_ram_banks,
-        //     ))
-        // }
+        0x0F..=0x13 => {
+            log::info!("MBC3 cart created!");
+            Box::new(Mbc3::new(
+                file,
+                path,
+                rom_bank_0,
+                num_rom_banks,
+                num_ram_banks,
+            ))
+        }
 
         // 0x1A..=0x1E => {
         //     println!("MBC5 cart created!");

@@ -55,3 +55,6 @@ download_git_repo(mooneye_url, "mooneye")
 
 dmg_acid_2_url = "https://github.com/mattcurrie/dmg-acid2/releases/download/v1.0/dmg-acid2.gb"
 download_gb_file(dmg_acid_2_url, "dmg-acid2")
+
+cgb_acid_2_url = "https://github.com/mattcurrie/cgb-acid2/releases/download/v1.1/cgb-acid2.gbc"
+download_gb_file(cgb_acid_2_url, "cgb-acid2")

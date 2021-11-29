@@ -120,6 +120,8 @@ fn main() {
         .report_interval(Duration::from_millis(500))
         .build_with_target_rate(59.73);
 
+    let mut turbo = false;
+
     'running: loop {
         use sdl2::event::Event;
 
@@ -132,7 +134,11 @@ fn main() {
                 } => {
                     if !repeat {
                         if let Some(keycode) = keycode {
-                            handle_key_down(&mut gb, keycode);
+                            if matches!(keycode, sdl2::keyboard::Keycode::Tab) {
+                                turbo = true;
+                            } else {
+                                handle_key_down(&mut gb, keycode);
+                            }
                         }
                     }
                 }
@@ -142,7 +148,11 @@ fn main() {
                 } => {
                     if !repeat {
                         if let Some(keycode) = keycode {
-                            handle_key_up(&mut gb, keycode);
+                            if matches!(keycode, sdl2::keyboard::Keycode::Tab) {
+                                turbo = false;
+                            } else {
+                                handle_key_up(&mut gb, keycode);
+                            }
                         }
                     }
                 }
@@ -164,6 +174,8 @@ fn main() {
             let _ = window.set_title(format!("{:.2}", fps).as_str());
         }
 
-        loop_helper.loop_sleep();
+        if !turbo {
+            loop_helper.loop_sleep();
+        }
     }
 }

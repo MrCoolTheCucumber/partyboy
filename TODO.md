@@ -1,1 +1,2 @@
 - create a disassembler to make reading logs easier (opcode num => str)
+- Start handling the CGB compatibility header in the cartridge, make two drawing functions?

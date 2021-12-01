@@ -22,19 +22,15 @@ pub const HEIGHT: u32 = 144;
 
 struct Args {
     rom_path: String,
+    enable_file_logging: bool,
 }
 
-fn init_logger() {
+fn init_logger(enable_file_logging: bool) {
     if env::var("RUST_LOG").is_err() {
         env::set_var("RUST_LOG", "info")
     }
 
-    let enable_log_file: bool = match env::var("RUST_LOG") {
-        Ok(val) => val.to_lowercase().contains("debug"),
-        Err(_) => false,
-    };
-
-    if enable_log_file {
+    if enable_file_logging {
         const LOG_PATTERN: &str = "{m}\n";
         let logfile = FileAppender::builder()
             .encoder(Box::new(PatternEncoder::new(LOG_PATTERN)))
@@ -62,19 +58,25 @@ fn parse_args() -> Args {
     let matches = clap_app!(partyboy =>
         (version: "1.0")
         (about: "A Gameboy (color?) emulator")
-        (@arg rom_path: -r --rom +takes_value +required "The path to the rom to load")
+        (@arg rom_path: -r --rom +takes_value +required "The path to the rom to load.")
+        (@arg enable_file_logging: -l --log "Enables file logging.")
     )
     .get_matches();
 
     let rom_path = matches.value_of("rom_path").unwrap().to_owned();
-    Args { rom_path }
+    let enable_file_logging = matches.is_present("enable_file_logging");
+
+    Args {
+        rom_path,
+        enable_file_logging,
+    }
 }
 
 fn main() {
-    #[cfg(debug_assertions)]
-    init_logger();
-
     let args = parse_args();
+
+    #[cfg(debug_assertions)]
+    init_logger(args.enable_file_logging);
 
     // let mut gb = GameBoy::new(&args.rom_path);
     let mut gb = GameBoy::builder()

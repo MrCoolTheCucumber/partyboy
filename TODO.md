@@ -1,2 +1,3 @@
 - create a disassembler to make reading logs easier (opcode num => str)
 - Start handling the CGB compatibility header in the cartridge, make two drawing functions?
+  - https://gbdev.io/pandocs/LCDC.html#non-cgb-mode-dmg-sgb-and-cgb-in-compatibility-mode-bg-and-window-display

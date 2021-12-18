@@ -5,10 +5,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use super::{
-    default_get_cgb_compatibility, get_save_file_path_from_rom_path, try_read_save_file, Cartridge,
-    CgbCompatibility,
-};
+use super::{get_save_file_path_from_rom_path, try_read_save_file, Cartridge};
 
 pub struct Mbc3 {
     is_ram_rtc_enabled: bool,
@@ -76,10 +73,6 @@ impl Drop for Mbc3 {
 }
 
 impl Cartridge for Mbc3 {
-    fn get_cgb_compatibility(&self) -> CgbCompatibility {
-        default_get_cgb_compatibility(self)
-    }
-
     fn read_rom(&self, addr: u16) -> u8 {
         match addr & 0xF000 {
             0x0000 | 0x1000 | 0x2000 | 0x3000 => self.rom_banks[0][addr as usize],

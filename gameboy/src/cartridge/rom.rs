@@ -1,6 +1,6 @@
 use std::{fs::File, io::Read};
 
-use super::{Cartridge, CgbCompatibility};
+use super::Cartridge;
 
 pub struct Rom {
     rom_bank_0: [u8; 0x4000],
@@ -20,10 +20,6 @@ impl Rom {
 }
 
 impl Cartridge for Rom {
-    fn get_cgb_compatibility(&self) -> CgbCompatibility {
-        super::default_get_cgb_compatibility(self)
-    }
-
     fn read_rom(&self, addr: u16) -> u8 {
         match addr & 0xF000 {
             0x0000 | 0x1000 | 0x2000 | 0x3000 => self.rom_bank_0[addr as usize],

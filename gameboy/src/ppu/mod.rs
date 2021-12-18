@@ -1,5 +1,7 @@
 pub mod rgb;
 
+use crate::bus::CgbCompatibility;
+
 use self::rgb::Rgb;
 
 use super::interrupts::{InterruptFlag, Interrupts};
@@ -20,6 +22,7 @@ pub(crate) struct Ppu {
 
     mode: PpuMode,
     window_internal_line_counter: u8,
+    console_compatibility_mode: CgbCompatibility,
 
     // io registers
     pub lcdc: u8, // FF40
@@ -131,6 +134,7 @@ impl Ppu {
 
             mode: PpuMode::OAM,
             window_internal_line_counter: 0,
+            console_compatibility_mode: CgbCompatibility::CgbOnly,
 
             lcdc: 0x0,
             stat: 0x0,
@@ -160,6 +164,10 @@ impl Ppu {
             line_clock_cycles: 0,
             mode_clock_cycles: 0,
         }
+    }
+
+    pub fn set_console_compatibility(&mut self, console_compatibility_mode: CgbCompatibility) {
+        self.console_compatibility_mode = console_compatibility_mode;
     }
 
     pub fn get_frame_buffer(&self) -> &[Rgb] {

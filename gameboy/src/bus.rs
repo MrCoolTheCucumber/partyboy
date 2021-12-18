@@ -5,6 +5,29 @@ use crate::builder::SerialWriteHandler;
 
 include!(concat!(env!("OUT_DIR"), "/boot_rom.rs"));
 
+#[derive(Clone, Copy)]
+pub enum CgbCompatibility {
+    None,
+    CgbOnly,
+    CgbAndDmg,
+}
+
+impl CgbCompatibility {
+    pub fn is_cgb_mode(&self) -> bool {
+        matches!(self, &CgbCompatibility::CgbOnly)
+    }
+}
+
+impl From<u8> for CgbCompatibility {
+    fn from(val: u8) -> Self {
+        match val {
+            0x80 => CgbCompatibility::CgbAndDmg,
+            0xC0 => CgbCompatibility::CgbOnly,
+            _ => CgbCompatibility::None,
+        }
+    }
+}
+
 pub(crate) struct Bus {
     serial_write_handler: SerialWriteHandler,
 
@@ -16,6 +39,7 @@ pub(crate) struct Bus {
 
     pub bios_enabled: bool,
     pub bios: [u8; 0x900],
+    pub console_compatibility_mode: CgbCompatibility,
 
     pub interrupts: Interrupts,
     pub timer: Timer,
@@ -35,6 +59,7 @@ impl Bus {
 
             bios_enabled: true,
             bios: BOOT_ROM,
+            console_compatibility_mode: CgbCompatibility::CgbOnly,
 
             interrupts: Interrupts::new(),
             timer: Timer::new(),
@@ -104,6 +129,12 @@ impl Bus {
             }
 
             // 0xFF00 and above
+            0xFF4C => {
+                self.console_compatibility_mode = CgbCompatibility::from(val);
+                self.ppu
+                    .set_console_compatibility(self.console_compatibility_mode);
+            }
+
             0xFF00 => self.input.set_column_line(val),
             0xFF01 => (self.serial_write_handler)(val),
             0xFF03..=0xFF07 => self.timer.write(addr, val),

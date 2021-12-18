@@ -10,30 +10,7 @@ use std::{
 
 use crate::cartridge::{mbc1::Mbc1, mbc3::Mbc3, rom::Rom};
 
-#[derive(Clone, Copy)]
-pub enum CgbCompatibility {
-    None,
-    CgbOnly,
-    CgbAndDmg,
-}
-
-impl CgbCompatibility {
-    pub fn is_cgb_mode(&self) -> bool {
-        matches!(self, &CgbCompatibility::CgbOnly)
-    }
-}
-
-fn default_get_cgb_compatibility(cart: &impl Cartridge) -> CgbCompatibility {
-    match cart.read_rom(0x143) {
-        0x80 => CgbCompatibility::CgbAndDmg,
-        0xC0 => CgbCompatibility::CgbOnly,
-        _ => CgbCompatibility::None,
-    }
-}
-
 pub trait Cartridge {
-    fn get_cgb_compatibility(&self) -> CgbCompatibility;
-
     fn read_rom(&self, addr: u16) -> u8;
     fn write_rom(&mut self, addr: u16, value: u8);
 

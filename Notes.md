@@ -9,6 +9,9 @@
 ### GBC
 - https://discord.com/channels/465585922579103744/465586075830845475/909386242897088543
 
+## CGB "mode" selection
+- https://discord.com/channels/465585922579103744/465586075830845475/921557609511804949 
+
 ### Blargg
 - log ASCII to 0xFF01
 

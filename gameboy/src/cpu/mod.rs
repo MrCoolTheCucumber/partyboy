@@ -160,6 +160,7 @@ impl Cpu {
                 opcode => Some(InstructionOpcode::Unprefixed(opcode)),
             };
 
+            #[cfg(feature = "debug_fetch")]
             match self.instruction_opcode.unwrap() {
                 InstructionOpcode::InterruptServiceRoutine => log::debug!("Fetched the isr??"),
                 InstructionOpcode::Unprefixed(opcode) => log::debug!("Fetched {:#04X}", opcode),

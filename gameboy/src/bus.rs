@@ -1,7 +1,7 @@
 #![allow(clippy::match_overlapping_arm)]
 
 use super::{cartridge::Cartridge, input::Input, interrupts::Interrupts, ppu::Ppu, timer::Timer};
-use crate::builder::SerialWriteHandler;
+use crate::{builder::SerialWriteHandler, dma::Dma};
 
 include!(concat!(env!("OUT_DIR"), "/boot_rom.rs"));
 
@@ -36,6 +36,7 @@ pub(crate) struct Bus {
     pub working_ram: [u8; 0x2000],
     pub io: [u8; 0x100],
     pub zero_page: [u8; 0x80],
+    pub dma: Dma,
 
     pub bios_enabled: bool,
     pub bios: [u8; 0x900],
@@ -56,6 +57,7 @@ impl Bus {
             working_ram: [0; 0x2000],
             io: [0; 0x100],
             zero_page: [0; 0x80],
+            dma: Dma::default(),
 
             bios_enabled: true,
             bios: BOOT_ROM,
@@ -103,7 +105,9 @@ impl Bus {
             0xFF0F => 0b1110_0000 | (self.interrupts.flags & 0b0001_1111),
             0xFFFF => self.interrupts.enable,
 
+            0xFF51..=0xFF55 => self.dma.read_u8(addr),
             0xFF40..=0xFF4B => self.ppu.read_u8(addr),
+            0xFF4F => self.ppu.read_u8(addr),
             0xFF68..=0xFF6B => self.ppu.read_u8(addr),
 
             0xFF00..=0xFF7F => self.io[(addr - 0xFF00) as usize],
@@ -153,7 +157,27 @@ impl Bus {
                 // write the inderlying value
                 self.ppu.write_u8(addr, val);
             }
+
+            0xFF51..=0xFF54 => self.dma.write_u8(addr, val),
+            0xFF55 => {
+                let bytes_to_transfer: u16 = ((val & 0b0111_1111) + 1) as u16 * 0x10;
+
+                // TOOD: for now, just ignore mode and instantly copy?
+                let _is_gdma = (val & 0b1000_0000) == 0;
+
+                let src_addr: u16 =
+                    ((self.dma.src_hi as u16) << 8) | ((self.dma.src_lo & 0b1111_0000) as u16);
+                let dest_addr: u16 =
+                    ((self.dma.dest_hi as u16) << 8) | ((self.dma.dest_lo & 0b1111_0000) as u16);
+
+                for i in 0..bytes_to_transfer {
+                    let transfer_val = self.read_u8(src_addr + i);
+                    self.write_u8(dest_addr + i, transfer_val)
+                }
+            }
+
             0xFF40..=0xFF4B => self.ppu.write_u8(addr, val),
+            0xFF4F => self.ppu.write_u8(addr, val),
             0xFF68..=0xFF6B => self.ppu.write_u8(addr, val),
 
             0xFF00..=0xFF7F => self.io[(addr - 0xFF00) as usize] = val,

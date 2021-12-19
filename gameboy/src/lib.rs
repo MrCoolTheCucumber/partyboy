@@ -2,6 +2,7 @@ pub mod builder;
 mod bus;
 mod cartridge;
 mod cpu;
+mod dma;
 pub mod input;
 mod interrupts;
 mod ppu;

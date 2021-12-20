@@ -25,6 +25,7 @@ pub(crate) struct Ppu {
     mode: PpuMode,
     window_internal_line_counter: u8,
     console_compatibility_mode: CgbCompatibility,
+    obj_prio_mode: ObjectPriorityMode,
 
     // io registers
     pub lcdc: u8, // FF40
@@ -99,6 +100,12 @@ enum PpuMode {
     VBlank = 1, // mode 1
     OAM = 2,    // mode 2
     VRAM = 3,   // mode 3
+}
+
+#[derive(Clone, Copy)]
+enum ObjectPriorityMode {
+    OamOrder,
+    CoordinateOrder,
 }
 
 struct BGMapFlags {
@@ -181,6 +188,7 @@ impl Ppu {
             mode: PpuMode::OAM,
             window_internal_line_counter: 0,
             console_compatibility_mode: CgbCompatibility::CgbOnly,
+            obj_prio_mode: ObjectPriorityMode::OamOrder, // TODO: what is the default?
 
             lcdc: 0x0,
             stat: 0x0,
@@ -255,6 +263,8 @@ impl Ppu {
             0xFF69 => self.bg_color_palette_ram[self.bg_color_palette_index],
             0xFF6A => self.sprite_color_palette_specification,
             0xFF6B => self.sprite_color_palette_ram[self.sprite_color_palette_index],
+
+            0xFF6C => 0xFF,
 
             _ => panic!("Ppu doesnt handle reading from address: {:#06X}", addr),
         }
@@ -360,6 +370,12 @@ impl Ppu {
                     self.sprite_color_palette_index &= 0x3F // handle 5bit overflow
                 }
             }
+
+            0xFF6C => match val & 0b0000_0001 {
+                0 => self.obj_prio_mode = ObjectPriorityMode::OamOrder,
+                1 => self.obj_prio_mode = ObjectPriorityMode::CoordinateOrder,
+                _ => unsafe { unreachable_unchecked() },
+            },
 
             _ => panic!("Ppu doesnt handle writing to address: {:#06X}", addr),
         }
@@ -817,6 +833,43 @@ impl Ppu {
     }
 
     fn draw_sprites(&mut self, scan_line_row: &mut [ScanLinePxInfo; 160]) {
+        #[derive(Clone, Copy)]
+        struct SpriteData {
+            y: i32,
+            x: i32,
+            tile_num: u16,
+            flags: u8,
+        }
+
+        impl Default for SpriteData {
+            fn default() -> Self {
+                Self {
+                    y: Default::default(),
+                    x: Default::default(),
+                    tile_num: Default::default(),
+                    flags: Default::default(),
+                }
+            }
+        }
+
+        fn fetch_sprites(ppu: &Ppu, sprite_size: i32) -> [SpriteData; 40] {
+            let mut sprites = [SpriteData::default(); 40];
+
+            for i in 0..40 {
+                let sprite_addr = (i as usize) * 4;
+                sprites[i] = SpriteData {
+                    y: ppu.sprite_table[sprite_addr] as u16 as i32 - 16,
+                    x: ppu.sprite_table[sprite_addr + 1] as u16 as i32 - 8,
+                    tile_num: (ppu.sprite_table[sprite_addr + 2]
+                        & (if sprite_size == 16 { 0xFE } else { 0xFF }))
+                        as u16,
+                    flags: ppu.sprite_table[sprite_addr + 3],
+                };
+            }
+
+            sprites
+        }
+
         let sprite_size: i32 = if self.lcdc & LcdControlFlag::OBJSize as u8 != 0 {
             16
         } else {
@@ -824,34 +877,26 @@ impl Ppu {
         };
 
         let mut total_objects_drawn = 0;
-        let mut obj_same_x_prio = [i32::MAX; 160];
+        let mut obj_prio_arr = [i32::MAX; 160];
 
-        for i in 0..40 {
-            let sprite_addr = (i as usize) * 4;
+        let sprites = fetch_sprites(self, sprite_size);
 
-            let sprite_y = self.sprite_table[sprite_addr] as u16 as i32 - 16;
-            let sprite_x = self.sprite_table[sprite_addr + 1] as u16 as i32 - 8;
-            let tile_num = (self.sprite_table[sprite_addr + 2]
-                & (if sprite_size == 16 { 0xFE } else { 0xFF })) as u16;
+        for (i, sprite) in sprites.iter().enumerate() {
+            let cgb_sprite_palette = (sprite.flags & 0b0000_0111) as usize;
+            let tile_vram_bank = ((sprite.flags & 0b0000_1000) >> 3) as usize;
 
-            let flags = self.sprite_table[sprite_addr + 3];
-
-            // cgb flags
-            let cgb_sprite_palette = (flags & 0b0000_0111) as usize;
-            let tile_vram_bank = ((flags & 0b0000_1000) >> 3) as usize;
-
-            let sprite_palette: usize = if flags & (1 << 4) != 0 { 1 } else { 0 };
-            let xflip: bool = flags & (1 << 5) != 0;
-            let yflip: bool = flags & (1 << 6) != 0;
-            let bg_wd_prio: bool = flags & (1 << 7) != 0;
+            let sprite_palette: usize = if sprite.flags & (1 << 4) != 0 { 1 } else { 0 };
+            let xflip: bool = sprite.flags & (1 << 5) != 0;
+            let yflip: bool = sprite.flags & (1 << 6) != 0;
+            let bg_wd_prio: bool = sprite.flags & (1 << 7) != 0;
 
             let scan_line = self.ly as i32;
 
             // exit early if sprite is off screen
-            if scan_line < sprite_y || scan_line >= sprite_y + sprite_size {
+            if scan_line < sprite.y || scan_line >= sprite.y + sprite_size {
                 continue;
             }
-            if sprite_x < -7 || sprite_x >= 160 {
+            if sprite.x < -7 || sprite.x >= 160 {
                 continue;
             }
 
@@ -862,12 +907,12 @@ impl Ppu {
 
             // fetch sprite tile
             let tile_y: u16 = if yflip {
-                (sprite_size - 1 - (scan_line - sprite_y)) as u16
+                (sprite_size - 1 - (scan_line - sprite.y)) as u16
             } else {
-                (scan_line - sprite_y) as u16
+                (scan_line - sprite.y) as u16
             };
 
-            let tile_address = tile_num * 16 + tile_y * 2;
+            let tile_address = sprite.tile_num * 16 + tile_y * 2;
 
             let (b1, b2) = match self.console_compatibility_mode {
                 CgbCompatibility::CgbAndDmg | CgbCompatibility::None => (
@@ -882,15 +927,15 @@ impl Ppu {
 
             // draw each pixel of the sprite tile
             'inner: for x in 0..8 {
-                if sprite_x + x < 0 || sprite_x + x >= 160 {
+                if sprite.x + x < 0 || sprite.x + x >= 160 {
                     continue;
                 }
 
                 let cgb_sprite_alawys_display = if self.console_compatibility_mode.is_cgb_mode() {
                     let always_display_sprite = self.lcdc & LcdControlFlag::BGEnable as u8 == 0;
                     if !always_display_sprite
-                        && scan_line_row[(sprite_x + x) as usize].bg_prio_set
-                        && scan_line_row[(sprite_x + x) as usize].color_index != 0
+                        && scan_line_row[(sprite.x + x) as usize].bg_prio_set
+                        && scan_line_row[(sprite.x + x) as usize].color_index != 0
                     {
                         continue 'inner;
                     }
@@ -902,15 +947,26 @@ impl Ppu {
 
                 if !cgb_sprite_alawys_display
                     && bg_wd_prio
-                    && scan_line_row[(sprite_x + x) as usize].color_index != 0
+                    && scan_line_row[(sprite.x + x) as usize].color_index != 0
                 {
                     continue 'inner;
                 }
 
                 // has another sprite already been drawn on this pixel
                 // that has a lower or eq sprite_x val?
-                if obj_same_x_prio[(sprite_x + x) as usize] <= sprite_x {
-                    continue 'inner;
+
+                // handle obj prio
+                match self.obj_prio_mode {
+                    ObjectPriorityMode::OamOrder => {
+                        if obj_prio_arr[(sprite.x + x) as usize] <= i as i32 {
+                            continue 'inner;
+                        }
+                    }
+                    ObjectPriorityMode::CoordinateOrder => {
+                        if obj_prio_arr[(sprite.x + x) as usize] <= sprite.x {
+                            continue 'inner;
+                        }
+                    }
                 }
 
                 let xbit = 1 << (if xflip { x } else { 7 - x } as u32);
@@ -932,10 +988,17 @@ impl Ppu {
                     }
                 };
 
-                let pixel_offset = ((scan_line * 160) + sprite_x + x) as usize;
+                let pixel_offset = ((scan_line * 160) + sprite.x + x) as usize;
 
                 self.frame_buffer[pixel_offset] = color;
-                obj_same_x_prio[(sprite_x + x) as usize] = sprite_x;
+                match self.obj_prio_mode {
+                    ObjectPriorityMode::OamOrder => {
+                        obj_prio_arr[(sprite.x + x) as usize] = i as i32
+                    }
+                    ObjectPriorityMode::CoordinateOrder => {
+                        obj_prio_arr[(sprite.x + x) as usize] = sprite.x
+                    }
+                }
             }
         }
     }

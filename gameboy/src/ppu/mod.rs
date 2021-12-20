@@ -128,6 +128,11 @@ impl From<u8> for BGMapFlags {
     }
 }
 
+struct TileData {
+    color_index_row: [u8; 8],
+    flags: BGMapFlags,
+}
+
 #[derive(Clone, Copy)]
 struct ScanLinePxInfo {
     color_index: usize,
@@ -543,70 +548,63 @@ impl Ppu {
         }
     }
 
+    fn fetch_tile_data(&self, x: u8, y: u8, map_start_addr: u16) -> TileData {
+        let tile_y = y / 8;
+        let tile_x = x / 8;
+
+        let map_tile_index = ((tile_y as u16) * 32) + tile_x as u16;
+        let signed_tile_addressing: bool =
+            self.lcdc & LcdControlFlag::BGAndWindowTileData as u8 == 0;
+        let tile_index =
+            self.get_adjusted_tile_index(map_start_addr + map_tile_index, signed_tile_addressing);
+
+        let flags_addr = (map_start_addr + map_tile_index - 0x8000) as usize;
+        let flags = BGMapFlags::from(self.gpu_vram[1][flags_addr]);
+
+        let tile_local_y = match flags.vertical_flip {
+            true => Self::flip_tile_value(y & 7),
+            false => y & 7,
+        };
+        let tile_addr = (tile_index * 16) + (tile_local_y as u16 * 2);
+
+        let bank_index = match self.console_compatibility_mode {
+            CgbCompatibility::CgbOnly => flags.tile_bank,
+            _ => 0,
+        };
+
+        let b1 = self.gpu_vram[bank_index][tile_addr as usize];
+        let b2 = self.gpu_vram[bank_index][tile_addr as usize + 1];
+
+        let mut color_index_row: [u8; 8] = [0; 8];
+
+        if self.console_compatibility_mode.is_cgb_mode() && flags.horizontal_flip {
+            for i in 0..8usize {
+                let shift_i = i as u8;
+                color_index_row[i] =
+                    ((b1 & (1 << shift_i)) >> shift_i) | ((b2 & (1 << shift_i)) >> shift_i) << 1;
+            }
+        } else {
+            for i in (0..8usize).rev() {
+                let shift_i = i as u8;
+                color_index_row[7 - i] =
+                    ((b1 & (1 << shift_i)) >> shift_i) | ((b2 & (1 << shift_i)) >> shift_i) << 1;
+            }
+        }
+
+        TileData {
+            color_index_row,
+            flags,
+        }
+    }
+
     fn draw_background(&mut self, scan_line_row: &mut [ScanLinePxInfo; 160]) {
-        struct TileData {
-            color_index_row: [u8; 8],
-            flags: BGMapFlags,
-        }
-
-        fn fetch_tile_data(ppu: &Ppu, x: u8, y: u8) -> TileData {
-            let bg_map_start_addr = ppu.get_bg_map_start_addr();
-
-            let tile_y = y / 8;
-            let tile_x = x / 8;
-
-            let bg_map_tile_index = ((tile_y as u16) * 32) + tile_x as u16;
-            let signed_tile_addressing: bool =
-                ppu.lcdc & LcdControlFlag::BGAndWindowTileData as u8 == 0;
-            let tile_index = ppu.get_adjusted_tile_index(
-                bg_map_start_addr + bg_map_tile_index,
-                signed_tile_addressing,
-            );
-
-            let flags_addr = (bg_map_start_addr + bg_map_tile_index - 0x8000) as usize;
-            let flags = BGMapFlags::from(ppu.gpu_vram[1][flags_addr]);
-
-            let tile_local_y = match flags.vertical_flip {
-                true => Ppu::flip_tile_value(y & 7),
-                false => y & 7,
-            };
-            let tile_addr = (tile_index * 16) + (tile_local_y as u16 * 2);
-
-            let bank_index = match ppu.console_compatibility_mode {
-                CgbCompatibility::CgbOnly => flags.tile_bank,
-                _ => 0,
-            };
-
-            let b1 = ppu.gpu_vram[bank_index][tile_addr as usize];
-            let b2 = ppu.gpu_vram[bank_index][tile_addr as usize + 1];
-
-            let mut color_index_row: [u8; 8] = [0; 8];
-
-            if ppu.console_compatibility_mode.is_cgb_mode() && flags.horizontal_flip {
-                for i in 0..8usize {
-                    let shift_i = i as u8;
-                    color_index_row[i] = ((b1 & (1 << shift_i)) >> shift_i)
-                        | ((b2 & (1 << shift_i)) >> shift_i) << 1;
-                }
-            } else {
-                for i in (0..8usize).rev() {
-                    let shift_i = i as u8;
-                    color_index_row[7 - i] = ((b1 & (1 << shift_i)) >> shift_i)
-                        | ((b2 & (1 << shift_i)) >> shift_i) << 1;
-                }
-            }
-
-            TileData {
-                color_index_row,
-                flags,
-            }
-        }
+        let bg_map_start_addr = self.get_bg_map_start_addr();
 
         let y = self.ly.wrapping_add(self.scy);
         let mut x = self.scx;
         let mut tile_local_x = x & 7;
 
-        let mut tile_data = fetch_tile_data(self, x, y);
+        let mut tile_data = self.fetch_tile_data(x, y, bg_map_start_addr);
         let mut frame_buffer_offset = self.ly as usize * 160;
         let mut pixels_drawn_for_current_tile: u8 = 0;
 
@@ -631,7 +629,7 @@ impl Ppu {
                 x = x.wrapping_add(pixels_drawn_for_current_tile);
                 pixels_drawn_for_current_tile = 0;
 
-                tile_data = fetch_tile_data(self, x, y);
+                tile_data = self.fetch_tile_data(x, y, bg_map_start_addr);
             }
         }
     }
@@ -641,67 +639,35 @@ impl Ppu {
         self.window_internal_line_counter += 1;
 
         let y = self.window_internal_line_counter - 1; //scan_line - window_y;
-        let mut x = self.wx.wrapping_sub(7);
-
-        let tile_y = y / 8;
-
-        let mut tile_map_offset = tile_y as u16 * 32;
-        // tile_map_offset = (tile_y as u16) + tile_x as u16;
-        // are we using signed addressing for accessing the tile data (not map)
-        let signed_tile_addressing: bool =
-            self.lcdc & LcdControlFlag::BGAndWindowTileData as u8 == 0;
-
-        // get the tile index from the map
-        let mut tile_index = self
-            .get_adjusted_tile_index(wd_map_start_addr + tile_map_offset, signed_tile_addressing);
-
-        // above x and y are where we are relative to the whole bg map (256 * 256)
-        // we need x and y to be relative to the tile we want to draw
-        // so modulo by 8 (or & 7)
-        // shadow over old x an y variables
-        let tile_local_y = y & 7;
+        let x = self.wx.wrapping_sub(7);
         let mut tile_local_x = x & 7;
+        let mut fetch_x = 0;
 
-        let mut tile_address = (tile_index * 16) + (tile_local_y as u16 * 2);
-        let mut b1 = self.access_vram(tile_address as usize);
-        let mut b2 = self.access_vram(tile_address as usize + 1);
-
+        let mut tile_data = self.fetch_tile_data(fetch_x, y, wd_map_start_addr);
         let mut frame_buffer_offset = (self.ly as usize * 160) + x as usize;
 
-        let mut pixels_drawn_for_current_tile: u8 = 0;
         let start = x;
         for i in start..160 {
-            let bx = 7 - tile_local_x;
-            let color_bit = ((b1 & (1 << bx)) >> bx) | ((b2 & (1 << bx)) >> bx) << 1;
+            let color_bit = tile_data.color_index_row[tile_local_x as usize];
             let color_index = self.bg_palette[color_bit as usize];
-            let color = self.bg_color_palette[0][color_index];
+            let color_palette_index = match self.console_compatibility_mode {
+                CgbCompatibility::CgbOnly => tile_data.flags.bg_palette_number,
+                _ => 0,
+            };
+            let color = self.bg_color_palette[color_palette_index][color_index];
 
-            scan_line_row[i as usize] = ScanLinePxInfo::new(color_index, false);
+            scan_line_row[i as usize] =
+                ScanLinePxInfo::new(color_index, tile_data.flags.bg_oam_prio); // TODO: Do we set the flag?
             self.frame_buffer[frame_buffer_offset] = color;
             frame_buffer_offset += 1;
 
             tile_local_x += 1;
-            pixels_drawn_for_current_tile += 1;
 
             if tile_local_x == 8 {
                 tile_local_x = 0;
+                fetch_x += 8;
 
-                // set up the next tile
-                // need to be carefull here (i think?) becaucse the view port can
-                // wrap around?
-
-                x = x.wrapping_add(pixels_drawn_for_current_tile);
-                pixels_drawn_for_current_tile = 0;
-
-                tile_map_offset += 1;
-                tile_index = self.get_adjusted_tile_index(
-                    wd_map_start_addr + tile_map_offset,
-                    signed_tile_addressing,
-                );
-
-                tile_address = (tile_index * 16) + (tile_local_y as u16 * 2);
-                b1 = self.access_vram(tile_address as usize);
-                b2 = self.access_vram(tile_address as usize + 1);
+                tile_data = self.fetch_tile_data(fetch_x, y, wd_map_start_addr);
             }
         }
     }

@@ -1,5 +1,7 @@
 pub mod rgb;
 
+use std::hint::unreachable_unchecked;
+
 use crate::bus::CgbCompatibility;
 
 use self::rgb::Rgb;
@@ -23,6 +25,7 @@ pub(crate) struct Ppu {
     mode: PpuMode,
     window_internal_line_counter: u8,
     console_compatibility_mode: CgbCompatibility,
+    obj_prio_mode: ObjectPriorityMode,
 
     // io registers
     pub lcdc: u8, // FF40
@@ -99,6 +102,61 @@ enum PpuMode {
     VRAM = 3,   // mode 3
 }
 
+#[derive(Clone, Copy)]
+enum ObjectPriorityMode {
+    OamOrder,
+    CoordinateOrder,
+}
+
+struct BGMapFlags {
+    bg_oam_prio: bool, // true=use bg bit, false=use oam bit
+    vertical_flip: bool,
+    horizontal_flip: bool,
+    tile_bank: usize,
+    bg_palette_number: usize,
+}
+
+impl From<u8> for BGMapFlags {
+    fn from(val: u8) -> Self {
+        BGMapFlags {
+            bg_oam_prio: val & 0b1000_0000 != 0,
+            vertical_flip: val & 0b0100_0000 != 0,
+            horizontal_flip: val & 0b0010_0000 != 0,
+            tile_bank: ((val & 0b000_1000) >> 3) as usize,
+            bg_palette_number: (val & 0b0000_0111) as usize,
+        }
+    }
+}
+
+struct TileData {
+    color_index_row: [u8; 8],
+    flags: BGMapFlags,
+}
+
+#[derive(Clone, Copy)]
+struct ScanLinePxInfo {
+    color_index: usize,
+    bg_prio_set: bool,
+}
+
+impl ScanLinePxInfo {
+    pub fn new(color_index: usize, bg_prio_set: bool) -> Self {
+        ScanLinePxInfo {
+            color_index,
+            bg_prio_set,
+        }
+    }
+}
+
+impl Default for ScanLinePxInfo {
+    fn default() -> Self {
+        Self {
+            color_index: 255,
+            bg_prio_set: false,
+        }
+    }
+}
+
 impl Ppu {
     pub fn new() -> Self {
         Self {
@@ -135,6 +193,7 @@ impl Ppu {
             mode: PpuMode::OAM,
             window_internal_line_counter: 0,
             console_compatibility_mode: CgbCompatibility::CgbOnly,
+            obj_prio_mode: ObjectPriorityMode::OamOrder, // TODO: what is the default?
 
             lcdc: 0x0,
             stat: 0x0,
@@ -209,6 +268,8 @@ impl Ppu {
             0xFF69 => self.bg_color_palette_ram[self.bg_color_palette_index],
             0xFF6A => self.sprite_color_palette_specification,
             0xFF6B => self.sprite_color_palette_ram[self.sprite_color_palette_index],
+
+            0xFF6C => 0xFF,
 
             _ => panic!("Ppu doesnt handle reading from address: {:#06X}", addr),
         }
@@ -315,6 +376,12 @@ impl Ppu {
                 }
             }
 
+            0xFF6C => match val & 0b0000_0001 {
+                0 => self.obj_prio_mode = ObjectPriorityMode::OamOrder,
+                1 => self.obj_prio_mode = ObjectPriorityMode::CoordinateOrder,
+                _ => unsafe { unreachable_unchecked() },
+            },
+
             _ => panic!("Ppu doesnt handle writing to address: {:#06X}", addr),
         }
     }
@@ -342,6 +409,23 @@ impl Ppu {
 
     fn set_mode_stat(&mut self, mode: PpuMode) {
         self.stat = (self.stat & 0b1111_1100) | (mode as u8);
+    }
+
+    fn flip_tile_value(val: u8) -> u8 {
+        #[cfg(debug_assertions)]
+        assert!(val <= 7);
+
+        match val {
+            0 => 7,
+            1 => 6,
+            2 => 5,
+            3 => 4,
+            4 => 3,
+            5 => 2,
+            6 => 1,
+            7 => 0,
+            _ => unsafe { unreachable_unchecked() },
+        }
     }
 
     fn get_bg_map_start_addr(&self) -> u16 {
@@ -443,15 +527,18 @@ impl Ppu {
     }
 
     fn draw_scan_line(&mut self) {
-        let mut scan_line_row: [u8; 160] = [0; 160];
+        let mut scan_line_row: [ScanLinePxInfo; 160] = [ScanLinePxInfo::default(); 160];
 
-        if self.lcdc & LcdControlFlag::BGEnable as u8 != 0 {
+        if self.console_compatibility_mode.is_cgb_mode()
+            || self.lcdc & LcdControlFlag::BGEnable as u8 != 0
+        {
             self.draw_background(&mut scan_line_row);
         }
 
         let skip_window_draw =
             self.wy > 166 || (self.wx.wrapping_sub(7)) > 143 || self.wy > self.ly;
 
+        // TODO: skip window draw if if non cgb mode and if BGEnable is disabled?
         if self.lcdc & LcdControlFlag::WindowEnable as u8 != 0 && !skip_window_draw {
             self.draw_window(&mut scan_line_row);
         }
@@ -461,51 +548,76 @@ impl Ppu {
         }
     }
 
-    fn draw_background(&mut self, scan_line_row: &mut [u8; 160]) {
-        let bg_map_start_addr = self.get_bg_map_start_addr();
-
-        // top left coordinate of the view port
-        // very important that these are u8's so overflowing
-        // naturally handles "view port wrapping around"
-        let y: u8 = self.ly.wrapping_add(self.scy);
-        let mut x: u8 = self.scx;
-
-        // get the "tile" (x, y), which 8x8 chunk is the above coordinate in
+    fn fetch_tile_data(&self, x: u8, y: u8, map_start_addr: u16) -> TileData {
         let tile_y = y / 8;
-        let mut tile_x = x / 8;
+        let tile_x = x / 8;
 
-        // calculate tile index
-        let mut tile_map_offset = (tile_y as u16 * 32) + tile_x as u16;
-        // are we using signed addressing for accessing the tile data (not map)
+        let map_tile_index = ((tile_y as u16) * 32) + tile_x as u16;
         let signed_tile_addressing: bool =
             self.lcdc & LcdControlFlag::BGAndWindowTileData as u8 == 0;
+        let tile_index =
+            self.get_adjusted_tile_index(map_start_addr + map_tile_index, signed_tile_addressing);
 
-        // get the tile index from the map
-        let mut tile_index = self
-            .get_adjusted_tile_index(bg_map_start_addr + tile_map_offset, signed_tile_addressing);
+        let flags_addr = (map_start_addr + map_tile_index - 0x8000) as usize;
+        let flags = BGMapFlags::from(self.gpu_vram[1][flags_addr]);
 
-        // above x and y are where we are relative to the whole bg map (256 * 256)
-        // we need x and y to be relative to the tile we want to draw
-        // so modulo by 8 (or & 7)
-        // shadow over old x an y variables
-        let tile_local_y = y & 7;
+        let tile_local_y = match flags.vertical_flip {
+            true => Self::flip_tile_value(y & 7),
+            false => y & 7,
+        };
+        let tile_addr = (tile_index * 16) + (tile_local_y as u16 * 2);
+
+        let bank_index = match self.console_compatibility_mode {
+            CgbCompatibility::CgbOnly => flags.tile_bank,
+            _ => 0,
+        };
+
+        let b1 = self.gpu_vram[bank_index][tile_addr as usize];
+        let b2 = self.gpu_vram[bank_index][tile_addr as usize + 1];
+
+        let mut color_index_row: [u8; 8] = [0; 8];
+
+        if self.console_compatibility_mode.is_cgb_mode() && flags.horizontal_flip {
+            for i in 0..8usize {
+                let shift_i = i as u8;
+                color_index_row[i] =
+                    ((b1 & (1 << shift_i)) >> shift_i) | ((b2 & (1 << shift_i)) >> shift_i) << 1;
+            }
+        } else {
+            for i in (0..8usize).rev() {
+                let shift_i = i as u8;
+                color_index_row[7 - i] =
+                    ((b1 & (1 << shift_i)) >> shift_i) | ((b2 & (1 << shift_i)) >> shift_i) << 1;
+            }
+        }
+
+        TileData {
+            color_index_row,
+            flags,
+        }
+    }
+
+    fn draw_background(&mut self, scan_line_row: &mut [ScanLinePxInfo; 160]) {
+        let bg_map_start_addr = self.get_bg_map_start_addr();
+
+        let y = self.ly.wrapping_add(self.scy);
+        let mut x = self.scx;
         let mut tile_local_x = x & 7;
 
-        let mut tile_address = (tile_index * 16) + (tile_local_y as u16 * 2);
-
-        let mut b1 = self.access_vram(tile_address as usize);
-        let mut b2 = self.access_vram(tile_address as usize + 1);
-
+        let mut tile_data = self.fetch_tile_data(x, y, bg_map_start_addr);
         let mut frame_buffer_offset = self.ly as usize * 160;
-
         let mut pixels_drawn_for_current_tile: u8 = 0;
-        for px in scan_line_row.iter_mut() {
-            let bx = 7 - tile_local_x;
-            let color_bit = ((b1 & (1 << bx)) >> bx) | ((b2 & (1 << bx)) >> bx) << 1;
-            let color_index = self.bg_palette[color_bit as usize];
-            let color = self.bg_color_palette[0][color_index];
 
-            *px = color_index as u8;
+        for px in scan_line_row.iter_mut() {
+            let color_bit = tile_data.color_index_row[tile_local_x as usize];
+            let color_index = self.bg_palette[color_bit as usize];
+            let color_palette_index = match self.console_compatibility_mode {
+                CgbCompatibility::CgbOnly => tile_data.flags.bg_palette_number,
+                _ => 0,
+            };
+
+            let color = self.bg_color_palette[color_palette_index][color_index];
+            *px = ScanLinePxInfo::new(color_index, tile_data.flags.bg_oam_prio);
             self.frame_buffer[frame_buffer_offset] = color;
             frame_buffer_offset += 1;
 
@@ -514,99 +626,90 @@ impl Ppu {
 
             if tile_local_x == 8 {
                 tile_local_x = 0;
-
-                // set up the next tile
-                // need to be carefull here (i think?) becaucse the view port can
-                // wrap around?
-
                 x = x.wrapping_add(pixels_drawn_for_current_tile);
                 pixels_drawn_for_current_tile = 0;
 
-                tile_x = x / 8;
-                tile_map_offset = (tile_y as u16 * 32) + tile_x as u16;
-                tile_index = self.get_adjusted_tile_index(
-                    bg_map_start_addr + tile_map_offset,
-                    signed_tile_addressing,
-                );
-
-                tile_address = (tile_index * 16) + (tile_local_y as u16 * 2);
-                b1 = self.access_vram(tile_address as usize);
-                b2 = self.access_vram(tile_address as usize + 1);
+                tile_data = self.fetch_tile_data(x, y, bg_map_start_addr);
             }
         }
     }
 
-    fn draw_window(&mut self, scan_line_row: &mut [u8; 160]) {
+    fn draw_window(&mut self, scan_line_row: &mut [ScanLinePxInfo; 160]) {
         let wd_map_start_addr = self.get_window_map_start_addr();
         self.window_internal_line_counter += 1;
 
         let y = self.window_internal_line_counter - 1; //scan_line - window_y;
-        let mut x = self.wx.wrapping_sub(7);
-
-        let tile_y = y / 8;
-
-        let mut tile_map_offset = tile_y as u16 * 32;
-        // tile_map_offset = (tile_y as u16) + tile_x as u16;
-        // are we using signed addressing for accessing the tile data (not map)
-        let signed_tile_addressing: bool =
-            self.lcdc & LcdControlFlag::BGAndWindowTileData as u8 == 0;
-
-        // get the tile index from the map
-        let mut tile_index = self
-            .get_adjusted_tile_index(wd_map_start_addr + tile_map_offset, signed_tile_addressing);
-
-        // above x and y are where we are relative to the whole bg map (256 * 256)
-        // we need x and y to be relative to the tile we want to draw
-        // so modulo by 8 (or & 7)
-        // shadow over old x an y variables
-        let tile_local_y = y & 7;
+        let x = self.wx.wrapping_sub(7);
         let mut tile_local_x = x & 7;
+        let mut fetch_x = 0;
 
-        let mut tile_address = (tile_index * 16) + (tile_local_y as u16 * 2);
-        let mut b1 = self.access_vram(tile_address as usize);
-        let mut b2 = self.access_vram(tile_address as usize + 1);
-
+        let mut tile_data = self.fetch_tile_data(fetch_x, y, wd_map_start_addr);
         let mut frame_buffer_offset = (self.ly as usize * 160) + x as usize;
 
-        let mut pixels_drawn_for_current_tile: u8 = 0;
         let start = x;
         for i in start..160 {
-            let bx = 7 - tile_local_x;
-            let color_bit = ((b1 & (1 << bx)) >> bx) | ((b2 & (1 << bx)) >> bx) << 1;
+            let color_bit = tile_data.color_index_row[tile_local_x as usize];
             let color_index = self.bg_palette[color_bit as usize];
-            let color = self.bg_color_palette[0][color_index];
+            let color_palette_index = match self.console_compatibility_mode {
+                CgbCompatibility::CgbOnly => tile_data.flags.bg_palette_number,
+                _ => 0,
+            };
+            let color = self.bg_color_palette[color_palette_index][color_index];
 
-            scan_line_row[i as usize] = color_index as u8;
+            scan_line_row[i as usize] =
+                ScanLinePxInfo::new(color_index, tile_data.flags.bg_oam_prio); // TODO: Do we set the flag?
             self.frame_buffer[frame_buffer_offset] = color;
             frame_buffer_offset += 1;
 
             tile_local_x += 1;
-            pixels_drawn_for_current_tile += 1;
 
             if tile_local_x == 8 {
                 tile_local_x = 0;
+                fetch_x += 8;
 
-                // set up the next tile
-                // need to be carefull here (i think?) becaucse the view port can
-                // wrap around?
-
-                x = x.wrapping_add(pixels_drawn_for_current_tile);
-                pixels_drawn_for_current_tile = 0;
-
-                tile_map_offset += 1;
-                tile_index = self.get_adjusted_tile_index(
-                    wd_map_start_addr + tile_map_offset,
-                    signed_tile_addressing,
-                );
-
-                tile_address = (tile_index * 16) + (tile_local_y as u16 * 2);
-                b1 = self.access_vram(tile_address as usize);
-                b2 = self.access_vram(tile_address as usize + 1);
+                tile_data = self.fetch_tile_data(fetch_x, y, wd_map_start_addr);
             }
         }
     }
 
-    fn draw_sprites(&mut self, scan_line_row: &mut [u8; 160]) {
+    fn draw_sprites(&mut self, scan_line_row: &mut [ScanLinePxInfo; 160]) {
+        #[derive(Clone, Copy)]
+        struct SpriteData {
+            y: i32,
+            x: i32,
+            tile_num: u16,
+            flags: u8,
+        }
+
+        impl Default for SpriteData {
+            fn default() -> Self {
+                Self {
+                    y: Default::default(),
+                    x: Default::default(),
+                    tile_num: Default::default(),
+                    flags: Default::default(),
+                }
+            }
+        }
+
+        fn fetch_sprites(ppu: &Ppu, sprite_size: i32) -> [SpriteData; 40] {
+            let mut sprites = [SpriteData::default(); 40];
+
+            for i in 0..40 {
+                let sprite_addr = (i as usize) * 4;
+                sprites[i] = SpriteData {
+                    y: ppu.sprite_table[sprite_addr] as u16 as i32 - 16,
+                    x: ppu.sprite_table[sprite_addr + 1] as u16 as i32 - 8,
+                    tile_num: (ppu.sprite_table[sprite_addr + 2]
+                        & (if sprite_size == 16 { 0xFE } else { 0xFF }))
+                        as u16,
+                    flags: ppu.sprite_table[sprite_addr + 3],
+                };
+            }
+
+            sprites
+        }
+
         let sprite_size: i32 = if self.lcdc & LcdControlFlag::OBJSize as u8 != 0 {
             16
         } else {
@@ -614,29 +717,26 @@ impl Ppu {
         };
 
         let mut total_objects_drawn = 0;
-        let mut obj_same_x_prio = [i32::MAX; 160];
+        let mut obj_prio_arr = [i32::MAX; 160];
 
-        for i in 0..40 {
-            let sprite_addr = (i as usize) * 4;
+        let sprites = fetch_sprites(self, sprite_size);
 
-            let sprite_y = self.sprite_table[sprite_addr] as u16 as i32 - 16;
-            let sprite_x = self.sprite_table[sprite_addr + 1] as u16 as i32 - 8;
-            let tile_num = (self.sprite_table[sprite_addr + 2]
-                & (if sprite_size == 16 { 0xFE } else { 0xFF })) as u16;
+        for (i, sprite) in sprites.iter().enumerate() {
+            let cgb_sprite_palette = (sprite.flags & 0b0000_0111) as usize;
+            let tile_vram_bank = ((sprite.flags & 0b0000_1000) >> 3) as usize;
 
-            let flags = self.sprite_table[sprite_addr + 3];
-            let sprite_palette: usize = if flags & (1 << 4) != 0 { 1 } else { 0 };
-            let xflip: bool = flags & (1 << 5) != 0;
-            let yflip: bool = flags & (1 << 6) != 0;
-            let belowbg: bool = flags & (1 << 7) != 0;
+            let sprite_palette: usize = if sprite.flags & (1 << 4) != 0 { 1 } else { 0 };
+            let xflip: bool = sprite.flags & (1 << 5) != 0;
+            let yflip: bool = sprite.flags & (1 << 6) != 0;
+            let bg_wd_prio: bool = sprite.flags & (1 << 7) != 0;
 
             let scan_line = self.ly as i32;
 
             // exit early if sprite is off screen
-            if scan_line < sprite_y || scan_line >= sprite_y + sprite_size {
+            if scan_line < sprite.y || scan_line >= sprite.y + sprite_size {
                 continue;
             }
-            if sprite_x < -7 || sprite_x >= 160 {
+            if sprite.x < -7 || sprite.x >= 160 {
                 continue;
             }
 
@@ -647,47 +747,98 @@ impl Ppu {
 
             // fetch sprite tile
             let tile_y: u16 = if yflip {
-                (sprite_size - 1 - (scan_line - sprite_y)) as u16
+                (sprite_size - 1 - (scan_line - sprite.y)) as u16
             } else {
-                (scan_line - sprite_y) as u16
+                (scan_line - sprite.y) as u16
             };
 
-            let tile_address = tile_num * 16 + tile_y * 2;
+            let tile_address = sprite.tile_num * 16 + tile_y * 2;
 
-            let b1 = self.access_vram(tile_address as usize);
-            let b2 = self.access_vram(tile_address as usize + 1);
+            let (b1, b2) = match self.console_compatibility_mode {
+                CgbCompatibility::CgbAndDmg | CgbCompatibility::None => (
+                    self.gpu_vram[0][tile_address as usize],
+                    self.gpu_vram[0][tile_address as usize + 1],
+                ),
+                CgbCompatibility::CgbOnly => (
+                    self.gpu_vram[tile_vram_bank][tile_address as usize],
+                    self.gpu_vram[tile_vram_bank][tile_address as usize + 1],
+                ),
+            };
 
             // draw each pixel of the sprite tile
             'inner: for x in 0..8 {
-                if sprite_x + x < 0 || sprite_x + x >= 160 {
+                if sprite.x + x < 0 || sprite.x + x >= 160 {
                     continue;
                 }
 
-                // if sprite prio is below bg, and the drawn bg pixel is 0 (nothing) then skip to the next pixel
-                if belowbg && scan_line_row[(sprite_x + x) as usize] != self.bg_palette[0] as u8 {
+                let cgb_sprite_alawys_display = if self.console_compatibility_mode.is_cgb_mode() {
+                    let always_display_sprite = self.lcdc & LcdControlFlag::BGEnable as u8 == 0;
+                    if !always_display_sprite
+                        && scan_line_row[(sprite.x + x) as usize].bg_prio_set
+                        && scan_line_row[(sprite.x + x) as usize].color_index != 0
+                    {
+                        continue 'inner;
+                    }
+
+                    always_display_sprite
+                } else {
+                    false
+                };
+
+                if !cgb_sprite_alawys_display
+                    && bg_wd_prio
+                    && scan_line_row[(sprite.x + x) as usize].color_index != 0
+                {
                     continue 'inner;
                 }
 
                 // has another sprite already been drawn on this pixel
                 // that has a lower or eq sprite_x val?
-                if obj_same_x_prio[(sprite_x + x) as usize] <= sprite_x {
-                    continue 'inner;
+
+                // handle obj prio
+                match self.obj_prio_mode {
+                    ObjectPriorityMode::OamOrder => {
+                        if obj_prio_arr[(sprite.x + x) as usize] <= i as i32 {
+                            continue 'inner;
+                        }
+                    }
+                    ObjectPriorityMode::CoordinateOrder => {
+                        if obj_prio_arr[(sprite.x + x) as usize] <= sprite.x {
+                            continue 'inner;
+                        }
+                    }
                 }
 
                 let xbit = 1 << (if xflip { x } else { 7 - x } as u32);
                 let colnr =
                     (if b1 & xbit != 0 { 1 } else { 0 }) | (if b2 & xbit != 0 { 2 } else { 0 });
+
+                // LCDControl Mater Priority cleared still means we skip sprites if they are the bit 0 ("transparent")
                 if colnr == 0 {
                     continue;
                 }
 
-                let color_bit = self.sprite_palette[sprite_palette][colnr];
-                let color = self.sprite_color_palette[sprite_palette][color_bit];
+                let color = match self.console_compatibility_mode {
+                    CgbCompatibility::None | CgbCompatibility::CgbAndDmg => {
+                        let color_bit = self.sprite_palette[sprite_palette][colnr];
+                        self.sprite_color_palette[sprite_palette][color_bit]
+                    }
+                    CgbCompatibility::CgbOnly => {
+                        self.sprite_color_palette[cgb_sprite_palette][colnr]
+                    }
+                };
 
-                let pixel_offset = ((scan_line * 160) + sprite_x + x) as usize;
+                let pixel_offset = ((scan_line * 160) + sprite.x + x) as usize;
 
                 self.frame_buffer[pixel_offset] = color;
-                obj_same_x_prio[(sprite_x + x) as usize] = sprite_x;
+                match self.obj_prio_mode {
+                    ObjectPriorityMode::OamOrder => {
+                        obj_prio_arr[(sprite.x + x) as usize] = i as i32
+                    }
+                    ObjectPriorityMode::CoordinateOrder => {
+                        obj_prio_arr[(sprite.x + x) as usize] = sprite.x
+                    }
+                }
             }
         }
     }

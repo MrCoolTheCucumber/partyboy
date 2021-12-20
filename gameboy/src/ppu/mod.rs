@@ -527,7 +527,7 @@ impl Ppu {
         if self.console_compatibility_mode.is_cgb_mode()
             || self.lcdc & LcdControlFlag::BGEnable as u8 != 0
         {
-            self.draw_background_2(&mut scan_line_row);
+            self.draw_background(&mut scan_line_row);
         }
 
         let skip_window_draw =
@@ -543,7 +543,7 @@ impl Ppu {
         }
     }
 
-    fn draw_background_2(&mut self, scan_line_row: &mut [ScanLinePxInfo; 160]) {
+    fn draw_background(&mut self, scan_line_row: &mut [ScanLinePxInfo; 160]) {
         struct TileData {
             color_index_row: [u8; 8],
             flags: BGMapFlags,
@@ -632,132 +632,6 @@ impl Ppu {
                 pixels_drawn_for_current_tile = 0;
 
                 tile_data = fetch_tile_data(self, x, y);
-            }
-        }
-    }
-
-    fn draw_background(&mut self, scan_line_row: &mut [ScanLinePxInfo; 160]) {
-        let bg_map_start_addr = self.get_bg_map_start_addr();
-
-        // top left coordinate of the view port
-        // very important that these are u8's so overflowing
-        // naturally handles "view port wrapping around"
-        let y: u8 = self.ly.wrapping_add(self.scy);
-        let mut x: u8 = self.scx;
-
-        // get the "tile" (x, y), which 8x8 chunk is the above coordinate in
-        let tile_y = y / 8;
-        let mut tile_x = x / 8;
-
-        // calculate tile index
-        let mut tile_map_offset = (tile_y as u16 * 32) + tile_x as u16;
-        // are we using signed addressing for accessing the tile data (not map)
-        let signed_tile_addressing: bool =
-            self.lcdc & LcdControlFlag::BGAndWindowTileData as u8 == 0;
-
-        // get the tile index from the map
-        let mut tile_index = self
-            .get_adjusted_tile_index(bg_map_start_addr + tile_map_offset, signed_tile_addressing);
-
-        // In CGB mode, BG tiles have attribute flags in bank 1 in the corresponding map area
-        let mut flags_addr = (bg_map_start_addr + tile_map_offset - 0x8000) as usize;
-        let mut flags = BGMapFlags::from(self.gpu_vram[1][flags_addr]);
-
-        // above x and y are where we are relative to the whole bg map (256 * 256)
-        // we need x and y to be relative to the tile we want to draw
-        // so modulo by 8 (or & 7)
-        // shadow over old x an y variables
-        let mut tile_local_y = if flags.vertical_flip {
-            Self::flip_tile_value(y & 7)
-        } else {
-            y & 7
-        };
-        let mut tile_local_x = if flags.horizontal_flip {
-            Self::flip_tile_value(x & 7)
-        } else {
-            x & 7
-        };
-
-        let mut tile_address = (tile_index * 16) + (tile_local_y as u16 * 2);
-
-        let (mut b1, mut b2) = match self.console_compatibility_mode {
-            CgbCompatibility::CgbAndDmg | CgbCompatibility::None => (
-                self.gpu_vram[0][tile_address as usize],
-                self.gpu_vram[0][tile_address as usize + 1],
-            ),
-            CgbCompatibility::CgbOnly => (
-                self.gpu_vram[flags.tile_bank][tile_address as usize],
-                self.gpu_vram[flags.tile_bank][tile_address as usize + 1],
-            ),
-        };
-
-        let mut frame_buffer_offset = self.ly as usize * 160;
-
-        let mut pixels_drawn_for_current_tile: u8 = 0;
-        for px in scan_line_row.iter_mut() {
-            let bx = 7 - tile_local_x;
-
-            let color_bit = ((b1 & (1 << bx)) >> bx) | ((b2 & (1 << bx)) >> bx) << 1;
-            let color_index = self.bg_palette[color_bit as usize];
-            let color_palette_index = if self.console_compatibility_mode.is_cgb_mode() {
-                flags.bg_palette_number
-            } else {
-                0
-            };
-            let color = self.bg_color_palette[color_palette_index][color_index];
-
-            *px = ScanLinePxInfo::new(color_index, flags.bg_oam_prio);
-            self.frame_buffer[frame_buffer_offset] = color;
-            frame_buffer_offset += 1;
-
-            tile_local_x = if flags.horizontal_flip {
-                tile_local_x - 1
-            } else {
-                tile_local_x + 1
-            };
-            pixels_drawn_for_current_tile += 1;
-
-            if (tile_local_x == 8 && !flags.horizontal_flip)
-                || (tile_local_x == 0 && flags.horizontal_flip)
-            {
-                // set up the next tile
-                // need to be carefull here (i think?) becaucse the view port can
-                // wrap around?
-
-                x = x.wrapping_add(pixels_drawn_for_current_tile);
-                pixels_drawn_for_current_tile = 0;
-
-                tile_x = x / 8;
-                tile_map_offset = (tile_y as u16 * 32) + tile_x as u16;
-                tile_index = self.get_adjusted_tile_index(
-                    bg_map_start_addr + tile_map_offset,
-                    signed_tile_addressing,
-                );
-                flags_addr = (bg_map_start_addr + tile_map_offset - 0x8000) as usize;
-                flags = BGMapFlags::from(self.gpu_vram[1][flags_addr]);
-
-                tile_local_x = if flags.horizontal_flip { 7 } else { 0 };
-                tile_local_y = if flags.vertical_flip {
-                    Self::flip_tile_value(y & 7)
-                } else {
-                    y & 7
-                };
-
-                tile_address = (tile_index * 16) + (tile_local_y as u16 * 2);
-
-                let (_b1, _b2) = match self.console_compatibility_mode {
-                    CgbCompatibility::CgbAndDmg | CgbCompatibility::None => (
-                        self.gpu_vram[0][tile_address as usize],
-                        self.gpu_vram[0][tile_address as usize + 1],
-                    ),
-                    CgbCompatibility::CgbOnly => (
-                        self.gpu_vram[flags.tile_bank][tile_address as usize],
-                        self.gpu_vram[flags.tile_bank][tile_address as usize + 1],
-                    ),
-                };
-
-                b1 = _b1;
-                b2 = _b2;
             }
         }
     }

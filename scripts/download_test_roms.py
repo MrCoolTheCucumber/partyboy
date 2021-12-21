@@ -5,7 +5,7 @@ import shutil
 import zipfile
 from pathlib import Path
 
-def download_git_repo(url, file_name):
+def download_zip_file(url, file_name):
     if os.path.exists(file_name):
         print("Skipping {}, already found.".format(file_name))
         return
@@ -48,10 +48,10 @@ path.mkdir(exist_ok=True)
 os.chdir(path)
 
 blargg_url = "https://github.com/retrio/gb-test-roms/archive/refs/heads/master.zip"
-download_git_repo(blargg_url, "blargg")
+download_zip_file(blargg_url, "blargg")
 
-mooneye_url = "https://github.com/Gekkio/mooneye-test-suite/archive/refs/heads/main.zip"
-download_git_repo(mooneye_url, "mooneye")
+mooneye_url = "https://gekkio.fi/files/mooneye-test-suite/mts-20211031-2031-86d1acf/mts-20211031-2031-86d1acf.zip"
+download_zip_file(mooneye_url, "mooneye")
 
 dmg_acid_2_url = "https://github.com/mattcurrie/dmg-acid2/releases/download/v1.0/dmg-acid2.gb"
 download_gb_file(dmg_acid_2_url, "dmg-acid2")

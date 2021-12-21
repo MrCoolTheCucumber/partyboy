@@ -558,10 +558,11 @@ impl Ppu {
         let tile_index =
             self.get_adjusted_tile_index(map_start_addr + map_tile_index, signed_tile_addressing);
 
-        let tile_local_y = match flags.vertical_flip {
-            true => Self::flip_tile_value(y & 7),
-            false => y & 7,
-        };
+        let tile_local_y =
+            match flags.vertical_flip && self.console_compatibility_mode.is_cgb_mode() {
+                true => Self::flip_tile_value(y & 7),
+                false => y & 7,
+            };
         let tile_addr = (tile_index * 16) + (tile_local_y as u16 * 2);
 
         let bank_index = match self.console_compatibility_mode {

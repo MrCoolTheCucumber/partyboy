@@ -9,6 +9,7 @@ mod ppu;
 mod timer;
 
 use builder::SerialWriteHandler;
+use dma::oam::OamDma;
 use ppu::rgb::Rgb;
 
 use self::{
@@ -48,6 +49,7 @@ impl GameBoy {
         Interrupts::tick(&mut self.bus.interrupts, &mut self.cpu);
         self.cpu.tick(&mut self.bus, &mut self.instruction_cache);
         self.bus.ppu.tick(&mut self.bus.interrupts);
+        OamDma::dma_tick(&mut self.bus);
 
         self.bus.timer.tick(&mut self.bus.interrupts);
     }

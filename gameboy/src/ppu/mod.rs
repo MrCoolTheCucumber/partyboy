@@ -386,11 +386,6 @@ impl Ppu {
         }
     }
 
-    #[inline(always)]
-    fn access_vram(&self, index: usize) -> u8 {
-        self.gpu_vram[(self.gpu_vram_bank & 1) as usize][index]
-    }
-
     fn update_ly_lyc(&mut self) {
         if self.ly == self.lyc {
             self.stat |= 0b0000_0100;
@@ -445,14 +440,14 @@ impl Ppu {
     fn get_adjusted_tile_index(&self, addr: u16, signed_tile_index: bool) -> u16 {
         let addr = (addr - 0x8000) as usize;
         if signed_tile_index {
-            let tile = self.access_vram(addr) as i8 as i16;
+            let tile = self.gpu_vram[0][addr] as i8 as i16;
             if tile >= 0 {
                 tile as u16 + 256
             } else {
                 256 - (tile.abs() as u16)
             }
         } else {
-            self.access_vram(addr) as u16
+            self.gpu_vram[0][addr] as u16
         }
     }
 
@@ -555,11 +550,13 @@ impl Ppu {
         let map_tile_index = ((tile_y as u16) * 32) + tile_x as u16;
         let signed_tile_addressing: bool =
             self.lcdc & LcdControlFlag::BGAndWindowTileData as u8 == 0;
+        let flags_addr = (map_start_addr + map_tile_index - 0x8000) as usize;
+
+        let raw_flags = self.gpu_vram[1][flags_addr];
+        let flags = BGMapFlags::from(raw_flags);
+
         let tile_index =
             self.get_adjusted_tile_index(map_start_addr + map_tile_index, signed_tile_addressing);
-
-        let flags_addr = (map_start_addr + map_tile_index - 0x8000) as usize;
-        let flags = BGMapFlags::from(self.gpu_vram[1][flags_addr]);
 
         let tile_local_y = match flags.vertical_flip {
             true => Self::flip_tile_value(y & 7),
@@ -611,12 +608,13 @@ impl Ppu {
         for px in scan_line_row.iter_mut() {
             let color_bit = tile_data.color_index_row[tile_local_x as usize];
             let color_index = self.bg_palette[color_bit as usize];
-            let color_palette_index = match self.console_compatibility_mode {
-                CgbCompatibility::CgbOnly => tile_data.flags.bg_palette_number,
-                _ => 0,
+            let color = match self.console_compatibility_mode {
+                CgbCompatibility::CgbOnly => {
+                    self.bg_color_palette[tile_data.flags.bg_palette_number][color_bit as usize]
+                }
+                _ => self.bg_color_palette[0][color_index as usize],
             };
 
-            let color = self.bg_color_palette[color_palette_index][color_index];
             *px = ScanLinePxInfo::new(color_index, tile_data.flags.bg_oam_prio);
             self.frame_buffer[frame_buffer_offset] = color;
             frame_buffer_offset += 1;

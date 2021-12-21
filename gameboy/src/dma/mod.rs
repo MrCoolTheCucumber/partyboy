@@ -20,12 +20,13 @@ impl Default for Dma {
 
 impl Dma {
     pub fn read_u8(&self, addr: u16) -> u8 {
+        log::debug!("Reading a HDMA reg: {:#06X}", addr);
         match addr {
             0xFF51 => self.src_hi,
             0xFF52 => self.src_lo,
             0xFF53 => self.dest_hi,
             0xFF54 => self.dest_lo,
-            0xFF55 => self.hdma5 | 0b1000_000, // DMA always not active
+            0xFF55 => self.hdma5 | 0xFF, // DMA always not active
 
             _ => panic!("HDMA doesnt handle reading from address: {:#06X}", addr),
         }

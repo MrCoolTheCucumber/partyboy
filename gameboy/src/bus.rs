@@ -179,7 +179,10 @@ impl Bus {
             0xFF01 => (self.serial_write_handler)(val),
             0xFF03..=0xFF07 => self.timer.write(addr, val),
             0xFF0F => self.interrupts.flags = val,
-            0xFF50 => self.bios_enabled = false, // accept any val for now
+            0xFF50 => {
+                log::info!("Disabling BIOS");
+                self.bios_enabled = false; // accept any val for now
+            }
             0xFFFF => self.interrupts.enable = val,
 
             0xFF46 => {

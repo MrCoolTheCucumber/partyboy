@@ -1,4 +1,4 @@
-use std::cmp;
+use std::{cmp, fmt};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct Rgb {
@@ -10,6 +10,12 @@ pub struct Rgb {
 impl Default for Rgb {
     fn default() -> Self {
         Self { r: 0, g: 0, b: 0 }
+    }
+}
+
+impl fmt::Debug for Rgb {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "#{:02X}{:02X}{:02X}", self.r, self.g, self.b)
     }
 }
 

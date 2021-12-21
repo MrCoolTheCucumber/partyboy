@@ -30,8 +30,7 @@ impl Mbc3 {
         num_rom_banks: u16,
         num_ram_banks: u16,
     ) -> Self {
-        let mut rom_banks = Vec::new();
-        rom_banks.push(rom_bank_0);
+        let mut rom_banks = vec![rom_bank_0];
 
         for _ in 0..num_rom_banks - 1 {
             let mut bank = [0; 0x4000];
@@ -102,7 +101,7 @@ impl Cartridge for Mbc3 {
                 if value <= 0x03 {
                     self.current_ram_bank = value as usize;
                     self.rtc_banked = false;
-                } else if value >= 0x08 && value <= 0x0C {
+                } else if (0x08..=0x0C).contains(&value) {
                     self.rtc_banked = true;
                 }
             }

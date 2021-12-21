@@ -113,8 +113,8 @@ impl Bus {
 
     pub fn read_u8(&self, addr: u16) -> u8 {
         match addr {
-            0x0000..=0x00FF if self.bios_enabled => return self.bios[addr as usize],
-            0x0200..=0x08FF if self.bios_enabled => return self.bios[addr as usize],
+            0x0000..=0x00FF if self.bios_enabled => self.bios[addr as usize],
+            0x0200..=0x08FF if self.bios_enabled => self.bios[addr as usize],
 
             0x0000..=0x7FFF => self.cartridge.read_rom(addr),
             0x8000..=0x9FFF => self.ppu.read_vram(addr - 0x8000),

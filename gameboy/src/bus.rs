@@ -204,10 +204,15 @@ impl Bus {
                 // TOOD: for now, just ignore mode and instantly copy?
                 let _is_gdma = (val & 0b1000_0000) == 0;
 
-                let src_addr: u16 =
-                    ((self.dma.src_hi as u16) << 8) | ((self.dma.src_lo & 0b1111_0000) as u16);
-                let dest_addr: u16 =
-                    ((self.dma.dest_hi as u16) << 8) | ((self.dma.dest_lo & 0b1111_0000) as u16);
+                let mut src_addr: u16 =
+                    ((self.dma.src_hi as u16) << 8) | ((self.dma.src_lo) as u16);
+                let mut dest_addr: u16 =
+                    (((self.dma.dest_hi) as u16) << 8) | ((self.dma.dest_lo) as u16);
+
+                // Apply "masks"
+                src_addr &= 0b0111_1111_1111_0000;
+                dest_addr &= 0b0001_1111_1111_0000;
+                dest_addr |= 0b1000_0000_0000_0000;
 
                 for i in 0..bytes_to_transfer {
                     let transfer_val = self.read_u8(src_addr + i);

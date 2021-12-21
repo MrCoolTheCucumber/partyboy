@@ -22,17 +22,7 @@ fn main() {
     let mut buffer = [0u8; 0x900];
     file.read_exact(&mut buffer).ok();
 
-    let mut boot_rom_code = "const BOOT_ROM: [u8; 0x900] = [".to_owned();
-    for i in 0..0x900 {
-        let mut val = buffer[i].to_string();
-        if i != 0x8FF {
-            val.push(',');
-        }
-
-        boot_rom_code.push_str(val.as_str());
-    }
-
-    boot_rom_code.push_str("];");
+    let boot_rom_code = format!("const BOOT_ROM: [u8; 0x900] = {:?};", buffer);
 
     fs::write(&dest_path, boot_rom_code).unwrap();
     println!("cargo:rerun-if-changed=build.rs");

@@ -128,7 +128,7 @@ impl Cartridge for Mbc3 {
         }
 
         if self.rtc_banked {
-            return self.rtc_regs[(addr - 0x08) as usize];
+            // return self.rtc_regs[(addr - 0x08) as usize];
         }
 
         self.ram_banks[self.current_ram_bank][addr as usize]

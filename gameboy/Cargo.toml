@@ -19,3 +19,6 @@ image = "0.23"
 name = "my_benchmark"
 path =  "../benches/src/lib.rs"
 harness = false
+
+[features]
+debug_fetch = []

@@ -92,9 +92,12 @@ impl Cpu {
     }
 
     pub fn initiate_interrupt_service_routin(&mut self) {
-        #[cfg(debug_assertions)]
         if self.instruction_opcode.is_some() {
-            panic!("ISR was fired whilst running an instruction");
+            match self.instruction_opcode.unwrap() {
+                InstructionOpcode::Unprefixed(_) => self.pc -= 1,
+                InstructionOpcode::Prefixed(_) => self.pc -= 2,
+                _ => unreachable!(),
+            }
         }
 
         self.instruction_opcode = Some(InstructionOpcode::InterruptServiceRoutine);

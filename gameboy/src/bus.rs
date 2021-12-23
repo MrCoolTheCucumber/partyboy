@@ -3,10 +3,7 @@
 use std::fmt::Display;
 
 use super::{cartridge::Cartridge, input::Input, interrupts::Interrupts, ppu::Ppu, timer::Timer};
-use crate::{
-    builder::SerialWriteHandler,
-    dma::{hdma::Hdma, oam::OamDma},
-};
+use crate::{builder::SerialWriteHandler, dma::oam::OamDma};
 
 include!(concat!(env!("OUT_DIR"), "/boot_rom.rs"));
 
@@ -55,7 +52,6 @@ pub(crate) struct Bus {
     pub io: [u8; 0x100],
     pub zero_page: [u8; 0x80],
 
-    pub hdma: Hdma,
     pub oam_dma: OamDma,
 
     pub bios_enabled: bool,
@@ -81,7 +77,6 @@ impl Bus {
             io: [0; 0x100],
             zero_page: [0; 0x80],
 
-            hdma: Hdma::default(),
             oam_dma: OamDma::default(),
 
             bios_enabled: true,
@@ -141,7 +136,7 @@ impl Bus {
             0xFFFF => self.interrupts.enable,
 
             0xFF46 => self.oam_dma.read_u8(),
-            0xFF51..=0xFF55 => self.hdma.read_u8(addr),
+            0xFF51..=0xFF55 => self.ppu.hdma.read_u8(addr),
 
             0xFF40..=0xFF4B => self.ppu.read_u8(addr),
             0xFF4F => self.ppu.read_u8(addr),
@@ -201,7 +196,11 @@ impl Bus {
             0xFFFF => self.interrupts.enable = val,
 
             0xFF46 => self.oam_dma.write_u8(val),
-            0xFF51..=0xFF55 => self.hdma.write_u8(addr, val),
+            0xFF51..=0xFF55 => {
+                self.ppu
+                    .hdma
+                    .write_u8(addr, val, self.ppu.gpu_vram_bank, self.working_ram_bank)
+            }
 
             0xFF40..=0xFF4B => self.ppu.write_u8(addr, val),
             0xFF4F => self.ppu.write_u8(addr, val),
@@ -230,5 +229,14 @@ impl Bus {
 
         self.write_u8(addr, lower_val);
         self.write_u8(addr + 1, higher_val);
+    }
+
+    pub fn tick_ppu(&mut self) {
+        self.ppu.tick(
+            &mut self.interrupts,
+            &self.cartridge,
+            &self.working_ram,
+            self.working_ram_bank,
+        );
     }
 }

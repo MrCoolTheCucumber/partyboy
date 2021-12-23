@@ -9,8 +9,10 @@ mod ppu;
 mod timer;
 
 use builder::SerialWriteHandler;
-use dma::oam::OamDma;
+use dma::{hdma::Hdma, oam::OamDma};
 use ppu::rgb::Rgb;
+
+use crate::dma::hdma::DmaType;
 
 use self::{
     builder::GameBoyBuilder,
@@ -46,9 +48,28 @@ impl GameBoy {
             return;
         }
 
-        Interrupts::tick(&mut self.bus.interrupts, &mut self.cpu);
-        self.cpu.tick(&mut self.bus, &mut self.instruction_cache);
-        self.bus.ppu.tick(&mut self.bus.interrupts);
+        fn tick_cpu_related(gb: &mut GameBoy) {
+            Interrupts::tick(&mut gb.bus.interrupts, &mut gb.cpu);
+            gb.cpu.tick(&mut gb.bus, &mut gb.instruction_cache);
+        }
+
+        // If HDMA/GDMA is currently copying data, then cpu execution is paused
+        if let Some(state) = self.bus.ppu.hdma.current_dma {
+            match state {
+                DmaType::Hdma => {
+                    if !self.bus.ppu.hdma.hdma_currently_copying {
+                        tick_cpu_related(self);
+                    } else {
+                        log::debug!("skipping...");
+                    }
+                }
+                DmaType::Gdma => Hdma::tick_gdma(&mut self.bus),
+            }
+        } else {
+            tick_cpu_related(self)
+        }
+
+        self.bus.tick_ppu();
         OamDma::dma_tick(&mut self.bus);
 
         self.bus.timer.tick(&mut self.bus.interrupts);

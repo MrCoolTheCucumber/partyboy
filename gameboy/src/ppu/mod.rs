@@ -2,7 +2,7 @@ pub mod rgb;
 
 use std::hint::unreachable_unchecked;
 
-use crate::bus::CgbCompatibility;
+use crate::{bus::CgbCompatibility, cartridge::Cartridge, dma::hdma::Hdma};
 
 use self::rgb::Rgb;
 
@@ -11,8 +11,8 @@ use super::interrupts::{InterruptFlag, Interrupts};
 const CGB_PTR_PALETTE: [usize; 4] = [0, 1, 2, 3];
 
 pub(crate) struct Ppu {
-    gpu_vram: [[u8; 0x2000]; 2],
-    gpu_vram_bank: u8,
+    pub gpu_vram: [[u8; 0x2000]; 2],
+    pub gpu_vram_bank: u8,
 
     pub sprite_table: [u8; 0xA0],
     pub sprite_palette: [[usize; 4]; 2],
@@ -26,6 +26,8 @@ pub(crate) struct Ppu {
     window_internal_line_counter: u8,
     console_compatibility_mode: CgbCompatibility,
     obj_prio_mode: ObjectPriorityMode,
+
+    pub hdma: Hdma,
 
     // io registers
     pub lcdc: u8, // FF40
@@ -194,6 +196,8 @@ impl Ppu {
             window_internal_line_counter: 0,
             console_compatibility_mode: CgbCompatibility::CgbOnly,
             obj_prio_mode: ObjectPriorityMode::OamOrder, // TODO: what is the default?
+
+            hdma: Hdma::default(),
 
             lcdc: 0x0,
             stat: 0x0,
@@ -451,7 +455,29 @@ impl Ppu {
         }
     }
 
-    fn hblank(&mut self, interrupts: &mut Interrupts) {
+    fn hblank(
+        &mut self,
+        interrupts: &mut Interrupts,
+        cartridge: &Box<dyn Cartridge>,
+        working_ram: &[[u8; 4096]; 8],
+        working_ram_bank: usize,
+    ) {
+        if self.hdma.is_hdma_active() {
+            if (1..=0x10).contains(&self.mode_clock_cycles) {
+                self.hdma
+                    .tick_hdma(cartridge, working_ram, working_ram_bank, &mut self.gpu_vram);
+            }
+
+            if self.mode_clock_cycles == 1 {
+                self.hdma.hdma_currently_copying = true;
+            }
+        }
+
+        if self.mode_clock_cycles == 0x11 {
+            // TODO: Does this need to be 0x11?
+            self.hdma.hdma_currently_copying = false;
+        }
+
         if self.line_clock_cycles == 456 {
             self.mode_clock_cycles = 0;
             self.line_clock_cycles = 0;
@@ -509,12 +535,18 @@ impl Ppu {
         }
     }
 
-    pub fn tick(&mut self, interrupts: &mut Interrupts) {
+    pub fn tick(
+        &mut self,
+        interrupts: &mut Interrupts,
+        cartridge: &Box<dyn Cartridge>,
+        working_ram: &[[u8; 4096]; 8],
+        working_ram_bank: usize,
+    ) {
         self.mode_clock_cycles += 1;
         self.line_clock_cycles += 1;
 
         match self.mode {
-            PpuMode::HBlank => self.hblank(interrupts),
+            PpuMode::HBlank => self.hblank(interrupts, cartridge, working_ram, working_ram_bank),
             PpuMode::VBlank => self.vblank(interrupts),
             PpuMode::OAM => self.oam(),
             PpuMode::VRAM => self.vram(),

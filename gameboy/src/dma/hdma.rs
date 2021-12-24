@@ -26,14 +26,13 @@ pub(crate) struct Hdma {
 
     pub current_dma: Option<DmaType>,
     pub hdma_currently_copying: bool,
+    hdma_stop_requested: bool,
 
     bytes_to_transfer: u16,
     bytes_transfered: u16,
 
     src_addr: u16,
     dest_addr: u16,
-    latched_vram_bank: usize,
-    latched_wram_bank: usize,
 }
 
 impl Default for Hdma {
@@ -47,14 +46,13 @@ impl Default for Hdma {
 
             current_dma: None,
             hdma_currently_copying: false,
+            hdma_stop_requested: false,
 
             bytes_to_transfer: 0,
             bytes_transfered: 0,
 
             src_addr: 0,
             dest_addr: 0,
-            latched_vram_bank: 0,
-            latched_wram_bank: 0,
         }
     }
 }
@@ -63,30 +61,43 @@ impl Hdma {
     pub fn read_u8(&self, addr: u16) -> u8 {
         match addr {
             0xFF51 => self.src_hi,
-            0xFF52 => self.src_lo & 0b1111_0000,
+            0xFF52 => self.src_lo,
             0xFF53 => self.dest_hi,
-            0xFF54 => self.dest_lo & 0b1111_0000,
+            0xFF54 => self.dest_lo,
             0xFF55 => self.hdma5,
 
             _ => panic!("HDMA doesnt handle reading from address: {:#06X}", addr),
         }
     }
 
-    pub fn write_u8(
-        &mut self,
-        addr: u16,
-        val: u8,
-        current_vram_bank: u8,
-        current_wram_bank: usize,
-    ) {
+    fn update_src_addr(&mut self) {
+        self.src_addr = ((self.src_hi as u16) << 8) | ((self.src_lo) as u16);
+    }
+
+    fn update_dest_addr(&mut self) {
+        self.dest_addr = 0x8000 + ((self.dest_hi as u16) << 8) | (self.dest_lo as u16);
+    }
+
+    pub fn write_u8(&mut self, addr: u16, val: u8) {
         match addr {
-            0xFF51 => self.src_hi = val,
-            0xFF52 => self.src_lo = val,
-            0xFF53 => self.dest_hi = val,
-            0xFF54 => self.dest_lo = val,
+            0xFF51 => {
+                self.src_hi = val;
+                self.update_src_addr();
+            }
+            0xFF52 => {
+                self.src_lo = val & 0b1111_0000;
+                self.update_src_addr();
+            }
+            0xFF53 => {
+                self.dest_hi = val & 0x1F;
+                self.update_dest_addr();
+            }
+            0xFF54 => {
+                self.dest_lo = val & 0b1111_0000;
+                self.update_dest_addr();
+            }
 
             0xFF55 => {
-                log::debug!("Written to reg HDMA5: {:#06X}", val);
                 self.bytes_to_transfer = ((val & 0b0111_1111) + 1) as u16 * 0x10;
 
                 let dma_type = if (val & 0b1000_0000) != 0 {
@@ -95,13 +106,9 @@ impl Hdma {
                     DmaType::Gdma
                 };
 
-                if
-                /* val & 0b1000_0000 == 0 && */
-                self.is_hdma_active() {
+                if self.is_hdma_active() {
                     log::debug!("Stopping HDMA early.");
-                    self.current_dma = None;
-                    self.hdma_currently_copying = false;
-                    self.hdma5 = val | 0x80;
+                    self.hdma_stop_requested = true;
                     return;
                 }
 
@@ -109,26 +116,15 @@ impl Hdma {
                 self.bytes_transfered = 0;
                 self.hdma5 = val & 0b0111_1111;
 
-                let mut src_addr: u16 = ((self.src_hi as u16) << 8) | ((self.src_lo) as u16);
-                let mut dest_addr: u16 = (((self.dest_hi) as u16) << 8) | ((self.dest_lo) as u16);
-
-                // Apply "masks"
-                src_addr &= 0b1111_1111_1111_0000;
-                dest_addr &= 0b0001_1111_1111_0000;
-                dest_addr += 0x8000;
-
-                self.src_addr = src_addr;
-                self.dest_addr = dest_addr;
-                self.latched_vram_bank = (current_vram_bank & 1) as usize;
-                self.latched_wram_bank = current_wram_bank;
-
                 #[cfg(debug_assertions)]
                 if self.current_dma.is_some() {
                     log::debug!(
-                        "Starting {}: Src: {:#06X}, Dest: {:#06X}",
+                        "Starting {}: Src: {:#06X}, Dest: {:#06X}, blocks: {}, raw: {:#04X}",
                         dma_type,
-                        src_addr,
-                        dest_addr
+                        self.src_addr,
+                        self.dest_addr,
+                        (val & 0b00011111) + 1,
+                        val
                     );
                 }
             }
@@ -181,6 +177,7 @@ impl Hdma {
         working_ram: &[[u8; 4096]; 8],
         working_ram_bank: usize,
         gpu_vram: &mut [[u8; 8192]; 2],
+        vram_bank: usize,
     ) {
         let dest_addr_index = (self.dest_addr - 0x8000) as usize;
         let bytes_to_transfer = 2;
@@ -189,7 +186,7 @@ impl Hdma {
 
         for i in 0..bytes_to_transfer {
             let transfer_val = read(self.src_addr + i, cartridge, working_ram, working_ram_bank);
-            gpu_vram[self.latched_vram_bank][dest_addr_index + (i as usize)] = transfer_val;
+            gpu_vram[vram_bank][dest_addr_index + (i as usize)] = transfer_val;
         }
 
         self.bytes_to_transfer -= bytes_to_transfer;
@@ -200,13 +197,15 @@ impl Hdma {
             self.bytes_transfered = 0;
         }
 
-        if self.bytes_to_transfer == 0 {
-            log::debug!("HDMA5: {:#010b}", self.hdma5);
+        if self.hdma_stop_requested {
+            self.hdma_stop_requested = false;
             self.current_dma = None;
-            self.hdma5 = 0xFF;
             self.hdma_currently_copying = false;
-
-            log::debug!("Finished HDMA");
+            self.hdma5 |= 0x80;
+        } else if self.bytes_to_transfer == 0 {
+            self.current_dma = None;
+            self.hdma5 = 0xFF; // technically its already 0xFF
+            self.hdma_currently_copying = false;
         } else {
             self.src_addr += bytes_to_transfer;
             self.dest_addr += bytes_to_transfer; // TODO: if this overflows, then HDMA stops (according to pandocs?)

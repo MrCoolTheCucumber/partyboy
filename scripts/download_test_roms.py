@@ -1,9 +1,15 @@
 import os
+import ssl
 import sys
 import urllib.request
 import shutil
 import zipfile
 from pathlib import Path
+
+ctx = ssl.create_default_context()
+ctx.check_hostname = False
+ctx.verify_mode = ssl.CERT_NONE
+
 
 def download_zip_file(url, file_name):
     if os.path.exists(file_name):
@@ -11,7 +17,7 @@ def download_zip_file(url, file_name):
         return
 
     print("Fetching {}.".format(file_name))
-    with urllib.request.urlopen(url) as response, open(file_name + ".zip", 'wb') as out_file:
+    with urllib.request.urlopen(url, context=ctx) as response, open(file_name + ".zip", 'wb') as out_file:
         shutil.copyfileobj(response, out_file)
 
     zip_file_path = None
@@ -28,11 +34,12 @@ def download_gb_file(url, file_name):
     if os.path.exists(file_name + ".gb"):
         print("Skipping {}, already found.".format(file_name))
         return
-    
+
     print("Fetching {}.".format(file_name))
     with urllib.request.urlopen(url) as response, open(file_name + ".gb", 'wb') as out_file:
         shutil.copyfileobj(response, out_file)
     return
+
 
 current_working_directory = os.getcwd()
 path = Path(current_working_directory)

@@ -46,14 +46,14 @@ macro_rules! define_blargg_cpu_test {
     };
 }
 
-define_blargg_cpu_test! { cpu_01, "01-special.gb", 60 * 5 }
+define_blargg_cpu_test! { cpu_01, "01-special.gb", 60 * 7 }
 define_blargg_cpu_test! { cpu_02, "02-interrupts.gb", 60 * 5 }
-define_blargg_cpu_test! { cpu_03, "03-op sp,hl.gb", 60 * 5 }
-define_blargg_cpu_test! { cpu_04, "04-op r,imm.gb", 60 * 5 }
-define_blargg_cpu_test! { cpu_05, "05-op rp.gb", 60 * 6 }
+define_blargg_cpu_test! { cpu_03, "03-op sp,hl.gb", 60 * 7 }
+define_blargg_cpu_test! { cpu_04, "04-op r,imm.gb", 60 * 7 }
+define_blargg_cpu_test! { cpu_05, "05-op rp.gb", 60 * 8 }
 define_blargg_cpu_test! { cpu_06, "06-ld r,r.gb", 60 * 5 }
 define_blargg_cpu_test! { cpu_07, "07-jr,jp,call,ret,rst.gb", 60 * 5 }
 define_blargg_cpu_test! { cpu_08, "08-misc instrs.gb", 60 * 5 }
 define_blargg_cpu_test! { cpu_09, "09-op r,r.gb", 60 * 13 }
 define_blargg_cpu_test! { cpu_10, "10-bit ops.gb", 60 * 17 }
-define_blargg_cpu_test! { cpu_11, "11-op a,(hl).gb", 60 * 20 }
+define_blargg_cpu_test! { cpu_11, "11-op a,(hl).gb", 60 * 25 }

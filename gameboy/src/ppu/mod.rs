@@ -464,8 +464,13 @@ impl Ppu {
     ) {
         if self.hdma.is_hdma_active() {
             if (1..=0x10).contains(&self.mode_clock_cycles) {
-                self.hdma
-                    .tick_hdma(cartridge, working_ram, working_ram_bank, &mut self.gpu_vram);
+                self.hdma.tick_hdma(
+                    cartridge,
+                    working_ram,
+                    working_ram_bank,
+                    &mut self.gpu_vram,
+                    (self.gpu_vram_bank & 1) as usize,
+                );
             }
 
             if self.mode_clock_cycles == 1 {

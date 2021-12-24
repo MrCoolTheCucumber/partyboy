@@ -11,6 +11,7 @@ use log4rs::{
     encode::pattern::PatternEncoder,
     Config,
 };
+use sdl2::video::SwapInterval;
 use spin_sleep::LoopHelper;
 
 mod input;
@@ -105,6 +106,8 @@ fn main() {
     let _gl_context = window
         .gl_create_context()
         .expect("Couldn't create GL context");
+
+    let _ = video.gl_set_swap_interval(SwapInterval::Immediate);
     gl::load_with(|s| video.gl_get_proc_address(s) as _);
 
     let mut event_pump = sdl.event_pump().unwrap();

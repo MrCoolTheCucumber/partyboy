@@ -59,8 +59,6 @@ impl GameBoy {
                 DmaType::Hdma => {
                     if !self.bus.ppu.hdma.hdma_currently_copying {
                         tick_cpu_related(self);
-                    } else {
-                        log::debug!("skipping...");
                     }
                 }
                 DmaType::Gdma => Hdma::tick_gdma(&mut self.bus),

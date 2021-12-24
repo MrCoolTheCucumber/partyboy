@@ -98,6 +98,13 @@ impl Mbc1 {
             BankingMode::Mode1 => ((self.rom_hi_reg << 5) & self.rom_bank_mask_hi) as usize,
         }
     }
+
+    fn get_mapped_ram_bank(&self) -> usize {
+        match self.mode {
+            BankingMode::Mode0 => 0,
+            BankingMode::Mode1 => self.current_ram_bank,
+        }
+    }
 }
 
 impl Drop for Mbc1 {
@@ -151,6 +158,7 @@ impl Cartridge for Mbc1 {
                 }
                 BankingMode::Mode1 => {
                     if self.ram_banks.len() == 4 {
+                        log::debug!("Mode 1: Setting ram bank: {}", value & 0b0000_0011);
                         self.current_ram_bank = (value & 0b0000_0011) as usize;
                         return;
                     }
@@ -192,7 +200,7 @@ impl Cartridge for Mbc1 {
             return 0xFF;
         }
 
-        self.ram_banks[self.current_ram_bank][addr as usize]
+        self.ram_banks[self.get_mapped_ram_bank()][addr as usize]
     }
 
     fn write_ram(&mut self, addr: u16, value: u8) {
@@ -200,6 +208,7 @@ impl Cartridge for Mbc1 {
             return;
         }
 
-        self.ram_banks[self.current_ram_bank][addr as usize] = value;
+        let mapped_ram_bank = self.get_mapped_ram_bank();
+        self.ram_banks[mapped_ram_bank][addr as usize] = value;
     }
 }

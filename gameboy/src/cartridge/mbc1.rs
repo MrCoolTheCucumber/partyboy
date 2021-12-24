@@ -91,6 +91,13 @@ impl Mbc1 {
             save_file_path,
         }
     }
+
+    fn get_mapped_0_bank(&self) -> usize {
+        match self.mode {
+            BankingMode::Mode0 => 0,
+            BankingMode::Mode1 => ((self.rom_hi_reg << 5) & self.rom_bank_mask_hi) as usize,
+        }
+    }
 }
 
 impl Drop for Mbc1 {
@@ -109,7 +116,7 @@ impl Drop for Mbc1 {
 impl Cartridge for Mbc1 {
     fn read_rom(&self, addr: u16) -> u8 {
         match addr {
-            0x0000..=0x3FFF => self.rom_banks[self.current_zero_bank][addr as usize],
+            0x0000..=0x3FFF => self.rom_banks[self.get_mapped_0_bank()][addr as usize],
             0x4000..=0x7FFF => self.rom_banks[self.current_rom_bank][(addr - 0x4000) as usize],
 
             _ => panic!(
@@ -124,7 +131,7 @@ impl Cartridge for Mbc1 {
             0x0000..=0x1FFF => self.is_ram_enabled = (value & 0x0F) == 0x0A,
 
             0x2000..=0x3FFF => {
-                self.rom_lo_reg = value & 0b0001_1111; // store the raw value
+                self.rom_lo_reg = value & 0b0001_1111; // store the raw value for mode 1 stuff
 
                 // we only force the bank to 1 if the whole 5 bits are 0?
                 // and then mask to the appropriate range after?
@@ -137,27 +144,21 @@ impl Cartridge for Mbc1 {
 
             0x4000..=0x5FFF => match self.mode {
                 BankingMode::Mode0 => {
+                    self.rom_hi_reg = value & 0b0000_0011;
+
                     let higher_bits = ((value << 5) & self.rom_bank_mask_hi) as usize;
                     self.current_rom_bank = (self.current_rom_bank & 0b0001_1111) | higher_bits;
                 }
                 BankingMode::Mode1 => {
-                    log::debug!("Mode 1 write to 0x4000..=0x5FFF: {:#04X}", value);
-
                     if self.ram_banks.len() == 4 {
-                        log::debug!("Setting ram bank index: {}", value & 3);
                         self.current_ram_bank = (value & 0b0000_0011) as usize;
                         return;
                     }
 
+                    self.rom_hi_reg = value & 0b0000_0011;
+
                     let higher_bits = ((value << 5) & self.rom_bank_mask_hi) as usize;
                     let selected_rom_bank = (self.current_rom_bank & 0b0001_1111) | higher_bits;
-
-                    log::debug!(
-                        "higher_bits: {:#04X}, current_lower_bits: {:#04X}, selected_rom_bank: {:#04X}", 
-                        higher_bits, 
-                        self.current_rom_bank & 0b0001_1111, 
-                        selected_rom_bank
-                    );
 
                     match selected_rom_bank {
                         0x00 | 0x20 | 0x40 | 0x60 => {

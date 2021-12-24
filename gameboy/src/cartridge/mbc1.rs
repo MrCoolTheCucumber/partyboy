@@ -6,11 +6,26 @@ use std::{
 
 use super::{get_save_file_path_from_rom_path, try_read_save_file, Cartridge};
 
+#[derive(Clone, Copy)]
+enum BankingMode {
+    Mode0 = 0,
+    Mode1 = 1,
+}
+
 pub struct Mbc1 {
     is_ram_enabled: bool,
+
+    rom_lo_reg: u8,
+    rom_hi_reg: u8,
+
+    current_zero_bank: usize,
     current_rom_bank: usize,
     current_ram_bank: usize,
-    mode: u8, // 0 = ROM 1 = RAM
+
+    mode: BankingMode,
+
+    rom_bank_mask_lo: u8,
+    rom_bank_mask_hi: u8,
 
     rom_banks: Vec<[u8; 0x4000]>,
     ram_banks: Vec<[u8; 0x2000]>,
@@ -28,6 +43,20 @@ impl Mbc1 {
     ) -> Self {
         let mut rom_banks = vec![rom_bank_0];
 
+        let rom_bank_mask_lo = match num_rom_banks - 1 {
+            0..=1 => 0b0000_0001,
+            2..=3 => 0b0000_0011,
+            4..=7 => 0b0000_0111,
+            8..=15 => 0b0000_1111,
+            16..=u16::MAX => 0b0001_1111,
+        };
+
+        let rom_bank_mask_hi = match num_rom_banks - 1 {
+            0x00..=0x1F => 0b0000_0000,
+            0x20..=0x3F => 0b0010_0000,
+            0x40..=u16::MAX => 0b0110_0000,
+        };
+
         for _ in 0..num_rom_banks - 1 {
             let mut bank = [0; 0x4000];
             file.read_exact(&mut bank).ok();
@@ -37,14 +66,24 @@ impl Mbc1 {
         let mut ram_banks = Vec::new();
         let save_file_path = get_save_file_path_from_rom_path(path);
 
-        // try to open save file
-        try_read_save_file(&save_file_path, num_ram_banks, &mut ram_banks);
+        if num_ram_banks > 0 {
+            try_read_save_file(&save_file_path, num_ram_banks, &mut ram_banks);
+        }
 
         Self {
             is_ram_enabled: false,
+
+            rom_lo_reg: 0,
+            rom_hi_reg: 0,
+
+            current_zero_bank: 0,
             current_rom_bank: 1,
             current_ram_bank: 0,
-            mode: 0,
+
+            mode: BankingMode::Mode0,
+
+            rom_bank_mask_lo,
+            rom_bank_mask_hi,
 
             rom_banks,
             ram_banks,
@@ -57,55 +96,93 @@ impl Mbc1 {
 impl Drop for Mbc1 {
     fn drop(&mut self) {
         // create save file
-        let mut sav_file = File::create(&self.save_file_path).unwrap();
-        for bank in &self.ram_banks {
-            sav_file.write_all(bank).unwrap();
+        if !self.ram_banks.is_empty() {
+            let mut sav_file = File::create(&self.save_file_path).unwrap();
+            for bank in &self.ram_banks {
+                sav_file.write_all(bank).unwrap();
+            }
+            log::info!("Save file written!");
         }
-        log::info!("Save file written!");
     }
 }
 
 impl Cartridge for Mbc1 {
     fn read_rom(&self, addr: u16) -> u8 {
-        match addr & 0xF000 {
-            0x0000 | 0x1000 | 0x2000 | 0x3000 => self.rom_banks[0][addr as usize],
+        match addr {
+            0x0000..=0x3FFF => self.rom_banks[self.current_zero_bank][addr as usize],
+            0x4000..=0x7FFF => self.rom_banks[self.current_rom_bank][(addr - 0x4000) as usize],
 
-            0x4000 | 0x5000 | 0x6000 | 0x7000 => {
-                self.rom_banks[self.current_rom_bank][(addr - 0x4000) as usize]
-            }
-
-            _ => panic!(),
+            _ => panic!(
+                "Tried to read from cartridge rom with invalid addr: {:#06X}",
+                addr
+            ),
         }
     }
 
     fn write_rom(&mut self, addr: u16, value: u8) {
-        match addr & 0xF000 {
-            0x0000 | 0x1000 => {
-                self.is_ram_enabled = (value & 0x0F) == 0x0A;
+        match addr {
+            0x0000..=0x1FFF => self.is_ram_enabled = (value & 0x0F) == 0x0A,
+
+            0x2000..=0x3FFF => {
+                self.rom_lo_reg = value & 0b0001_1111; // store the raw value
+
+                // we only force the bank to 1 if the whole 5 bits are 0?
+                // and then mask to the appropriate range after?
+                // this behaviour is required to pass some of the mooneye mbc1 test
+                let value = if value & 0b0001_1111 == 0 { 1 } else { value };
+                let value = (value & self.rom_bank_mask_lo) as usize;
+
+                self.current_rom_bank = (self.current_rom_bank & 0b0110_0000) | value;
             }
 
-            // TODO: The below match arms are wrong in some way
-            0x2000 | 0x3000 => {
-                self.current_rom_bank = (self.current_rom_bank & 0b0110_0000) + value as usize;
-                if self.current_rom_bank == 0 {
-                    self.current_rom_bank = 1
+            0x4000..=0x5FFF => match self.mode {
+                BankingMode::Mode0 => {
+                    let higher_bits = ((value << 5) & self.rom_bank_mask_hi) as usize;
+                    self.current_rom_bank = (self.current_rom_bank & 0b0001_1111) | higher_bits;
                 }
-            }
+                BankingMode::Mode1 => {
+                    log::debug!("Mode 1 write to 0x4000..=0x5FFF: {:#04X}", value);
 
-            0x4000 | 0x5000 => {
-                if self.mode == 0 {
-                    self.current_rom_bank = (self.current_rom_bank & 0x0b0001_1111)
-                        + ((value & 0b0000_0011) << 5) as usize;
+                    if self.ram_banks.len() == 4 {
+                        log::debug!("Setting ram bank index: {}", value & 3);
+                        self.current_ram_bank = (value & 0b0000_0011) as usize;
+                        return;
+                    }
+
+                    let higher_bits = ((value << 5) & self.rom_bank_mask_hi) as usize;
+                    let selected_rom_bank = (self.current_rom_bank & 0b0001_1111) | higher_bits;
+
+                    log::debug!(
+                        "higher_bits: {:#04X}, current_lower_bits: {:#04X}, selected_rom_bank: {:#04X}", 
+                        higher_bits, 
+                        self.current_rom_bank & 0b0001_1111, 
+                        selected_rom_bank
+                    );
+
+                    match selected_rom_bank {
+                        0x00 | 0x20 | 0x40 | 0x60 => {
+                            self.current_zero_bank = selected_rom_bank;
+                            log::debug!("Setting zero bank to bank {:#04X}", selected_rom_bank);
+                        }
+                        _ => self.current_rom_bank = selected_rom_bank,
+                    }
+                }
+            },
+
+            0x6000..=0x7FFF => {
+                self.mode = if value & 1 == 0 {
+                    BankingMode::Mode0
                 } else {
-                    panic!("mode 1 unimpl");
-                }
+                    BankingMode::Mode1
+                };
+
+                log::debug!("Setting cartridge mode: {}", value & 1);
             }
 
-            0x6000 | 0x7000 => {
-                self.mode = value & 1;
-            }
-
-            _ => panic!(),
+            _ => panic!(
+                "Tried to write to cartridge rom with invalid addr: {:#06X}, val: {:#04X}",
+                addr, value
+            ),
         }
     }
 

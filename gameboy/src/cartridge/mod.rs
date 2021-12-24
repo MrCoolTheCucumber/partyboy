@@ -52,6 +52,7 @@ pub fn create(rom_path: &str) -> Box<dyn Cartridge> {
         0x06 => 128, // 2MB
         0x07 => 256, // 4MB
         0x08 => 512, // 8MB
+        0x09 => 1024,
 
         // pandocs says there are some other special codes
         // but is not sure if they are legit
@@ -65,6 +66,8 @@ pub fn create(rom_path: &str) -> Box<dyn Cartridge> {
             rom_size_code
         ),
     };
+
+    log::debug!("rom size code: {}, banks: {}", rom_size_code, num_rom_banks);
 
     let num_ram_banks: u16 = match ram_size_code {
         0x00 => 0,

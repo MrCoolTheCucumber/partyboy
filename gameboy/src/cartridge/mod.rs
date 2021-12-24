@@ -1,4 +1,5 @@
 mod mbc1;
+mod mbc2;
 mod mbc3;
 pub mod rom;
 
@@ -8,7 +9,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::cartridge::{mbc1::Mbc1, mbc3::Mbc3, rom::Rom};
+use crate::cartridge::{mbc1::Mbc1, mbc2::Mbc2, mbc3::Mbc3, rom::Rom};
 
 pub trait Cartridge {
     fn read_rom(&self, addr: u16) -> u8;
@@ -82,11 +83,13 @@ pub fn create(rom_path: &str) -> Box<dyn Cartridge> {
         ),
     };
 
+    log::debug!("ram size code: {}, banks: {}", ram_size_code, num_ram_banks);
+
     match cartridge_type_code {
         0x00 => Box::new(Rom::new(file, rom_bank_0)),
 
         0x01 | 0x02 | 0x03 => {
-            log::info!("MBC1 cart created!");
+            log::info!("MBC1 cart detected!");
             Box::new(Mbc1::new(
                 file,
                 path,
@@ -96,8 +99,13 @@ pub fn create(rom_path: &str) -> Box<dyn Cartridge> {
             ))
         }
 
+        0x05 | 0x06 => {
+            log::info!("MBC2 cart detected!");
+            Box::new(Mbc2::new(file, path, rom_bank_0, num_rom_banks))
+        }
+
         0x0F..=0x13 => {
-            log::info!("MBC3 cart created!");
+            log::info!("MBC3 cart detected!");
             Box::new(Mbc3::new(
                 file,
                 path,
@@ -108,7 +116,7 @@ pub fn create(rom_path: &str) -> Box<dyn Cartridge> {
         }
 
         // 0x1A..=0x1E => {
-        //     println!("MBC5 cart created!");
+        //     println!("MBC5 cart detected!");
         //     Box::new(MBC5::new(
         //         file,
         //         path,

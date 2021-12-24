@@ -65,10 +65,7 @@ impl Mbc1 {
 
         let mut ram_banks = Vec::new();
         let save_file_path = get_save_file_path_from_rom_path(path);
-
-        if num_ram_banks > 0 {
-            try_read_save_file(&save_file_path, num_ram_banks, &mut ram_banks);
-        }
+        try_read_save_file(&save_file_path, num_ram_banks, &mut ram_banks);
 
         Self {
             is_ram_enabled: false,

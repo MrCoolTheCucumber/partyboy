@@ -7,6 +7,8 @@ use std::{
 
 use super::{get_save_file_path_from_rom_path, try_read_save_file, Cartridge};
 
+// TODO: RTC impl is broken?
+
 pub struct Mbc3 {
     is_ram_rtc_enabled: bool,
     current_rom_bank: usize,
@@ -91,7 +93,7 @@ impl Cartridge for Mbc3 {
             }
 
             0x2000 | 0x3000 => {
-                self.current_rom_bank = (value & 0b0111_1111) as usize;
+                self.current_rom_bank = value as usize;
                 if self.current_rom_bank == 0 {
                     self.current_rom_bank = 1
                 }

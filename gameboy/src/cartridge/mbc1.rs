@@ -158,7 +158,6 @@ impl Cartridge for Mbc1 {
                 }
                 BankingMode::Mode1 => {
                     if self.ram_banks.len() == 4 {
-                        log::debug!("Mode 1: Setting ram bank: {}", value & 0b0000_0011);
                         self.current_ram_bank = (value & 0b0000_0011) as usize;
                         return;
                     }
@@ -171,7 +170,6 @@ impl Cartridge for Mbc1 {
                     match selected_rom_bank {
                         0x00 | 0x20 | 0x40 | 0x60 => {
                             self.current_zero_bank = selected_rom_bank;
-                            log::debug!("Setting zero bank to bank {:#04X}", selected_rom_bank);
                         }
                         _ => self.current_rom_bank = selected_rom_bank,
                     }
@@ -184,8 +182,6 @@ impl Cartridge for Mbc1 {
                 } else {
                     BankingMode::Mode1
                 };
-
-                log::debug!("Setting cartridge mode: {}", value & 1);
             }
 
             _ => panic!(

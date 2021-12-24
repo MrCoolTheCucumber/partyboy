@@ -1,6 +1,7 @@
 mod mbc1;
 mod mbc2;
 mod mbc3;
+mod mbc5;
 pub mod rom;
 
 use std::{
@@ -9,7 +10,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::cartridge::{mbc1::Mbc1, mbc2::Mbc2, mbc3::Mbc3, rom::Rom};
+use crate::cartridge::{mbc1::Mbc1, mbc2::Mbc2, mbc3::Mbc3, mbc5::Mbc5, rom::Rom};
 
 pub trait Cartridge {
     fn read_rom(&self, addr: u16) -> u8;
@@ -115,17 +116,17 @@ pub fn create(rom_path: &str) -> Box<dyn Cartridge> {
             ))
         }
 
-        // 0x1A..=0x1E => {
-        //     println!("MBC5 cart detected!");
-        //     Box::new(MBC5::new(
-        //         file,
-        //         path,
-        //         rom_bank_0,
-        //         cartridge_type_code,
-        //         num_rom_banks,
-        //         num_ram_banks,
-        //     ))
-        // }
+        0x19..=0x1E => {
+            log::info!("MBC5 cart detected!");
+            Box::new(Mbc5::new(
+                file,
+                path,
+                rom_bank_0,
+                num_rom_banks,
+                num_ram_banks,
+            ))
+        }
+
         _ => unimplemented!(
             "Unable to handle cartridge type: {:#04X}",
             cartridge_type_code

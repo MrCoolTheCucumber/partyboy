@@ -27,6 +27,10 @@ impl Default for OamDma {
 }
 
 impl OamDma {
+    pub fn is_active(&self) -> bool {
+        self.active
+    }
+
     pub fn queue(&mut self, val: u8) {
         self.queue_val = val as u16;
         self.queue_counter = 5;

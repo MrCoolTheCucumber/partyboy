@@ -123,6 +123,10 @@ impl Bus {
 
             0xFE00..=0xFEFF => {
                 if addr < 0xFEA0 {
+                    if self.oam_dma.is_active() {
+                        return 0xFF;
+                    }
+
                     return self.ppu.sprite_table[(addr - 0xFE00) as usize];
                 }
 
@@ -168,6 +172,10 @@ impl Bus {
             }
 
             0xFE00..=0xFEFF => {
+                if self.oam_dma.is_active() {
+                    return;
+                }
+
                 // TODO: redundant if? just add more match branches
                 if addr < 0xFEA0 {
                     self.ppu.sprite_table[(addr - 0xFE00) as usize] = val;

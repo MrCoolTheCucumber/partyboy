@@ -229,8 +229,9 @@ impl Ppu {
         }
     }
 
-    pub fn set_console_compatibility(&mut self, console_compatibility_mode: CgbCompatibility) {
-        self.console_compatibility_mode = console_compatibility_mode;
+    pub fn set_console_compatibility(&mut self, mode: CgbCompatibility) {
+        self.console_compatibility_mode = mode;
+        self.hdma.set_console_compatibility(mode);
     }
 
     pub fn get_frame_buffer(&self) -> &[Rgb] {

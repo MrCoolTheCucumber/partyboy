@@ -1,6 +1,9 @@
 use std::fmt::Display;
 
-use crate::{bus::Bus, cartridge::Cartridge};
+use crate::{
+    bus::{Bus, CgbCompatibility},
+    cartridge::Cartridge,
+};
 
 #[derive(Copy, Clone)]
 pub enum DmaType {
@@ -33,6 +36,8 @@ pub(crate) struct Hdma {
 
     src_addr: u16,
     dest_addr: u16,
+
+    console_compatibility_mode: CgbCompatibility,
 }
 
 impl Default for Hdma {
@@ -53,12 +58,22 @@ impl Default for Hdma {
 
             src_addr: 0,
             dest_addr: 0,
+
+            console_compatibility_mode: CgbCompatibility::CgbOnly,
         }
     }
 }
 
 impl Hdma {
+    pub fn set_console_compatibility(&mut self, mode: CgbCompatibility) {
+        self.console_compatibility_mode = mode;
+    }
+
     pub fn read_u8(&self, addr: u16) -> u8 {
+        if !self.console_compatibility_mode.is_cgb_mode() {
+            return 0xFF;
+        }
+
         match addr {
             0xFF51 => self.src_hi,
             0xFF52 => self.src_lo,
@@ -79,6 +94,10 @@ impl Hdma {
     }
 
     pub fn write_u8(&mut self, addr: u16, val: u8) {
+        if !self.console_compatibility_mode.is_cgb_mode() {
+            return;
+        }
+
         match addr {
             0xFF51 => {
                 self.src_hi = val;

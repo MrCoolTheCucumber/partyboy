@@ -1,11 +1,15 @@
-use std::time::Duration;
+use std::{path::PathBuf, time::Duration};
 
 use criterion::{criterion_group, criterion_main, Criterion};
 use gameboy::GameBoy;
 
 fn op_r_imm() {
+    let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    path.pop();
+    path.push("test_roms/blargg/cpu_instrs/individual/04-op r,imm.gb");
+
     let mut gb = GameBoy::builder()
-        .rom_path("/mnt/i/Dev/gb-rs/04.gb")
+        .rom_path(path.to_str().unwrap())
         .build()
         .unwrap();
 

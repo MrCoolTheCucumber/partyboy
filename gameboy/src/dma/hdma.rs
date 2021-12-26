@@ -70,15 +70,15 @@ impl Hdma {
     }
 
     pub fn read_u8(&self, addr: u16) -> u8 {
-        if !self.console_compatibility_mode.is_cgb_mode() {
+        if matches!(self.console_compatibility_mode, CgbCompatibility::None) {
             return 0xFF;
         }
 
         match addr {
-            0xFF51 => self.src_hi,
-            0xFF52 => self.src_lo,
-            0xFF53 => self.dest_hi,
-            0xFF54 => self.dest_lo,
+            0xFF51 => 0xFF,
+            0xFF52 => 0xFF,
+            0xFF53 => 0xFF,
+            0xFF54 => 0xFF,
             0xFF55 => self.hdma5,
 
             _ => panic!("HDMA doesnt handle reading from address: {:#06X}", addr),
@@ -94,7 +94,7 @@ impl Hdma {
     }
 
     pub fn write_u8(&mut self, addr: u16, val: u8) {
-        if !self.console_compatibility_mode.is_cgb_mode() {
+        if matches!(self.console_compatibility_mode, CgbCompatibility::None) {
             return;
         }
 
@@ -108,7 +108,7 @@ impl Hdma {
                 self.update_src_addr();
             }
             0xFF53 => {
-                self.dest_hi = val & 0x1F;
+                self.dest_hi = val & 0b0001_1111;
                 self.update_dest_addr();
             }
             0xFF54 => {
@@ -117,7 +117,7 @@ impl Hdma {
             }
 
             0xFF55 => {
-                self.bytes_to_transfer = ((val & 0b0111_1111) + 1) as u16 * 0x10;
+                self.bytes_to_transfer = ((val & 0x7F) + 1) as u16 * 0x10;
 
                 let dma_type = if (val & 0b1000_0000) != 0 {
                     DmaType::Hdma
@@ -138,11 +138,12 @@ impl Hdma {
                 #[cfg(debug_assertions)]
                 if self.current_dma.is_some() {
                     log::debug!(
-                        "Starting {}: Src: {:#06X}, Dest: {:#06X}, blocks: {}, raw: {:#04X}",
+                        "Starting {}: Src: {:#06X}, Dest: {:#06X}, blocks: {}, bytes: {}, raw: {:#04X}",
                         dma_type,
                         self.src_addr,
                         self.dest_addr,
-                        (val & 0b00011111) + 1,
+                        (val & 0x7F) + 1,
+                        self.bytes_to_transfer,
                         val
                     );
                 }
@@ -162,20 +163,29 @@ impl Hdma {
 
     pub fn tick_gdma(bus: &mut Bus) {
         // transfer a block
-        let bytes_to_transfer = 2;
+        let dest_addr_index = (bus.ppu.hdma.dest_addr - 0x8000) as usize;
+        let bytes_to_transfer: u16 = 2;
+        let mut dest_overflow = false;
 
         for i in 0..bytes_to_transfer {
+            if dest_addr_index + (i as usize) >= 0x2000 {
+                dest_overflow = false;
+                break;
+            }
+
             let transfer_val = bus.read_u8(bus.ppu.hdma.src_addr + i);
-            bus.write_u8(bus.ppu.hdma.dest_addr + i, transfer_val);
+            bus.ppu.gpu_vram[(bus.ppu.gpu_vram_bank as usize) & 1]
+                [dest_addr_index + (i as usize)] = transfer_val;
         }
 
         bus.ppu.hdma.bytes_to_transfer -= bytes_to_transfer;
-        if bus.ppu.hdma.bytes_to_transfer == 0 {
+
+        bus.ppu.hdma.src_addr += bytes_to_transfer;
+        bus.ppu.hdma.dest_addr += bytes_to_transfer;
+
+        if bus.ppu.hdma.bytes_to_transfer == 0 || dest_overflow {
             bus.ppu.hdma.current_dma = None;
             bus.ppu.hdma.hdma5 = 0xFF;
-        } else {
-            bus.ppu.hdma.src_addr += bytes_to_transfer;
-            bus.ppu.hdma.dest_addr += bytes_to_transfer;
         }
     }
 
@@ -216,6 +226,9 @@ impl Hdma {
             self.bytes_transfered = 0;
         }
 
+        self.src_addr += bytes_to_transfer;
+        self.dest_addr += bytes_to_transfer;
+
         if self.hdma_stop_requested {
             self.hdma_stop_requested = false;
             self.current_dma = None;
@@ -225,9 +238,6 @@ impl Hdma {
             self.current_dma = None;
             self.hdma5 = 0xFF; // technically its already 0xFF
             self.hdma_currently_copying = false;
-        } else {
-            self.src_addr += bytes_to_transfer;
-            self.dest_addr += bytes_to_transfer; // TODO: if this overflows, then HDMA stops (according to pandocs?)
         }
     }
 }

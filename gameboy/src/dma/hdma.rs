@@ -85,35 +85,35 @@ impl Hdma {
         }
     }
 
-    fn update_src_addr(&mut self) {
-        self.src_addr = ((self.src_hi as u16) << 8) | ((self.src_lo) as u16);
-    }
-
-    fn update_dest_addr(&mut self) {
-        self.dest_addr = 0x8000 + ((self.dest_hi as u16) << 8) | (self.dest_lo as u16);
-    }
-
     pub fn write_u8(&mut self, addr: u16, val: u8) {
         if matches!(self.console_compatibility_mode, CgbCompatibility::None) {
             return;
         }
 
+        fn update_src_addr(hdma: &mut Hdma) {
+            hdma.src_addr = ((hdma.src_hi as u16) << 8) | ((hdma.src_lo) as u16);
+        }
+
+        fn update_dest_addr(hdma: &mut Hdma) {
+            hdma.dest_addr = 0x8000 + ((hdma.dest_hi as u16) << 8) | (hdma.dest_lo as u16);
+        }
+
         match addr {
             0xFF51 => {
                 self.src_hi = val;
-                self.update_src_addr();
+                update_src_addr(self);
             }
             0xFF52 => {
                 self.src_lo = val & 0b1111_0000;
-                self.update_src_addr();
+                update_src_addr(self);
             }
             0xFF53 => {
                 self.dest_hi = val & 0b0001_1111;
-                self.update_dest_addr();
+                update_dest_addr(self);
             }
             0xFF54 => {
                 self.dest_lo = val & 0b1111_0000;
-                self.update_dest_addr();
+                update_dest_addr(self);
             }
 
             0xFF55 => {

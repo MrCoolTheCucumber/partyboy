@@ -1,6 +1,6 @@
-### Architecture/Structure
+### GB ASM
 
-- https://discord.com/channels/465585922579103744/551430933836988438/903821551097479219
+- https://eldred.fr/gb-asm-tutorial/index.html
 
 ### GBC IPS concerns
 

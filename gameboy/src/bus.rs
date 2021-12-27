@@ -206,9 +206,9 @@ impl Bus {
             0xFF46 => self.oam_dma.write_u8(val),
             0xFF51..=0xFF55 => self.ppu.hdma.write_u8(addr, val),
 
-            0xFF40..=0xFF4B => self.ppu.write_u8(addr, val),
-            0xFF4F => self.ppu.write_u8(addr, val),
-            0xFF68..=0xFF6C => self.ppu.write_u8(addr, val),
+            0xFF40..=0xFF4B => self.ppu.write_u8(addr, val, &mut self.interrupts),
+            0xFF4F => self.ppu.write_u8(addr, val, &mut self.interrupts),
+            0xFF68..=0xFF6C => self.ppu.write_u8(addr, val, &mut self.interrupts),
 
             0xFF70 => {
                 let mut bank = (val & 0b0000_0111) as usize;

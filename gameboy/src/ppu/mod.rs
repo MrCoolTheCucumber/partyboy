@@ -306,7 +306,7 @@ impl Ppu {
         }
     }
 
-    pub fn write_u8(&mut self, addr: u16, val: u8) {
+    pub fn write_u8(&mut self, addr: u16, val: u8, interrupts: &mut Interrupts) {
         match addr {
             0xFF40 => {
                 self.lcdc = val;
@@ -320,8 +320,7 @@ impl Ppu {
             }
             0xFF41 => {
                 self.stat = (self.stat & 0b1000_0111) | (val & 0b0111_1000);
-
-                // TODO: fire stat_irq
+                self.update_stat_irq_conditions(interrupts);
             }
             0xFF42 => self.scy = val,
             0xFF43 => self.scx = val,

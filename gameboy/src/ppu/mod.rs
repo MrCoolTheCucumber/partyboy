@@ -295,9 +295,9 @@ impl Ppu {
 
             0xFF4F => self.gpu_vram_bank,
 
-            0xFF68 => self.bg_color_palette_specification,
+            0xFF68 => self.bg_color_palette_specification | 0b1100_0000,
             0xFF69 => self.bg_color_palette_ram[self.bg_color_palette_index],
-            0xFF6A => self.sprite_color_palette_specification,
+            0xFF6A => self.sprite_color_palette_specification | 0b1100_0000,
             0xFF6B => self.sprite_color_palette_ram[self.sprite_color_palette_index],
 
             0xFF6C => 0xFF,
@@ -378,7 +378,9 @@ impl Ppu {
 
                 if self.bg_color_palette_auto_increment {
                     self.bg_color_palette_index += 1;
-                    self.bg_color_palette_index &= 0x3F // handle 5bit overflow
+                    self.bg_color_palette_index &= 0x3F; // handle 5bit overflow
+
+                    self.bg_color_palette_specification = self.bg_color_palette_index as u8;
                 }
             }
 
@@ -403,7 +405,9 @@ impl Ppu {
 
                 if self.sprite_color_palette_auto_increment {
                     self.sprite_color_palette_index += 1;
-                    self.sprite_color_palette_index &= 0x3F // handle 5bit overflow
+                    self.sprite_color_palette_index &= 0x3F; // handle 5bit overflow
+
+                    self.sprite_color_palette_specification = self.sprite_color_palette_index as u8;
                 }
             }
 

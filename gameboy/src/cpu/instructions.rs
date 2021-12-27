@@ -1191,8 +1191,8 @@ fn interrupt_service_routine() -> Instruction {
         BLANK_PROGRESS,
         BLANK_PROGRESS,
         InstructionStep::Standard(|cpu, bus| {
-            cpu.temp8 = bus.interrupts.enable;
             cpu.push_u8_to_stack(bus, (cpu.pc >> 8) as u8);
+            cpu.temp8 = bus.interrupts.enable;
             InstructionState::InProgress
         }),
         InstructionStep::Standard(|cpu, bus| {

@@ -23,9 +23,13 @@ pub(crate) struct Ppu {
     bg_palette: [usize; 4],
 
     mode: PpuMode,
+    stat_irq_state: bool,
     window_internal_line_counter: u8,
     console_compatibility_mode: CgbCompatibility,
     obj_prio_mode: ObjectPriorityMode,
+
+    ly_153_early: bool,
+    stat_change_offset: u64,
 
     pub hdma: Hdma,
 
@@ -102,6 +106,19 @@ enum PpuMode {
     VBlank = 1, // mode 1
     OAM = 2,    // mode 2
     VRAM = 3,   // mode 3
+}
+
+impl From<u8> for PpuMode {
+    fn from(val: u8) -> Self {
+        match val {
+            0 => PpuMode::HBlank,
+            1 => PpuMode::VBlank,
+            2 => PpuMode::OAM,
+            3 => PpuMode::VRAM,
+
+            _ => panic!("Invalid ppu mode value"),
+        }
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -193,9 +210,13 @@ impl Ppu {
             ],
 
             mode: PpuMode::OAM,
+            stat_irq_state: false,
             window_internal_line_counter: 0,
             console_compatibility_mode: CgbCompatibility::CgbOnly,
             obj_prio_mode: ObjectPriorityMode::OamOrder, // TODO: what is the default?
+
+            ly_153_early: false,
+            stat_change_offset: 0,
 
             hdma: Hdma::default(),
 
@@ -232,6 +253,11 @@ impl Ppu {
     pub fn set_console_compatibility(&mut self, mode: CgbCompatibility) {
         self.console_compatibility_mode = mode;
         self.hdma.set_console_compatibility(mode);
+
+        match mode {
+            CgbCompatibility::None => self.stat_change_offset = 4,
+            _ => {}
+        }
     }
 
     pub fn get_frame_buffer(&self) -> &[Rgb] {
@@ -399,14 +425,6 @@ impl Ppu {
         }
     }
 
-    fn handle_ly_eq_lyc(&mut self, interrupts: &mut Interrupts) {
-        self.update_ly_lyc();
-        let lyc_check_enabled = self.stat & 0b0100_0000 != 0;
-        if self.ly == self.lyc && lyc_check_enabled {
-            interrupts.request_interupt(InterruptFlag::Stat);
-        }
-    }
-
     fn set_mode_stat(&mut self, mode: PpuMode) {
         self.stat = (self.stat & 0b1111_1100) | (mode as u8);
     }
@@ -465,6 +483,10 @@ impl Ppu {
     ) {
         if self.hdma.is_hdma_active() {
             if (1..=0x10).contains(&self.mode_clock_cycles) {
+                if self.mode_clock_cycles == 1 {
+                    self.hdma.hdma_currently_copying = true;
+                }
+
                 self.hdma.tick_hdma(
                     cartridge,
                     working_ram,
@@ -472,10 +494,6 @@ impl Ppu {
                     &mut self.gpu_vram,
                     (self.gpu_vram_bank & 1) as usize,
                 );
-            }
-
-            if self.mode_clock_cycles == 1 {
-                self.hdma.hdma_currently_copying = true;
             }
         }
 
@@ -489,12 +507,12 @@ impl Ppu {
             self.line_clock_cycles = 0;
 
             self.ly += 1;
-            self.handle_ly_eq_lyc(interrupts);
+            self.update_ly_lyc();
 
             if self.ly == 144 {
                 interrupts.request_interupt(InterruptFlag::VBlank);
-                self.set_mode_stat(PpuMode::VBlank);
                 self.mode = PpuMode::VBlank;
+                self.set_mode_stat(PpuMode::VBlank);
 
                 self.draw_flag = true;
             } else {
@@ -504,20 +522,24 @@ impl Ppu {
         }
     }
 
-    fn vblank(&mut self, interrupts: &mut Interrupts) {
+    fn vblank(&mut self, _: &mut Interrupts) {
+        if self.ly == 153 && self.line_clock_cycles == 4 {
+            self.ly = 0;
+            self.update_ly_lyc();
+            self.ly_153_early = true;
+        }
+
         if self.line_clock_cycles == 456 {
             self.line_clock_cycles = 0;
 
-            self.ly += 1;
-            self.handle_ly_eq_lyc(interrupts);
-
-            if self.ly == 154 {
-                self.ly = 0;
-                self.handle_ly_eq_lyc(interrupts);
+            if self.ly < 153 && !self.ly_153_early {
+                self.ly += 1;
+                self.update_ly_lyc();
+            } else {
+                self.ly_153_early = false;
 
                 self.mode_clock_cycles = 0;
                 self.window_internal_line_counter = 0;
-
                 self.set_mode_stat(PpuMode::OAM);
                 self.mode = PpuMode::OAM;
             }
@@ -527,8 +549,8 @@ impl Ppu {
     fn oam(&mut self) {
         if self.mode_clock_cycles == 80 {
             self.mode_clock_cycles = 0;
-            self.set_mode_stat(PpuMode::VRAM);
             self.mode = PpuMode::VRAM;
+            self.set_mode_stat(PpuMode::VRAM);
         }
     }
 
@@ -536,8 +558,8 @@ impl Ppu {
         if self.mode_clock_cycles == 172 {
             self.mode_clock_cycles = 0;
             self.draw_scan_line(); // draw line!
-            self.set_mode_stat(PpuMode::HBlank);
             self.mode = PpuMode::HBlank;
+            self.set_mode_stat(PpuMode::HBlank);
         }
     }
 
@@ -557,6 +579,44 @@ impl Ppu {
             PpuMode::OAM => self.oam(),
             PpuMode::VRAM => self.vram(),
         }
+
+        self.update_stat_irq_conditions(interrupts);
+    }
+
+    fn update_stat_irq_conditions(&mut self, interrupts: &mut Interrupts) {
+        let mut stat_irq_state = false;
+        let ppu_mode_stat = PpuMode::from(self.stat & 0b0000_0011);
+
+        match ppu_mode_stat {
+            PpuMode::HBlank => {
+                if self.stat & 0b0000_1000 != 0 {
+                    stat_irq_state = true;
+                }
+            }
+
+            PpuMode::VBlank => {
+                if self.stat & 0b0001_0000 != 0 {
+                    stat_irq_state = true;
+                }
+            }
+
+            PpuMode::OAM => {
+                if self.stat & 0b0010_0000 != 0 {
+                    stat_irq_state = true;
+                }
+            }
+            PpuMode::VRAM => {}
+        }
+
+        if self.stat & 0b0100_0000 != 0 && self.ly == self.lyc {
+            stat_irq_state = true;
+        }
+
+        if !self.stat_irq_state && stat_irq_state {
+            interrupts.request_interupt(InterruptFlag::Stat);
+        }
+
+        self.stat_irq_state = stat_irq_state;
     }
 
     fn draw_scan_line(&mut self) {

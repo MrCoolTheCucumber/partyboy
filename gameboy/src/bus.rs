@@ -184,7 +184,13 @@ impl Bus {
 
             // 0xFF00 and above
             0xFF4C => {
-                self.console_compatibility_mode = CgbCompatibility::from(val);
+                let val = CgbCompatibility::from(val);
+                let val = match val {
+                    CgbCompatibility::None => val,
+                    _ => CgbCompatibility::CgbOnly,
+                };
+
+                self.console_compatibility_mode = val;
                 self.ppu
                     .set_console_compatibility(self.console_compatibility_mode);
                 log::info!(

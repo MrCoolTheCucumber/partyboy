@@ -485,24 +485,20 @@ impl Ppu {
         working_ram_bank: usize,
     ) {
         if self.hdma.is_hdma_active() {
-            if (1..=0x10).contains(&self.mode_clock_cycles) {
-                if self.mode_clock_cycles == 1 {
-                    self.hdma.hdma_currently_copying = true;
+            match &self.mode_clock_cycles {
+                1 => self.hdma.hdma_currently_copying = true,
+                4 | 8 | 12 | 16 | 20 | 24 | 28 | 32 => {
+                    self.hdma.tick_hdma(
+                        cartridge,
+                        working_ram,
+                        working_ram_bank,
+                        &mut self.gpu_vram,
+                        (self.gpu_vram_bank & 1) as usize,
+                    );
                 }
-
-                self.hdma.tick_hdma(
-                    cartridge,
-                    working_ram,
-                    working_ram_bank,
-                    &mut self.gpu_vram,
-                    (self.gpu_vram_bank & 1) as usize,
-                );
+                33 => self.hdma.hdma_currently_copying = false,
+                _ => {}
             }
-        }
-
-        if self.mode_clock_cycles == 0x11 {
-            // TODO: Does this need to be 0x11?
-            self.hdma.hdma_currently_copying = false;
         }
 
         if self.line_clock_cycles == 456 {

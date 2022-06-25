@@ -12,8 +12,8 @@ thiserror = "1"
 
 [dev-dependencies]
 criterion = "0.3"
-seq-macro = "0.2"
-image = "0.23"
+seq-macro = "0.3"
+image = "0.24"
 
 [[bench]]
 name = "my_benchmark"

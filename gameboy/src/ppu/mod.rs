@@ -30,6 +30,7 @@ pub(crate) struct Ppu {
 
     ly_153_early: bool,
     stat_change_offset: u64,
+    handle_lcd_powered_off: bool,
 
     pub hdma: Hdma,
 
@@ -217,6 +218,7 @@ impl Ppu {
 
             ly_153_early: false,
             stat_change_offset: 0,
+            handle_lcd_powered_off: false,
 
             hdma: Hdma::default(),
 
@@ -278,6 +280,16 @@ impl Ppu {
         self.gpu_vram[(self.gpu_vram_bank & 1) as usize][addr as usize] = val;
     }
 
+    fn reset(&mut self) {
+        self.handle_lcd_powered_off = true;
+        self.ly = 0;
+        self.line_clock_cycles = 0;
+        self.mode_clock_cycles = 0;
+        self.mode = PpuMode::HBlank;
+        self.frame_buffer = [Rgb::default(); 160 * 144];
+        self.stat &= 0b1111_1100;
+    }
+
     pub fn read_u8(&self, addr: u16) -> u8 {
         match addr {
             0xFF40 => self.lcdc,
@@ -309,12 +321,21 @@ impl Ppu {
     pub fn write_u8(&mut self, addr: u16, val: u8, interrupts: &mut Interrupts) {
         match addr {
             0xFF40 => {
+                // was the ppu off, and now turning on?
+                if (self.lcdc & LcdControlFlag::LCDDisplayEnable as u8) == 0
+                    && (val & LcdControlFlag::LCDDisplayEnable as u8) != 0
+                {
+                    debug_assert!(self.handle_lcd_powered_off);
+                    self.handle_lcd_powered_off = false;
+
+                    // TODO: ly0 when power on is shorter by a few cycles
+                }
+
                 self.lcdc = val;
 
-                // is the lcd now off?
+                // is the ppu turning off
                 if self.lcdc & LcdControlFlag::LCDDisplayEnable as u8 == 0 {
-                    self.ly = 0;
-
+                    self.reset();
                     // TODO: oam/vram unlocking
                 }
             }
@@ -487,7 +508,7 @@ impl Ppu {
         if self.hdma.is_hdma_active() {
             match &self.mode_clock_cycles {
                 1 => self.hdma.hdma_currently_copying = true,
-                4 | 8 | 12 | 16 | 20 | 24 | 28 | 32 => {
+                4 | 8 | 12 | 16 | 20 | 24 | 28 | 32 if self.hdma.hdma_currently_copying => {
                     self.hdma.tick_hdma(
                         cartridge,
                         working_ram,
@@ -569,6 +590,11 @@ impl Ppu {
         working_ram: &[[u8; 4096]; 8],
         working_ram_bank: usize,
     ) {
+        // is the ppu off?
+        if self.lcdc & LcdControlFlag::LCDDisplayEnable as u8 == 0 {
+            return;
+        }
+
         self.mode_clock_cycles += 1;
         self.line_clock_cycles += 1;
 

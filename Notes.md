@@ -12,6 +12,21 @@
 
 - discord://discord.com/channels/465585922579103744/465586075830845475/909386242897088543
 
+## PPU
+
+- https://discord.com/channels/465585922579103744/465586075830845475/957856437927813170 special matt currie test
+
+## HDMA
+
+- https://github.com/TASEmulators/BizHawk/blob/master/src/BizHawk.Emulation.Cores/Consoles/Nintendo/GBHawk/GBC_GB_PPU.cs#L219-L220
+
+- https://discord.com/channels/465585922579103744/465586075830845475/945049923181772800
+  the only thing you're missing is that HDMA1/2, and HDMA3/4 are updated with new src/dst addresses after the dma is finished
+  so basically just add the length to src/dst then write them back
+
+- https://discord.com/channels/465585922579103744/465586075830845475/935953007995158598
+  i don't think it's documented anywhere but HDMA5 is decremented at each hdma transfer, and HDMA1/2 and HDMA3/4 seem to get incremented by the transferred amount including in GDMA (according to samesuite dma tests)
+
 ## Annotated CGB BIOS disassembly
 
 - http://www.its.caltech.edu/~costis/cgb_hack/gbc_bios.txt

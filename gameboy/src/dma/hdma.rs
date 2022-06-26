@@ -117,19 +117,19 @@ impl Hdma {
             }
 
             0xFF55 => {
-                self.bytes_to_transfer = ((val & 0x7F) + 1) as u16 * 0x10;
-
                 let dma_type = if (val & 0b1000_0000) != 0 {
                     DmaType::Hdma
                 } else {
                     DmaType::Gdma
                 };
 
-                if self.is_hdma_active() {
+                if self.is_hdma_active() && (val & 0b1000_0000) == 0 {
                     log::debug!("Stopping HDMA early.");
                     self.hdma_stop_requested = true;
                     return;
                 }
+
+                self.bytes_to_transfer = ((val & 0x7F) + 1) as u16 * 0x10;
 
                 self.current_dma = Some(dma_type);
                 self.bytes_transfered = 0;

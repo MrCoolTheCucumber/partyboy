@@ -2,7 +2,8 @@
 members = [
     "benches",
     "frontend",
-    "gameboy"
+    "gameboy",
+    "junit_to_md"
 ]
 
 [profile.dev]

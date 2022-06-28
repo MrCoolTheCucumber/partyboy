@@ -210,7 +210,7 @@ impl Bus {
             0xFFFF => self.interrupts.enable = val,
 
             0xFF46 => self.oam_dma.write_u8(val),
-            0xFF51..=0xFF55 => self.ppu.hdma.write_u8(addr, val),
+            0xFF51..=0xFF55 => self.ppu.hdma.write_u8(addr, val, self.ppu.powered_on()),
 
             0xFF40..=0xFF4B => self.ppu.write_u8(addr, val, &mut self.interrupts),
             0xFF4F => self.ppu.write_u8(addr, val, &mut self.interrupts),
@@ -248,5 +248,27 @@ impl Bus {
             &self.working_ram,
             self.working_ram_bank,
         );
+    }
+
+    pub fn tick_hdma(&mut self) {
+        if !self.ppu.hdma.hdma_currently_copying {
+            return;
+        }
+
+        self.ppu.hdma_clock -= 1;
+        if self.ppu.hdma_clock == 0 {
+            self.ppu.hdma_clock = 4;
+            let full_block_copied = self.ppu.hdma.tick_hdma(
+                &self.cartridge,
+                &self.working_ram,
+                self.working_ram_bank,
+                &mut self.ppu.gpu_vram,
+                (self.ppu.gpu_vram_bank & 1) as usize,
+            );
+
+            if full_block_copied {
+                self.ppu.hdma.hdma_currently_copying = false;
+            }
+        }
     }
 }

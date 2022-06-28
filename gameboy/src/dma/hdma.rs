@@ -85,7 +85,7 @@ impl Hdma {
         }
     }
 
-    pub fn write_u8(&mut self, addr: u16, val: u8) {
+    pub fn write_u8(&mut self, addr: u16, val: u8, is_ppu_powered_on: bool) {
         if matches!(self.console_compatibility_mode, CgbCompatibility::None) {
             return;
         }
@@ -124,8 +124,10 @@ impl Hdma {
                 };
 
                 if self.is_hdma_active() && (val & 0b1000_0000) == 0 {
+                    // stop copy
                     log::debug!("Stopping HDMA early.");
                     self.hdma_stop_requested = true;
+                    self.hdma5 = 0x80 | val;
                     return;
                 }
 
@@ -134,6 +136,10 @@ impl Hdma {
                 self.current_dma = Some(dma_type);
                 self.bytes_transfered = 0;
                 self.hdma5 = val & 0b0111_1111;
+
+                if !is_ppu_powered_on {
+                    self.hdma_currently_copying = true;
+                }
 
                 #[cfg(debug_assertions)]
                 if self.current_dma.is_some() {
@@ -207,7 +213,7 @@ impl Hdma {
         working_ram_bank: usize,
         gpu_vram: &mut [[u8; 8192]; 2],
         vram_bank: usize,
-    ) {
+    ) -> bool {
         let dest_addr_index = (self.dest_addr - 0x8000) as usize;
         let bytes_to_transfer = 2;
 
@@ -221,15 +227,19 @@ impl Hdma {
         self.bytes_to_transfer -= bytes_to_transfer;
         self.bytes_transfered += 2;
 
+        let mut finished_block_copy = false;
         if self.bytes_transfered == 16 {
             self.hdma5 -= 1;
             self.bytes_transfered = 0;
+            finished_block_copy = true;
         }
 
         self.src_addr += bytes_to_transfer;
         self.dest_addr += bytes_to_transfer;
 
-        if self.hdma_stop_requested {
+        if self.hdma_stop_requested
+        /*&& finished_block_copy*/
+        {
             self.hdma_stop_requested = false;
             self.current_dma = None;
             self.hdma_currently_copying = false;
@@ -239,6 +249,8 @@ impl Hdma {
             self.hdma5 = 0xFF; // technically its already 0xFF
             self.hdma_currently_copying = false;
         }
+
+        finished_block_copy
     }
 }
 

@@ -33,6 +33,7 @@ pub(crate) struct Ppu {
     handle_lcd_powered_off: bool,
 
     pub hdma: Hdma,
+    pub hdma_clock: u32,
 
     // io registers
     pub lcdc: u8, // FF40
@@ -218,8 +219,9 @@ impl Ppu {
 
             ly_153_early: false,
             stat_change_offset: 0,
-            handle_lcd_powered_off: false,
+            handle_lcd_powered_off: true,
 
+            hdma_clock: 4,
             hdma: Hdma::default(),
 
             lcdc: 0x0,
@@ -280,13 +282,17 @@ impl Ppu {
         self.gpu_vram[(self.gpu_vram_bank & 1) as usize][addr as usize] = val;
     }
 
+    pub fn powered_on(&self) -> bool {
+        self.lcdc & LcdControlFlag::LCDDisplayEnable as u8 != 0
+    }
+
     fn reset(&mut self) {
         self.handle_lcd_powered_off = true;
         self.ly = 0;
         self.line_clock_cycles = 0;
         self.mode_clock_cycles = 0;
         self.mode = PpuMode::HBlank;
-        self.frame_buffer = [Rgb::default(); 160 * 144];
+        self.frame_buffer = [Rgb::const_mono(255); 160 * 144];
         self.stat &= 0b1111_1100;
     }
 
@@ -325,6 +331,7 @@ impl Ppu {
                 if (self.lcdc & LcdControlFlag::LCDDisplayEnable as u8) == 0
                     && (val & LcdControlFlag::LCDDisplayEnable as u8) != 0
                 {
+                    log::debug!("Powering LCD ON");
                     debug_assert!(self.handle_lcd_powered_off);
                     self.handle_lcd_powered_off = false;
 
@@ -335,6 +342,7 @@ impl Ppu {
 
                 // is the ppu turning off
                 if self.lcdc & LcdControlFlag::LCDDisplayEnable as u8 == 0 {
+                    log::debug!("Poweromg LCD OFF");
                     self.reset();
                     // TODO: oam/vram unlocking
                 }
@@ -505,21 +513,9 @@ impl Ppu {
         working_ram: &[[u8; 4096]; 8],
         working_ram_bank: usize,
     ) {
-        if self.hdma.is_hdma_active() {
-            match &self.mode_clock_cycles {
-                1 => self.hdma.hdma_currently_copying = true,
-                4 | 8 | 12 | 16 | 20 | 24 | 28 | 32 if self.hdma.hdma_currently_copying => {
-                    self.hdma.tick_hdma(
-                        cartridge,
-                        working_ram,
-                        working_ram_bank,
-                        &mut self.gpu_vram,
-                        (self.gpu_vram_bank & 1) as usize,
-                    );
-                }
-                33 => self.hdma.hdma_currently_copying = false,
-                _ => {}
-            }
+        if self.hdma.is_hdma_active() && self.mode_clock_cycles == 1 {
+            self.hdma.hdma_currently_copying = true;
+            self.hdma_clock = 4;
         }
 
         if self.line_clock_cycles == 456 {

@@ -27,6 +27,9 @@
 - https://discord.com/channels/465585922579103744/465586075830845475/935953007995158598
   i don't think it's documented anywhere but HDMA5 is decremented at each hdma transfer, and HDMA1/2 and HDMA3/4 seem to get incremented by the transferred amount including in GDMA (according to samesuite dma tests)
 
+- Godlike notes
+  https://discord.com/channels/465585922579103744/465586075830845475/990683407086391356
+
 ## Annotated CGB BIOS disassembly
 
 - http://www.its.caltech.edu/~costis/cgb_hack/gbc_bios.txt

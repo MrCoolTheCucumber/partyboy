@@ -68,6 +68,7 @@ impl GameBoy {
         }
 
         self.bus.tick_ppu();
+        self.bus.tick_hdma();
         OamDma::dma_tick(&mut self.bus);
 
         self.bus.timer.tick(&mut self.bus.interrupts);

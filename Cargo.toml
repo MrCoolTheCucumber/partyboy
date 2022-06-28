@@ -5,6 +5,10 @@ members = [
     "gameboy",
     "junit_to_md"
 ]
+default-members = [
+    "frontend",
+    "gameboy",
+]
 
 [profile.dev]
 opt-level = 3

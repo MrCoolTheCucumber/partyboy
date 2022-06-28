@@ -103,7 +103,7 @@ pub enum LcdControlFlag {
 
 #[derive(Clone, Copy)]
 #[allow(clippy::upper_case_acronyms)]
-enum PpuMode {
+pub enum PpuMode {
     HBlank = 0, // mode 0
     VBlank = 1, // mode 1
     OAM = 2,    // mode 2
@@ -459,6 +459,10 @@ impl Ppu {
 
     fn set_mode_stat(&mut self, mode: PpuMode) {
         self.stat = (self.stat & 0b1111_1100) | (mode as u8);
+    }
+
+    pub fn get_mode_stat(&self) -> PpuMode {
+        (self.stat & 0b0000_0011).into()
     }
 
     fn flip_tile_value(val: u8) -> u8 {

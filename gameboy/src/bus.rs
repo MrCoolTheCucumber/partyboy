@@ -250,25 +250,13 @@ impl Bus {
         );
     }
 
-    pub fn tick_hdma(&mut self) {
-        if !self.ppu.hdma.hdma_currently_copying {
-            return;
-        }
-
-        self.ppu.hdma_clock -= 1;
-        if self.ppu.hdma_clock == 0 {
-            self.ppu.hdma_clock = 4;
-            let full_block_copied = self.ppu.hdma.tick_hdma(
-                &self.cartridge,
-                &self.working_ram,
-                self.working_ram_bank,
-                &mut self.ppu.gpu_vram,
-                (self.ppu.gpu_vram_bank & 1) as usize,
-            );
-
-            if full_block_copied {
-                self.ppu.hdma.hdma_currently_copying = false;
-            }
-        }
+    pub fn hdma_copy_word(&mut self) -> bool {
+        self.ppu.hdma.tick_hdma(
+            &self.cartridge,
+            &self.working_ram,
+            self.working_ram_bank,
+            &mut self.ppu.gpu_vram,
+            (self.ppu.gpu_vram_bank & 1) as usize,
+        )
     }
 }

@@ -58,7 +58,7 @@ fn init_logger(enable_file_logging: bool) {
 fn parse_args() -> Args {
     let matches = clap_app!(partyboy =>
         (version: "1.0")
-        (about: "A Gameboy (color?) emulator")
+        (about: "A Gameboy color emulator")
         (@arg rom_path: -r --rom +takes_value +required "The path to the rom to load.")
         (@arg enable_file_logging: -l --log "Enables file logging.")
     )

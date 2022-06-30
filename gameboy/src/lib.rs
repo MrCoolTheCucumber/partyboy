@@ -9,7 +9,10 @@ mod ppu;
 mod timer;
 
 use builder::SerialWriteHandler;
-use dma::{hdma::Hdma, oam::OamDma};
+use dma::{
+    hdma::{Hdma, HdmaController},
+    oam::OamDma,
+};
 use ppu::rgb::Rgb;
 
 use crate::dma::hdma::DmaType;
@@ -26,6 +29,7 @@ pub struct GameBoy {
     instruction_cache: InstructionCache,
     cpu: Cpu,
     bus: Bus,
+    hdma_controller: HdmaController,
 }
 
 impl GameBoy {
@@ -36,6 +40,7 @@ impl GameBoy {
             instruction_cache: InstructionCache::new(),
             cpu: Cpu::new(),
             bus: Bus::new(cartridge, serial_write_handler),
+            hdma_controller: HdmaController::default(),
         }
     }
 
@@ -43,32 +48,30 @@ impl GameBoy {
         GameBoyBuilder::new()
     }
 
+    fn tick_cpu_related(gb: &mut GameBoy) {
+        Interrupts::tick(&mut gb.bus.interrupts, &mut gb.cpu);
+        gb.cpu.tick(&mut gb.bus, &mut gb.instruction_cache);
+    }
+
     pub fn tick(&mut self) {
         if self.cpu.stopped() {
             return;
         }
 
-        fn tick_cpu_related(gb: &mut GameBoy) {
-            Interrupts::tick(&mut gb.bus.interrupts, &mut gb.cpu);
-            gb.cpu.tick(&mut gb.bus, &mut gb.instruction_cache);
+        // check the controller state first before handling!
+        if !self.hdma_controller.currently_copying(&self.bus) {
+            GameBoy::tick_cpu_related(self);
         }
 
-        // If HDMA/GDMA is currently copying data, then cpu execution is paused
-        if let Some(state) = self.bus.ppu.hdma.current_dma {
-            match state {
-                DmaType::Hdma => {
-                    if !self.bus.ppu.hdma.hdma_currently_copying {
-                        tick_cpu_related(self);
-                    }
-                }
-                DmaType::Gdma => Hdma::tick_gdma(&mut self.bus),
-            }
-        } else {
-            tick_cpu_related(self)
+        self.hdma_controller
+            .handle_hdma(&mut self.bus, &mut self.cpu);
+
+        // TODO: move into handle_hdma
+        if matches!(self.bus.ppu.hdma.current_dma, Some(DmaType::Gdma)) {
+            Hdma::tick_gdma(&mut self.bus);
         }
 
         self.bus.tick_ppu();
-        self.bus.tick_hdma();
         OamDma::dma_tick(&mut self.bus);
 
         self.bus.timer.tick(&mut self.bus.interrupts);

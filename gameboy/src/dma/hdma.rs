@@ -3,6 +3,8 @@ use std::fmt::Display;
 use crate::{
     bus::{Bus, CgbCompatibility},
     cartridge::Cartridge,
+    cpu::Cpu,
+    ppu::{Ppu, PpuMode},
 };
 
 #[derive(Copy, Clone)]
@@ -125,7 +127,6 @@ impl Hdma {
 
                 if self.is_hdma_active() && (val & 0b1000_0000) == 0 {
                     // stop copy
-                    log::debug!("Stopping HDMA early.");
                     self.hdma_stop_requested = true;
                     self.hdma5 = 0x80 | val;
                     return;
@@ -136,10 +137,6 @@ impl Hdma {
                 self.current_dma = Some(dma_type);
                 self.bytes_transfered = 0;
                 self.hdma5 = val & 0b0111_1111;
-
-                if !is_ppu_powered_on {
-                    self.hdma_currently_copying = true;
-                }
 
                 #[cfg(debug_assertions)]
                 if self.current_dma.is_some() {
@@ -237,9 +234,7 @@ impl Hdma {
         self.src_addr += bytes_to_transfer;
         self.dest_addr += bytes_to_transfer;
 
-        if self.hdma_stop_requested
-        /*&& finished_block_copy*/
-        {
+        if self.hdma_stop_requested && finished_block_copy {
             self.hdma_stop_requested = false;
             self.current_dma = None;
             self.hdma_currently_copying = false;
@@ -252,6 +247,150 @@ impl Hdma {
 
         finished_block_copy
     }
+
+    fn handle_stop_request(&mut self) {
+        self.hdma_stop_requested = false;
+        self.current_dma = None;
+        self.hdma_currently_copying = false;
+        self.hdma5 |= 0x80;
+    }
+}
+
+const HDMA_T_PER_WORD_COPY: u32 = 4;
+const HDMA_WIND_UP_T: u32 = 4;
+
+pub(crate) struct HdmaController {
+    state: HdmaControllerState,
+    clock: u32,
+    hblank_rising_edge: HBlankRisingEdge,
+}
+
+impl Default for HdmaController {
+    fn default() -> Self {
+        Self {
+            state: HdmaControllerState::Waiting,
+            clock: HDMA_T_PER_WORD_COPY,
+            // technically the ppu starts in mode 0 but initial state probably doesn't matter anyway
+            hblank_rising_edge: HBlankRisingEdge::Hi(false),
+        }
+    }
+}
+
+impl HdmaController {
+    /// returns true if we consume a rising edge
+    fn try_consume_rising_edge(&mut self) -> bool {
+        if matches!(self.hblank_rising_edge, HBlankRisingEdge::Hi(false)) {
+            self.hblank_rising_edge = HBlankRisingEdge::Hi(true);
+            true
+        } else {
+            false
+        }
+    }
+
+    fn handle_hblank_rising_edge(&mut self, ppu: &Ppu) {
+        let is_hblank = matches!(ppu.get_mode_stat(), PpuMode::HBlank);
+
+        match self.hblank_rising_edge {
+            HBlankRisingEdge::Lo => {
+                if is_hblank {
+                    self.hblank_rising_edge = HBlankRisingEdge::Hi(false);
+                }
+            }
+            HBlankRisingEdge::Hi(_) => {
+                if !is_hblank {
+                    self.hblank_rising_edge = HBlankRisingEdge::Lo;
+                }
+            }
+        }
+    }
+
+    fn handle_hdma_state(&mut self, state: HdmaState, bus: &mut Bus) {
+        match state {
+            HdmaState::CopyBlock => {
+                self.clock -= 1;
+                if self.clock == 0 {
+                    self.clock = HDMA_T_PER_WORD_COPY;
+                    let full_block_copied = bus.hdma_copy_word();
+
+                    if full_block_copied {
+                        // check if hdma is canceled/finished
+                        self.state = match bus.ppu.hdma.current_dma {
+                            Some(DmaType::Hdma) => {
+                                HdmaControllerState::Started(HdmaState::WaitingForHBlank)
+                            }
+                            _ => HdmaControllerState::Waiting,
+                        }
+                    }
+                }
+            }
+            HdmaState::WaitingForHBlank => {
+                if bus.ppu.hdma.hdma_stop_requested {
+                    bus.ppu.hdma.handle_stop_request();
+                    self.state = HdmaControllerState::Waiting;
+                    return;
+                }
+
+                if self.try_consume_rising_edge() {
+                    self.state = HdmaControllerState::Started(HdmaState::CopyBlock);
+                    self.clock -= 1;
+                }
+            }
+        }
+    }
+
+    pub fn handle_hdma(&mut self, bus: &mut Bus, cpu: &mut Cpu) {
+        self.handle_hblank_rising_edge(&bus.ppu);
+        match self.state {
+            HdmaControllerState::Waiting => {
+                // we only check if we can start hdma inbetween cpu
+                // we should probably only check "once"
+                // I think actual time is 3t into cpu fetch? not too sure
+                // comment out || is_fetching so it only checks the t cycle after the instruction finishes
+                if !(!cpu.is_processing_instruction()/*|| cpu.is_fetching()*/) {
+                    return;
+                }
+
+                // if hdma isn't requested then return
+                if !matches!(bus.ppu.hdma.current_dma, Some(DmaType::Hdma)) {
+                    return;
+                }
+
+                // NEW: check if there is a rising edge we can consume
+                if self.try_consume_rising_edge() {
+                    self.clock = HDMA_T_PER_WORD_COPY + HDMA_WIND_UP_T;
+                    self.clock -= 1;
+                    self.state = HdmaControllerState::Started(HdmaState::CopyBlock);
+                }
+            }
+            HdmaControllerState::Started(hdma_state) => self.handle_hdma_state(hdma_state, bus),
+        }
+    }
+
+    pub fn currently_copying(&self, bus: &Bus) -> bool {
+        matches!(
+            self.state,
+            HdmaControllerState::Started(HdmaState::CopyBlock)
+        ) || matches!(bus.ppu.hdma.current_dma, Some(DmaType::Gdma))
+    }
+}
+
+#[derive(Copy, Clone)]
+pub(crate) enum HdmaControllerState {
+    Waiting,
+    Started(HdmaState),
+}
+
+#[derive(Copy, Clone)]
+pub(crate) enum HdmaState {
+    CopyBlock,
+    WaitingForHBlank,
+}
+
+#[derive(Copy, Clone)]
+enum HBlankRisingEdge {
+    Lo,
+    /// bool is have we "consumed" the rising edge, true => yes, false => no
+    Hi(bool),
 }
 
 mod read {

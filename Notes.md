@@ -18,6 +18,16 @@
 
 ## HDMA
 
+Based on what I've read so far:
+
+- HDMA is checked inbetween instructions (similar to interrupts), cannot be stopped by interrupts
+- Has a 4t delay
+- If a HDMA is requested, it is triggered on ppu non-mode 0 to mode 0 (rising edge)
+  - So basically, if we're in mode 0 then we can start?
+- This means turning off the lcd can trigger HDMA
+- If the ppu is off then only one block gets copied
+- If CPU is HALT or STOP, or if a speed switch is happening, then "HDMA won't happen" (what does this mean exactly?)
+
 - https://github.com/TASEmulators/BizHawk/blob/master/src/BizHawk.Emulation.Cores/Consoles/Nintendo/GBHawk/GBC_GB_PPU.cs#L219-L220
 
 - https://discord.com/channels/465585922579103744/465586075830845475/945049923181772800
@@ -29,6 +39,8 @@
 
 - Godlike notes
   https://discord.com/channels/465585922579103744/465586075830845475/990683407086391356
+
+- TCAGBD has a lot of info
 
 ## Annotated CGB BIOS disassembly
 

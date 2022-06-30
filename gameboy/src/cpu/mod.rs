@@ -93,7 +93,7 @@ impl Cpu {
 
     pub fn initiate_interrupt_service_routin(&mut self) {
         #[cfg(debug_assertions)]
-        debug_assert!(self.is_fetching == true || self.instruction_opcode.is_none());
+        debug_assert!(self.is_fetching || self.instruction_opcode.is_none());
 
         if self.instruction_opcode.is_some() {
             match self.instruction_opcode.unwrap() {

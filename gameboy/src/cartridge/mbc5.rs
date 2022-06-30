@@ -27,8 +27,7 @@ impl Mbc5 {
         num_rom_banks: u16,
         num_ram_banks: u16,
     ) -> Self {
-        let mut rom_banks = Vec::new();
-        rom_banks.push(rom_bank_0);
+        let mut rom_banks = vec![rom_bank_0];
 
         for _ in 0..num_rom_banks - 1 {
             let mut bank = [0; 0x4000];

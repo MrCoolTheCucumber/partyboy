@@ -257,9 +257,8 @@ impl Ppu {
         self.console_compatibility_mode = mode;
         self.hdma.set_console_compatibility(mode);
 
-        match mode {
-            CgbCompatibility::None => self.stat_change_offset = 4,
-            _ => {}
+        if let CgbCompatibility::None = mode {
+            self.stat_change_offset = 4;
         }
     }
 

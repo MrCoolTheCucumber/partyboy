@@ -1,16 +1,10 @@
 use std::{cmp, fmt};
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Default)]
 pub struct Rgb {
     pub r: u8,
     pub g: u8,
     pub b: u8,
-}
-
-impl Default for Rgb {
-    fn default() -> Self {
-        Self { r: 0, g: 0, b: 0 }
-    }
 }
 
 impl fmt::Debug for Rgb {

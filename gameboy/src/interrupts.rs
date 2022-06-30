@@ -62,7 +62,7 @@ impl Interrupts {
         self.master = 0;
     }
 
-    pub fn is_master_enabled(&mut self) -> bool {
+    pub fn is_master_enabled(&self) -> bool {
         self.master > 0
     }
 

@@ -95,7 +95,7 @@ impl Hdma {
         }
 
         fn update_dest_addr(hdma: &mut Hdma) {
-            hdma.dest_addr = 0x8000 + ((hdma.dest_hi as u16) << 8) | (hdma.dest_lo as u16);
+            hdma.dest_addr = 0x8000 + (((hdma.dest_hi as u16) << 8) | (hdma.dest_lo as u16));
         }
 
         match addr {
@@ -341,7 +341,13 @@ impl HdmaController {
                 // we should probably only check "once"
                 // I think actual time is 3t into cpu fetch? not too sure
                 // comment out || is_fetching so it only checks the t cycle after the instruction finishes
-                if !(!cpu.is_processing_instruction()/*|| cpu.is_fetching()*/) {
+
+                // if !(!cpu.is_processing_instruction()/*|| cpu.is_fetching()*/) {
+                //     return;
+                // }
+
+                // TODO: above code might be better, but this seems fine for now
+                if cpu.is_processing_instruction() {
                     return;
                 }
 

@@ -32,7 +32,7 @@ You can also hold <kbd>TAB</kbd> to enable turbo, which will disable the frame l
 
 ```
 partyboy 1.0
-A Gameboy (color?) emulator
+A Gameboy color emulator
 
 USAGE:
     partyboy.exe [FLAGS] --rom <rom_path>

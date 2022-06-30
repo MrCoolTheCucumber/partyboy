@@ -362,21 +362,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3f9eec918d3f24069decb9af1554cad7c880e2da24a9afd88aca000531ab82c1"
 
 [[package]]
-name = "frontend"
-version = "0.1.0"
-dependencies = [
- "clap",
- "env_logger",
- "gameboy",
- "gl",
- "log",
- "log-panics",
- "log4rs",
- "sdl2",
- "spin_sleep",
-]
-
-[[package]]
 name = "futures-core"
 version = "0.3.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -778,6 +763,21 @@ dependencies = [
  "redox_syscall 0.2.10",
  "smallvec",
  "winapi",
+]
+
+[[package]]
+name = "partyboy"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "env_logger",
+ "gameboy",
+ "gl",
+ "log",
+ "log-panics",
+ "log4rs",
+ "sdl2",
+ "spin_sleep",
 ]
 
 [[package]]

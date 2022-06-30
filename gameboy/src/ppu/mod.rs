@@ -676,9 +676,8 @@ impl Ppu {
         let mut color_index_row: [u8; 8] = [0; 8];
 
         if self.console_compatibility_mode.is_cgb_mode() && flags.horizontal_flip {
-            for i in 0..8usize {
-                let shift_i = i as u8;
-                color_index_row[i] =
+            for (shift_i, col_idx) in color_index_row.iter_mut().enumerate() {
+                *col_idx =
                     ((b1 & (1 << shift_i)) >> shift_i) | ((b2 & (1 << shift_i)) >> shift_i) << 1;
             }
         } else {
@@ -772,7 +771,7 @@ impl Ppu {
     }
 
     fn draw_sprites(&mut self, scan_line_row: &mut [ScanLinePxInfo; 160]) {
-        #[derive(Clone, Copy)]
+        #[derive(Clone, Copy, Default)]
         struct SpriteData {
             y: i32,
             x: i32,
@@ -780,23 +779,12 @@ impl Ppu {
             flags: u8,
         }
 
-        impl Default for SpriteData {
-            fn default() -> Self {
-                Self {
-                    y: Default::default(),
-                    x: Default::default(),
-                    tile_num: Default::default(),
-                    flags: Default::default(),
-                }
-            }
-        }
-
         fn fetch_sprites(ppu: &Ppu, sprite_size: i32) -> [SpriteData; 40] {
             let mut sprites = [SpriteData::default(); 40];
 
-            for i in 0..40 {
+            for (i, sprite) in sprites.iter_mut().enumerate() {
                 let sprite_addr = (i as usize) * 4;
-                sprites[i] = SpriteData {
+                *sprite = SpriteData {
                     y: ppu.sprite_table[sprite_addr] as u16 as i32 - 16,
                     x: ppu.sprite_table[sprite_addr + 1] as u16 as i32 - 8,
                     tile_num: (ppu.sprite_table[sprite_addr + 2]

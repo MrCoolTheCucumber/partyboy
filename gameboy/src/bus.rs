@@ -247,7 +247,7 @@ impl Bus {
 
     pub fn hdma_copy_word(&mut self) -> bool {
         self.ppu.hdma.tick_hdma(
-            &self.cartridge,
+            self.cartridge.as_ref(),
             &self.working_ram,
             self.working_ram_bank,
             &mut self.ppu.gpu_vram,

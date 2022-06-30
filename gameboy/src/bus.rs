@@ -210,7 +210,7 @@ impl Bus {
             0xFFFF => self.interrupts.enable = val,
 
             0xFF46 => self.oam_dma.write_u8(val),
-            0xFF51..=0xFF55 => self.ppu.hdma.write_u8(addr, val, self.ppu.powered_on()),
+            0xFF51..=0xFF55 => self.ppu.hdma.write_u8(addr, val),
 
             0xFF40..=0xFF4B => self.ppu.write_u8(addr, val, &mut self.interrupts),
             0xFF4F => self.ppu.write_u8(addr, val, &mut self.interrupts),
@@ -242,12 +242,7 @@ impl Bus {
     }
 
     pub fn tick_ppu(&mut self) {
-        self.ppu.tick(
-            &mut self.interrupts,
-            &self.cartridge,
-            &self.working_ram,
-            self.working_ram_bank,
-        );
+        self.ppu.tick(&mut self.interrupts);
     }
 
     pub fn hdma_copy_word(&mut self) -> bool {

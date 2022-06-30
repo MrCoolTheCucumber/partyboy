@@ -30,7 +30,6 @@ pub(crate) struct Hdma {
     pub hdma5: u8, // length/start/mode?
 
     pub current_dma: Option<DmaType>,
-    pub hdma_currently_copying: bool,
     hdma_stop_requested: bool,
 
     bytes_to_transfer: u16,
@@ -52,7 +51,6 @@ impl Default for Hdma {
             hdma5: 0xFF,
 
             current_dma: None,
-            hdma_currently_copying: false,
             hdma_stop_requested: false,
 
             bytes_to_transfer: 0,
@@ -87,7 +85,7 @@ impl Hdma {
         }
     }
 
-    pub fn write_u8(&mut self, addr: u16, val: u8, is_ppu_powered_on: bool) {
+    pub fn write_u8(&mut self, addr: u16, val: u8) {
         if matches!(self.console_compatibility_mode, CgbCompatibility::None) {
             return;
         }
@@ -237,12 +235,10 @@ impl Hdma {
         if self.hdma_stop_requested && finished_block_copy {
             self.hdma_stop_requested = false;
             self.current_dma = None;
-            self.hdma_currently_copying = false;
             self.hdma5 |= 0x80;
         } else if self.bytes_to_transfer == 0 {
             self.current_dma = None;
             self.hdma5 = 0xFF; // technically its already 0xFF
-            self.hdma_currently_copying = false;
         }
 
         finished_block_copy
@@ -251,7 +247,6 @@ impl Hdma {
     fn handle_stop_request(&mut self) {
         self.hdma_stop_requested = false;
         self.current_dma = None;
-        self.hdma_currently_copying = false;
         self.hdma5 |= 0x80;
     }
 }

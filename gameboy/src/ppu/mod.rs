@@ -2,7 +2,7 @@ pub mod rgb;
 
 use std::hint::unreachable_unchecked;
 
-use crate::{bus::CgbCompatibility, cartridge::Cartridge, dma::hdma::Hdma};
+use crate::{bus::CgbCompatibility, dma::hdma::Hdma};
 
 use self::rgb::Rgb;
 
@@ -33,7 +33,6 @@ pub(crate) struct Ppu {
     handle_lcd_powered_off: bool,
 
     pub hdma: Hdma,
-    pub hdma_clock: u32,
 
     // io registers
     pub lcdc: u8, // FF40
@@ -68,6 +67,7 @@ pub(crate) struct Ppu {
 #[derive(Clone, Copy)]
 pub enum LcdControlFlag {
     // 1: on, 0: off
+    // TODO: this apparently controls the window? because the window relys on the bg_fetcher
     BGEnable = 0b0000_0001,
 
     // Display sprites (obj):
@@ -221,7 +221,6 @@ impl Ppu {
             stat_change_offset: 0,
             handle_lcd_powered_off: true,
 
-            hdma_clock: 4,
             hdma: Hdma::default(),
 
             lcdc: 0x0,
@@ -280,10 +279,6 @@ impl Ppu {
 
     pub fn write_vram(&mut self, addr: u16, val: u8) {
         self.gpu_vram[(self.gpu_vram_bank & 1) as usize][addr as usize] = val;
-    }
-
-    pub fn powered_on(&self) -> bool {
-        self.lcdc & LcdControlFlag::LCDDisplayEnable as u8 != 0
     }
 
     fn reset(&mut self) {
@@ -510,18 +505,7 @@ impl Ppu {
         }
     }
 
-    fn hblank(
-        &mut self,
-        interrupts: &mut Interrupts,
-        cartridge: &Box<dyn Cartridge>,
-        working_ram: &[[u8; 4096]; 8],
-        working_ram_bank: usize,
-    ) {
-        if self.hdma.is_hdma_active() && self.mode_clock_cycles == 1 {
-            self.hdma.hdma_currently_copying = true;
-            self.hdma_clock = 4;
-        }
-
+    fn hblank(&mut self, interrupts: &mut Interrupts) {
         if self.line_clock_cycles == 456 {
             self.mode_clock_cycles = 0;
             self.line_clock_cycles = 0;
@@ -583,13 +567,7 @@ impl Ppu {
         }
     }
 
-    pub fn tick(
-        &mut self,
-        interrupts: &mut Interrupts,
-        cartridge: &Box<dyn Cartridge>,
-        working_ram: &[[u8; 4096]; 8],
-        working_ram_bank: usize,
-    ) {
+    pub fn tick(&mut self, interrupts: &mut Interrupts) {
         // is the ppu off?
         if self.lcdc & LcdControlFlag::LCDDisplayEnable as u8 == 0 {
             return;
@@ -599,7 +577,7 @@ impl Ppu {
         self.line_clock_cycles += 1;
 
         match self.mode {
-            PpuMode::HBlank => self.hblank(interrupts, cartridge, working_ram, working_ram_bank),
+            PpuMode::HBlank => self.hblank(interrupts),
             PpuMode::VBlank => self.vblank(interrupts),
             PpuMode::OAM => self.oam(),
             PpuMode::VRAM => self.vram(),

@@ -126,7 +126,6 @@ impl Hdma {
                 };
 
                 if self.is_hdma_active() && (val & 0b1000_0000) == 0 {
-                    log::debug!("hdma stop requested");
                     // stop copy
                     self.hdma_stop_requested = true;
                     self.hdma5 = 0x80 | val;
@@ -240,12 +239,10 @@ impl Hdma {
             self.current_dma = None;
             self.hdma_currently_copying = false;
             self.hdma5 |= 0x80;
-            log::debug!("Stopping HDMA early.");
         } else if self.bytes_to_transfer == 0 {
             self.current_dma = None;
             self.hdma5 = 0xFF; // technically its already 0xFF
             self.hdma_currently_copying = false;
-            log::debug!("Finished HDMA");
         }
 
         finished_block_copy
@@ -259,7 +256,8 @@ impl Hdma {
     }
 }
 
-const HDMA_START_UP_WAIT_T: u32 = 4;
+const HDMA_T_PER_WORD_COPY: u32 = 4;
+const HDMA_WIND_UP_T: u32 = 4;
 
 pub(crate) struct HdmaController {
     state: HdmaControllerState,
@@ -271,7 +269,7 @@ impl Default for HdmaController {
     fn default() -> Self {
         Self {
             state: HdmaControllerState::Waiting,
-            clock: HDMA_START_UP_WAIT_T,
+            clock: HDMA_T_PER_WORD_COPY,
             // technically the ppu starts in mode 0 but initial state probably doesn't matter anyway
             hblank_rising_edge: HBlankRisingEdge::Hi(false),
         }
@@ -307,19 +305,15 @@ impl HdmaController {
     }
 
     fn handle_hdma_state(&mut self, state: HdmaState, bus: &mut Bus) {
-        self.handle_hblank_rising_edge(&bus.ppu);
-
         match state {
             HdmaState::CopyBlock => {
                 self.clock -= 1;
                 if self.clock == 0 {
-                    self.clock = HDMA_START_UP_WAIT_T;
-                    log::debug!("HDMA copying word");
+                    self.clock = HDMA_T_PER_WORD_COPY;
                     let full_block_copied = bus.hdma_copy_word();
 
                     if full_block_copied {
                         // check if hdma is canceled/finished
-                        log::debug!("HDMA block copied");
                         self.state = match bus.ppu.hdma.current_dma {
                             Some(DmaType::Hdma) => {
                                 HdmaControllerState::Started(HdmaState::WaitingForHBlank)
@@ -330,21 +324,6 @@ impl HdmaController {
                 }
             }
             HdmaState::WaitingForHBlank => {
-                // if the ppu is off, don't do anything
-
-                // TODO: it may be the case that we need to emulate going from non-mode0 to mode 0 i.e. rising edge
-                // if a rising edge occurs, then HBlank can happen and we "consume" it.
-                // Or it gets consumed when we leave mode 0 naturally
-
-                // if !bus.ppu.powered_on() {
-                //     return;
-                // }
-
-                // if matches!(bus.ppu.get_mode_stat(), PpuMode::HBlank) {
-                //     self.state = HdmaControllerState::Started(HdmaState::CopyBlock);
-                //     self.clock -= 1;
-                // }
-
                 if bus.ppu.hdma.hdma_stop_requested {
                     bus.ppu.hdma.handle_stop_request();
                     self.state = HdmaControllerState::Waiting;
@@ -352,7 +331,6 @@ impl HdmaController {
                 }
 
                 if self.try_consume_rising_edge() {
-                    log::debug!("HDMA finished waiting");
                     self.state = HdmaControllerState::Started(HdmaState::CopyBlock);
                     self.clock -= 1;
                 }
@@ -361,10 +339,12 @@ impl HdmaController {
     }
 
     pub fn handle_hdma(&mut self, bus: &mut Bus, cpu: &mut Cpu) {
+        self.handle_hblank_rising_edge(&bus.ppu);
         match self.state {
             HdmaControllerState::Waiting => {
                 // we only check if we can start hdma inbetween cpu
                 // we should probably only check "once"
+                // I think actual time is 3t into cpu fetch? not too sure
                 // comment out || is_fetching so it only checks the t cycle after the instruction finishes
                 if !(!cpu.is_processing_instruction()/*|| cpu.is_fetching()*/) {
                     return;
@@ -375,17 +355,9 @@ impl HdmaController {
                     return;
                 }
 
-                // OLD: if we are currently in mode 0 then trigger HDMA immediately (according to TCAGBD)
-                // self.state = match bus.ppu.get_mode_stat() {
-                //     PpuMode::HBlank => {
-                //         self.clock -= 1;
-                //         HdmaControllerState::Started(HdmaState::CopyBlock)
-                //     }
-                //     _ => HdmaControllerState::Waiting,
-                // };
-
                 // NEW: check if there is a rising edge we can consume
                 if self.try_consume_rising_edge() {
+                    self.clock = HDMA_T_PER_WORD_COPY + HDMA_WIND_UP_T;
                     self.clock -= 1;
                     self.state = HdmaControllerState::Started(HdmaState::CopyBlock);
                 }

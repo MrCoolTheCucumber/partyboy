@@ -48,9 +48,13 @@ impl GameBoy {
         GameBoyBuilder::new()
     }
 
-    fn tick_cpu_related(gb: &mut GameBoy) {
-        Interrupts::tick(&mut gb.bus.interrupts, &mut gb.cpu);
-        gb.cpu.tick(&mut gb.bus, &mut gb.instruction_cache);
+    fn tick_cpu_related(&mut self) {
+        Interrupts::tick(&mut self.bus.interrupts, &mut self.cpu);
+        self.cpu.tick(&mut self.bus, &mut self.instruction_cache);
+
+        if self.bus.cpu_speed_controller.is_double_speed() {
+            self.cpu.tick(&mut self.bus, &mut self.instruction_cache);
+        }
     }
 
     pub fn tick(&mut self) {
@@ -60,7 +64,7 @@ impl GameBoy {
 
         // check the controller state first before handling!
         if !self.hdma_controller.currently_copying(&self.bus) {
-            GameBoy::tick_cpu_related(self);
+            self.tick_cpu_related();
         }
 
         self.hdma_controller
@@ -72,9 +76,14 @@ impl GameBoy {
         }
 
         self.bus.tick_ppu();
-        OamDma::dma_tick(&mut self.bus);
 
+        OamDma::dma_tick(&mut self.bus);
         self.bus.timer.tick(&mut self.bus.interrupts);
+
+        if self.bus.cpu_speed_controller.is_double_speed() {
+            OamDma::dma_tick(&mut self.bus);
+            self.bus.timer.tick(&mut self.bus.interrupts);
+        }
     }
 
     pub fn get_frame_buffer(&self) -> &[Rgb] {

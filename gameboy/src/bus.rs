@@ -3,7 +3,9 @@
 use std::fmt::Display;
 
 use super::{cartridge::Cartridge, input::Input, interrupts::Interrupts, ppu::Ppu, timer::Timer};
-use crate::{builder::SerialWriteHandler, dma::oam::OamDma};
+use crate::{
+    builder::SerialWriteHandler, cpu::speed_controller::CpuSpeedController, dma::oam::OamDma,
+};
 
 include!(concat!(env!("OUT_DIR"), "/boot_rom.rs"));
 
@@ -61,6 +63,7 @@ pub(crate) struct Bus {
     pub interrupts: Interrupts,
     pub timer: Timer,
     pub input: Input,
+    pub cpu_speed_controller: CpuSpeedController,
 }
 
 impl Bus {
@@ -86,6 +89,7 @@ impl Bus {
             interrupts: Interrupts::new(),
             timer: Timer::new(),
             input: Input::new(),
+            cpu_speed_controller: CpuSpeedController::new(CgbCompatibility::CgbOnly),
         }
     }
 
@@ -143,6 +147,7 @@ impl Bus {
             0xFF51..=0xFF55 => self.ppu.hdma.read_u8(addr),
 
             0xFF40..=0xFF4B => self.ppu.read_u8(addr),
+            0xFF4D => self.cpu_speed_controller.read_key1(),
             0xFF4F => self.ppu.read_u8(addr),
             0xFF68..=0xFF6B => self.ppu.read_u8(addr),
 
@@ -193,6 +198,8 @@ impl Bus {
                 self.console_compatibility_mode = val;
                 self.ppu
                     .set_console_compatibility(self.console_compatibility_mode);
+                self.cpu_speed_controller
+                    .set_console_compatibility(self.console_compatibility_mode);
                 log::info!(
                     "Setting compatibility mode: {}",
                     self.console_compatibility_mode
@@ -213,6 +220,11 @@ impl Bus {
             0xFF51..=0xFF55 => self.ppu.hdma.write_u8(addr, val),
 
             0xFF40..=0xFF4B => self.ppu.write_u8(addr, val, &mut self.interrupts),
+            0xFF4D => {
+                // Key1 (speed switching)
+                let prepare = (val & 0b0000_0001) == 1;
+                self.cpu_speed_controller.set_prepare_speed_switch(prepare);
+            }
             0xFF4F => self.ppu.write_u8(addr, val, &mut self.interrupts),
             0xFF68..=0xFF6C => self.ppu.write_u8(addr, val, &mut self.interrupts),
 

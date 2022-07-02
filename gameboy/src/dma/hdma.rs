@@ -136,18 +136,18 @@ impl Hdma {
                 self.bytes_transfered = 0;
                 self.hdma5 = val & 0b0111_1111;
 
-                #[cfg(debug_assertions)]
-                if self.current_dma.is_some() {
-                    log::debug!(
-                        "Starting {}: Src: {:#06X}, Dest: {:#06X}, blocks: {}, bytes: {}, raw: {:#04X}",
-                        dma_type,
-                        self.src_addr,
-                        self.dest_addr,
-                        (val & 0x7F) + 1,
-                        self.bytes_to_transfer,
-                        val
-                    );
-                }
+                // #[cfg(debug_assertions)]
+                // if self.current_dma.is_some() {
+                //     log::debug!(
+                //         "Starting {}: Src: {:#06X}, Dest: {:#06X}, blocks: {}, bytes: {}, raw: {:#04X}",
+                //         dma_type,
+                //         self.src_addr,
+                //         self.dest_addr,
+                //         (val & 0x7F) + 1,
+                //         self.bytes_to_transfer,
+                //         val
+                //     );
+                // }
             }
 
             _ => panic!("HDMA doesnt handle writing to address: {:#06X}", addr),

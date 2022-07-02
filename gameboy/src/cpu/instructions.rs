@@ -1101,9 +1101,15 @@ fn jp_hl() -> Instruction {
 
 fn stop() -> Instruction {
     instruction! {
-        InstructionStep::Instant(|_, _| {
+        InstructionStep::Instant(|_, bus| {
             // TODO: for now lets just do nothing!
             // cpu.stopped = true;
+            if bus.cpu_speed_controller.is_speed_switch_prepared() {
+                bus.cpu_speed_controller.switch_speed();
+            }
+
+            // TODO: the cpu stops for 8200t? when speed switch occurs
+
             InstructionState::Finished
         })
     }

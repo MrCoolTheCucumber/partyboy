@@ -15,6 +15,7 @@
 ## PPU
 
 - https://discord.com/channels/465585922579103744/465586075830845475/957856437927813170 special matt currie test
+- http://blog.kevtris.org/blogfiles/Nitty%20Gritty%20Gameboy%20VRAM%20Timing.txt
 
 ## HDMA
 
@@ -82,3 +83,15 @@ Just search for "pinball" in the #gb channel
 
 - http://web.archive.org/web/20210223205311/https://byuu.net/video/color-emulation/
 - https://stackoverflow.com/questions/4409763/how-to-convert-from-rgb555-to-rgb888-in-c
+
+### Odd Mode
+
+- "You're speed switching with LCDC on
+  it causes odd mode"
+- Odd mode is when the ppu/cpu are out of sync, there are 3 possible allignments
+  "there's 4 alignments given 1 single-speed m-cycle is 4 dots, 3 of which are "odd""
+- "Confirmed!
+  Turning the LCD on in double speed mode, then switching back to single speed mode, will offset the PPU by either 1 or 3 T-cycles
+  This means there are 3 different odd modes, and it's not possible to avoid odd mode when doing this switch"
+- STOP resets DIV, therefore speedswitch resets DIV
+- https://github.com/pokemon-speedrunning/gambatte-core/tree/master/test/hwtests/lcd_offset gambatte tests for oddmode

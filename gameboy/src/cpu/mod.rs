@@ -1,5 +1,6 @@
 pub mod instructions;
 pub mod register;
+pub mod speed_controller;
 mod tests;
 
 use std::fmt::Debug;

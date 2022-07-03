@@ -55,7 +55,7 @@ mod acceptance {
     fn get_root_path() -> PathBuf {
         let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         path.pop();
-        path.push("test_roms/mooneye/acceptance/");
+        path.push("test/test_roms/mooneye/acceptance/");
         path
     }
 

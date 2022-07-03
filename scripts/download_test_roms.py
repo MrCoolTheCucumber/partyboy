@@ -50,7 +50,7 @@ while path.name != "partyboy":
         sys.exit();
     path = path.parent
 
-path = path.joinpath("test_roms")
+path = path.joinpath("test/test_roms")
 path.mkdir(exist_ok=True)
 os.chdir(path)
 

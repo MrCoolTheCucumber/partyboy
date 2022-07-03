@@ -9,6 +9,7 @@ perf.data
 perf.data.old
 
 # tests
+/test/test_roms
 /test_roms
 
 # hmm

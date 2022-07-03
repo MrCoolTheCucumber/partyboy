@@ -44,7 +44,7 @@ mod cpu_instrs {
     fn get_root_path() -> PathBuf {
         let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         path.pop();
-        path.push("test_roms/blargg/");
+        path.push("test/test_roms/blargg/");
         path.push("cpu_instrs/individual/");
         path
     }

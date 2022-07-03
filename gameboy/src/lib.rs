@@ -5,7 +5,7 @@ mod cpu;
 mod dma;
 pub mod input;
 mod interrupts;
-mod ppu;
+pub mod ppu;
 mod timer;
 
 use builder::SerialWriteHandler;

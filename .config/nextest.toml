@@ -3,5 +3,16 @@
 # written. Profile-specific storage is currently written to dir/<profile-name>.
 dir = "target/nextest"
 
+[profile.default]
+fail-fast = false
+failure-output = "immediate-final"
+
+[profile.ci]
+# Print out output for failing tests as soon as they fail, and also at the end
+# of the run (for easy scrollability).
+failure-output = "immediate-final"
+# Do not cancel the test run on the first failure.
+fail-fast = false
+
 [profile.default.junit]
 path = "junit.xml"

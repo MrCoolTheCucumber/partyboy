@@ -42,8 +42,14 @@ jobs:
       - name: install libsdl2-dev for SDL2
         run: sudo apt-get install libsdl2-dev
 
-      - name: Build
-        run: cargo build --profile ci --verbose
+      - name: setup nextest
+        run: |
+          mkdir -p ${CARGO_HOME}/bin
+          curl -LsSf https://get.nexte.st/latest/linux | tar zxf - -C ${CARGO_HOME}/bin
+
+      # - name: Build
+      #   run: cargo build --profile ci --verbose
+      # nextest will build
 
       - name: Run tests
-        run: cargo test --profile ci --verbose
+        run: cargo nextest run --profile ci --filter-expr /^()|()|()|()$/

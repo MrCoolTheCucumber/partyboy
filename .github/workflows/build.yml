@@ -12,7 +12,9 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
-
+    env:
+      CARGO_PROFILE_dev_OPT_LEVEL: 1
+      CARGO_PROFILE_test_OPT_LEVEL: 1
     steps:
       - name: Checkout repo
         uses: actions/checkout@v3

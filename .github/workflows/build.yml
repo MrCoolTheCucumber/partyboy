@@ -54,19 +54,19 @@ jobs:
       - name: Run tests
         run: python ./scripts/test_ci.py
 
-      - name: Publish Test Report
-        uses: mikepenz/action-junit-report@v3
-        if: always()
-        with:
-          report_paths: "target/nextest/ci/junit.xml"
+      # - name: Publish Test Report
+      #   uses: mikepenz/action-junit-report@v3
+      #   if: always()
+      #   with:
+      #     report_paths: "target/nextest/ci/junit.xml"
 
-      - name: Convert junit report to markdown
-        if: always()
-        working-directory: ./junit_to_md
-        run: cargo r
+      # - name: Convert junit report to markdown
+      #   if: always()
+      #   working-directory: ./junit_to_md
+      #   run: cargo r
 
-      - uses: actions/upload-artifact@v3
-        if: always()
-        with:
-          name: test-report-md
-          path: TestReport.md
+      # - uses: actions/upload-artifact@v3
+      #   if: always()
+      #   with:
+      #     name: test-report-md
+      #     path: TestReport.md

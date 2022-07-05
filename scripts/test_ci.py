@@ -25,4 +25,4 @@ subprocess.call([
     'ci',
     '-E',
     filter_exp
-], shell=True)
+])

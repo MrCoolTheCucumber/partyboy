@@ -22,3 +22,7 @@ codegen-units = 1
 [profile.test]
 opt-level = 3
 overflow-checks = false
+
+[profile.ci]
+inherits = "dev"
+opt-level = 1

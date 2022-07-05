@@ -285,7 +285,7 @@ impl Ppu {
         self.ly = 0;
         self.line_clock_cycles = 0;
         self.mode_clock_cycles = 0;
-        self.mode = PpuMode::HBlank;
+        self.mode = PpuMode::OAM;
         self.frame_buffer = [Rgb::const_mono(255); 160 * 144];
         self.stat &= 0b1111_1100;
     }

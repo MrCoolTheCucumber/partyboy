@@ -50,4 +50,4 @@ jobs:
       # nextest will build
 
       - name: Run tests
-        run: cargo nextest run --profile ci --filter-expr /^()|()|()|()$/
+        run: python ./scripts/test_ci.py

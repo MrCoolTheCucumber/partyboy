@@ -30,6 +30,7 @@ if os.path.exists(file_name):
     print("Skipping {}, already found.".format(file_name))
 else:
     print("Fetching {}.".format(file_name))
-    with urllib.request.urlopen(url) as response, open(file_name, 'wb') as out_file:
+    with urllib.request.urlopen(url, context=ctx) as response, open(file_name, 'wb') as out_file:
         shutil.copyfileobj(response, out_file)
+    print("Fetched.")
     

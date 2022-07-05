@@ -14,10 +14,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: checkout repo
+      - name: Checkout repo
         uses: actions/checkout@v3
 
-      - name: cache (cargo)
+      - name: Cache (cargo)
         uses: actions/cache@v3
         with:
           path: |
@@ -28,24 +28,22 @@ jobs:
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: setup python
+      - name: Setup python
         uses: actions/setup-python@v2
         with:
           python-version: 3.8
 
-      - name: run download_test_roms script
+      - name: Run download_test_roms script
         run: python ./scripts/download_test_roms.py
 
-      - name: run ci script
+      - name: Run ci script
         run: python ./scripts/ci.py
 
-      - name: install libsdl2-dev for SDL2
+      - name: Install libsdl2-dev for SDL2
         run: sudo apt-get install libsdl2-dev
 
-      - name: setup nextest
-        run: |
-          mkdir -p ${CARGO_HOME}/bin
-          curl -LsSf https://get.nexte.st/latest/linux | tar zxf - -C ${CARGO_HOME}/bin
+      - name: Install nextest
+        uses: taiki-e/install-action@nextest
 
       # - name: Build
       #   run: cargo build --profile ci --verbose

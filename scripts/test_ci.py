@@ -6,7 +6,7 @@ ignored_tests = [
     "intr_2_mode0_timing_sprites",
     "intr_2_oam_ok_timing",
     "stat_lyc_onoff",
-    #"mbc1::multicart_rom_8Mb"
+    "mbc1::multicart_rom_8Mb"
 ]
 
 def transform(test_name):

@@ -5,8 +5,8 @@ use quick_xml::de::from_str;
 use serde::Deserialize;
 
 fn main() {
-    let junit =
-        fs::read_to_string("..\\target\\nextest\\default\\junit.xml").expect("Unable to read file");
+    let junit = fs::read_to_string("..\\target\\nextest\\ci\\junit.xml")
+        .unwrap_or_else(|_| fs::read_to_string("..\\target\\nextest\\default\\junit.xml").unwrap());
     let test_suites: TestSuites = from_str(&junit).expect("Unable to deserialize xml");
 
     let mut markdown = String::new();

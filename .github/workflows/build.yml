@@ -17,6 +17,17 @@ jobs:
       - name: checkout repo
         uses: actions/checkout@v3
 
+      - name: cache (cargo)
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
       - name: setup python
         uses: actions/setup-python@v2
         with:
@@ -24,6 +35,9 @@ jobs:
 
       - name: run download_test_roms script
         run: python ./scripts/download_test_roms.py
+
+      - name: run ci script
+        run: python ./scripts/ci.py
 
       - name: install libsdl2-dev for SDL2
         run: sudo apt-get install libsdl2-dev

@@ -189,7 +189,7 @@ mod emulator_only {
         fn get_root_path() -> PathBuf {
             let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
             path.pop();
-            path.push("test_roms/mooneye/emulator-only/mbc1/");
+            path.push("test/test_roms/mooneye/emulator-only/mbc1/");
             path
         }
 
@@ -216,7 +216,7 @@ mod emulator_only {
         fn get_root_path() -> PathBuf {
             let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
             path.pop();
-            path.push("test_roms/mooneye/emulator-only/mbc2/");
+            path.push("test/test_roms/mooneye/emulator-only/mbc2/");
             path
         }
 
@@ -237,7 +237,7 @@ mod emulator_only {
         fn get_root_path() -> PathBuf {
             let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
             path.pop();
-            path.push("test_roms/mooneye/emulator-only/mbc5/");
+            path.push("test/test_roms/mooneye/emulator-only/mbc5/");
             path
         }
 

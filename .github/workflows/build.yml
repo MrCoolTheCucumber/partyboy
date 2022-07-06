@@ -1,0 +1,72 @@
+name: Build and Test
+
+on:
+  push:
+    branches: ["master"]
+  pull_request:
+    branches: ["master"]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      CARGO_PROFILE_dev_OPT_LEVEL: 1
+      CARGO_PROFILE_test_OPT_LEVEL: 1
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Cache (cargo)
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ steps.get-date.outputs.date }}-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Setup python
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.8
+
+      - name: Run download_test_roms script
+        run: python ./scripts/download_test_roms.py
+
+      - name: Run ci script
+        run: python ./scripts/ci.py
+
+      - name: Install libsdl2-dev for SDL2
+        run: sudo apt-get install libsdl2-dev
+
+      - name: Install nextest
+        uses: taiki-e/install-action@nextest
+
+      # - name: Build
+      #   run: cargo build --profile ci --verbose
+      # nextest will build
+
+      - name: Run tests
+        run: python ./scripts/test_ci.py
+
+      # - name: Publish Test Report
+      #   uses: mikepenz/action-junit-report@v3
+      #   if: always()
+      #   with:
+      #     report_paths: "target/nextest/ci/junit.xml"
+
+      # - name: Convert junit report to markdown
+      #   if: always()
+      #   working-directory: ./junit_to_md
+      #   run: cargo r
+
+      # - uses: actions/upload-artifact@v3
+      #   if: always()
+      #   with:
+      #     name: test-report-md
+      #     path: TestReport.md

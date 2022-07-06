@@ -65,8 +65,6 @@ jobs:
         working-directory: ./test/junit_to_md
         run: cargo r -- -p ../../target/nextest/ci/junit.xml
 
-      - uses: actions/upload-artifact@v3
+      - name: Job summary
         if: always()
-        with:
-          name: test-report-md
-          path: ./test/junit_to_md/TestReport.md
+        run: cat ./test/junit_to_md/TestReport.md >> $GITHUB_STEP_SUMMARY

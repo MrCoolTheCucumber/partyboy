@@ -3,7 +3,6 @@ members = [
     "benches",
     "frontend",
     "gameboy",
-    "junit_to_md"
 ]
 default-members = [
     "frontend",

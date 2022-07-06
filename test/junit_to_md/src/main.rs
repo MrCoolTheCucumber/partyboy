@@ -1,12 +1,19 @@
 use std::fmt::Write;
 use std::fs;
 
+use clap::Parser;
 use quick_xml::de::from_str;
 use serde::Deserialize;
 
+#[derive(Parser)]
+struct Args {
+    #[clap(short, long)]
+    path: String,
+}
+
 fn main() {
-    let junit = fs::read_to_string("..\\target\\nextest\\ci\\junit.xml")
-        .unwrap_or_else(|_| fs::read_to_string("..\\target\\nextest\\default\\junit.xml").unwrap());
+    let args: Args = Args::parse();
+    let junit = fs::read_to_string(args.path).unwrap();
     let test_suites: TestSuites = from_str(&junit).expect("Unable to deserialize xml");
 
     let mut markdown = String::new();
@@ -24,7 +31,7 @@ fn main() {
         .iter()
         .for_each(|suite| write_test_suite(&mut markdown, &suite));
 
-    fs::write("../TestReport.md", markdown).expect("Unable to create test report file");
+    fs::write("TestReport.md", markdown).expect("Unable to create test report file");
 }
 
 fn write_test_suite(markdown: &mut String, test_suite: &TestSuite) {

@@ -60,13 +60,11 @@ jobs:
       #   with:
       #     report_paths: "target/nextest/ci/junit.xml"
 
-      # - name: Convert junit report to markdown
-      #   if: always()
-      #   working-directory: ./junit_to_md
-      #   run: cargo r
+      - name: Convert junit report to markdown
+        if: always()
+        working-directory: ./test/junit_to_md
+        run: cargo r -- -p ../../target/nextest/ci/junit.xml
 
-      # - uses: actions/upload-artifact@v3
-      #   if: always()
-      #   with:
-      #     name: test-report-md
-      #     path: TestReport.md
+      - name: Job summary
+        if: always()
+        run: cat ./test/junit_to_md/TestReport.md >> $GITHUB_STEP_SUMMARY

@@ -9,7 +9,8 @@ perf.data
 perf.data.old
 
 # tests
-/test/test_roms
+/test/test_roms/**/*
+!test/test_roms/README.md
 /test_roms
 
 # hmm

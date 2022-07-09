@@ -35,7 +35,7 @@ partyboy 1.0
 A Gameboy color emulator
 
 USAGE:
-    partyboy.exe [FLAGS] --rom <rom_path>
+    partyboy [FLAGS] --rom <rom_path>
 
 FLAGS:
     -l, --log        Enables file logging.
@@ -51,6 +51,31 @@ OPTIONS:
 - Improve UI to not rely on CLI
 - Audio support
 - Cycle accurate FIFO PPU
+
+## Build Instructions
+
+First, make sure you have the following dependentcies:
+
+- [Rust](https://www.rust-lang.org/tools/install)
+- SDL2 - read the requirements [here](https://github.com/Rust-SDL2/rust-sdl2#requirements) for your given OS
+
+Then just run `cargo b` in the root directory of the repo.
+
+## Running Tests
+
+You will need to install:
+
+- python
+- [nextest](https://nexte.st/)
+
+You will need to install python3 to run script that will download the test roms.
+Once that is done, download the scripts:
+
+`python .\scripts\download_test_roms.py`
+
+Once that is done, run the tests by running the following in the root of the repo:
+
+`cargo nextest run` or `python .\scripts\test_local.py`
 
 ## References
 

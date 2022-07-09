@@ -63,6 +63,11 @@ Then just run `cargo b` in the root directory of the repo.
 
 ## Running Tests
 
+You will need to install:
+
+- python
+- [nextest](https://nexte.st/)
+
 You will need to install python3 to run script that will download the test roms.
 Once that is done, download the scripts:
 

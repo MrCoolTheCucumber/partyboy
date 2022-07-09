@@ -95,3 +95,7 @@ Just search for "pinball" in the #gb channel
   This means there are 3 different odd modes, and it's not possible to avoid odd mode when doing this switch"
 - STOP resets DIV, therefore speedswitch resets DIV
 - https://github.com/pokemon-speedrunning/gambatte-core/tree/master/test/hwtests/lcd_offset gambatte tests for oddmode
+
+### Cgb Acid Hell
+
+- discord://discord.com/channels/465585922579103744/465586075830845475/994213676271796266

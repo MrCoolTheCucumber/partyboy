@@ -103,6 +103,7 @@ impl Input {
     }
 }
 
+#[derive(Clone, Copy)]
 pub enum Keycode {
     Up,
     Down,

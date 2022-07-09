@@ -13,7 +13,7 @@ impl DebugerApp {
         self.logs.append(&mut logs);
 
         egui::Window::new("Log")
-            .default_size([1500.0, 500.0])
+            .default_size([400.0, 400.0])
             .resizable(true)
             .show(ctx, |ui| {
                 self.render_log_window_display(ctx, ui);
@@ -34,6 +34,7 @@ impl DebugerApp {
                 }
             },
         );
+        ui.allocate_space(ui.available_size());
     }
 }
 

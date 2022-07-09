@@ -12,7 +12,17 @@ impl DebugerApp {
                 if ui.button("Open").clicked() {
                     self.handle_open();
                 }
-            })
+            });
+
+            ui.separator();
+
+            if ui.button("Start").clicked() {
+                _ = self.to_gb_tx.send(MessageToGB::Start);
+            }
+
+            if ui.button("Stop").clicked() {
+                _ = self.to_gb_tx.send(MessageToGB::Stop);
+            }
         });
     }
 

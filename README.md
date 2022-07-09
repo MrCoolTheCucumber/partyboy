@@ -54,8 +54,6 @@ OPTIONS:
 
 ## Build Instructions
 
-### Building
-
 First, make sure you have the following dependentcies:
 
 - [Rust](https://www.rust-lang.org/tools/install)
@@ -63,7 +61,7 @@ First, make sure you have the following dependentcies:
 
 Then just run `cargo b` in the root directory of the repo.
 
-### Running Tests
+## Running Tests
 
 You will need to install python3 to run script that will download the test roms.
 Once that is done, download the scripts:

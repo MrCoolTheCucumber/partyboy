@@ -47,8 +47,8 @@ impl DebugerApp {
     }
 
     fn render_gb_window_display(&self, ctx: &egui::Context, ui: &mut egui::Ui) {
-        if let Some(gb) = &self.gameboy {
-            let image = Self::into_color_image(gb.get_frame_buffer());
+        if let Some(fb) = &self.gb_frame_buffer {
+            let image = Self::into_color_image(fb);
             let texture = ctx.load_texture("gb_display", image);
             // TODO: egui has ability to draw image with filters (e.g. nearest neighbour)
             // but its not released yet

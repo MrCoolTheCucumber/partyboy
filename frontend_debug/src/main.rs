@@ -1,20 +1,70 @@
 // https://github.com/vojty/feather-gb
 
-use std::env;
+use std::{env, time::Duration};
 
 use app::DebugerApp;
 use channel_log::ChannelLog;
-use eframe::{emath::Vec2, NativeOptions};
+use crossbeam::channel::{Receiver, Sender};
+use eframe::{egui::Context, emath::Vec2, NativeOptions};
+use gameboy::{builder::GameBoyBuilder, ppu::rgb::Rgb, GameBoy};
+use spin_sleep::LoopHelper;
 
 mod app;
 mod channel_log;
+
+pub enum MessageToGB {
+    /// init with given rom path
+    New(String),
+}
+
+pub enum MessageFromGb {
+    /// GB wants to draw frame with given frame buffer
+    Draw(Vec<Rgb>),
+}
+
+fn gb_loop(to_gb_rx: Receiver<MessageToGB>, from_gb_tx: Sender<MessageFromGb>, ctx: Context) -> ! {
+    let mut gb: Option<GameBoy> = None;
+    let mut loop_helper = LoopHelper::builder()
+        .report_interval(Duration::from_millis(500))
+        .build_with_target_rate(59.73);
+
+    loop {
+        let _ = loop_helper.loop_start();
+
+        let inbound_messages = to_gb_rx.try_iter();
+        for msg in inbound_messages {
+            match msg {
+                MessageToGB::New(rom_path) => {
+                    gb = GameBoyBuilder::new()
+                        .rom_path(rom_path.as_str())
+                        .build()
+                        .map_err(|e| log::error!("{}", e))
+                        .ok();
+                }
+            }
+        }
+
+        if let Some(gb) = &mut gb {
+            loop {
+                gb.tick();
+                if gb.consume_draw_flag() {
+                    let _ = from_gb_tx.send(MessageFromGb::Draw(gb.get_frame_buffer().to_vec()));
+                    ctx.request_repaint();
+                    break;
+                }
+            }
+        }
+
+        loop_helper.loop_sleep();
+    }
+}
 
 fn main() {
     if env::var("RUST_LOG").is_err() {
         env::set_var("RUST_LOG", "info")
     }
 
-    let (channel_log, rx) = ChannelLog::new();
+    let (channel_log, log_rx) = ChannelLog::new();
     let _ = flexi_logger::Logger::try_with_env()
         .unwrap()
         .log_to_writer(Box::new(channel_log))
@@ -28,9 +78,18 @@ fn main() {
         ..Default::default()
     };
 
+    let (to_gb_tx, to_gb_rx) = crossbeam::channel::unbounded::<MessageToGB>();
+    let (from_gb_tx, from_gb_rx) = crossbeam::channel::unbounded::<MessageFromGb>();
+
     eframe::run_native(
         "Partyboy",
         options,
-        Box::new(|cc| Box::new(DebugerApp::new(cc, rx))),
+        Box::new(|cc| {
+            let ctx = cc.egui_ctx.clone();
+            std::thread::spawn(|| {
+                gb_loop(to_gb_rx, from_gb_tx, ctx);
+            });
+            Box::new(DebugerApp::new(cc, log_rx, to_gb_tx, from_gb_rx))
+        }),
     );
 }

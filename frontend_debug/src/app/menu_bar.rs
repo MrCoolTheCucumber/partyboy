@@ -27,6 +27,7 @@ impl DebuggerApp {
             ui.separator();
 
             ui.toggle_value(&mut self.toggle_state.log, "Log");
+            ui.toggle_value(&mut self.toggle_state.palletes, "Palletes");
         });
     }
 

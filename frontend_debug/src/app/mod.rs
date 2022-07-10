@@ -30,11 +30,15 @@ pub enum InputType {
 
 pub struct ToggleState {
     log: bool,
+    palletes: bool,
 }
 
 impl Default for ToggleState {
     fn default() -> Self {
-        Self { log: true }
+        Self {
+            log: true,
+            palletes: true,
+        }
     }
 }
 

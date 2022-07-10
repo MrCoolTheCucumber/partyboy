@@ -12,6 +12,10 @@ const PALETTE_SIZE: f32 = 15.0;
 
 impl DebuggerApp {
     pub(super) fn show_palette_window(&mut self, ctx: &egui::Context) {
+        if !self.toggle_state.palletes {
+            return;
+        }
+
         egui::Window::new("Palettes")
             .default_width(200.0)
             .resizable(false)

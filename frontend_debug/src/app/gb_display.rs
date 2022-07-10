@@ -49,13 +49,11 @@ impl DebuggerApp {
     fn render_gb_window_display(&self, ctx: &egui::Context, ui: &mut egui::Ui) {
         if let Some(fb) = &self.gb_frame_buffer {
             let image = Self::into_color_image(fb);
-            let texture = ctx.load_texture("gb_display", image);
-            // TODO: egui has ability to draw image with filters (e.g. nearest neighbour)
-            // but its not released yet
+            let texture = ctx.load_texture("gb_display", image, egui::TextureFilter::Nearest);
             ui.image(&texture, texture.size_vec2() * 2.0);
         } else {
             let image = Self::blank_image();
-            let texture = ctx.load_texture("blank", image);
+            let texture = ctx.load_texture("blank", image, egui::TextureFilter::Nearest);
             ui.image(&texture, texture.size_vec2());
         }
     }

@@ -6,6 +6,7 @@ pub struct BgData;
 
 #[derive(Default)]
 pub struct GBDebugInfo {
+    pub fps: Option<f64>,
     pub palette: GBPalleteData,
 }
 
@@ -18,6 +19,7 @@ pub struct GBPalleteData {
 impl GameBoy {
     pub fn debug_info(&self) -> GBDebugInfo {
         GBDebugInfo {
+            fps: None,
             palette: self.color_palettes(),
         }
     }

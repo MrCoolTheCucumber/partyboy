@@ -19,10 +19,9 @@ fn gb_loop(to_gb_rx: Receiver<MessageToGB>, from_gb_tx: Sender<MessageFromGb>, c
         .build_with_target_rate(59.73);
 
     let mut run = true;
+    let mut turbo = false;
 
     loop {
-        let _ = loop_helper.loop_start();
-
         let inbound_messages = to_gb_rx.try_iter();
         for msg in inbound_messages {
             match msg {
@@ -40,13 +39,27 @@ fn gb_loop(to_gb_rx: Receiver<MessageToGB>, from_gb_tx: Sender<MessageFromGb>, c
                     run = false;
                 }
                 MessageToGB::KeyDown(keys) => {
+                    use eframe::egui::Key;
                     if let Some(gb) = &mut gb {
-                        keys.iter().for_each(|key| gb.key_down(*key));
+                        keys.iter().for_each(|input| match input {
+                            app::InputType::GBInput(keycode) => gb.key_down(*keycode),
+                            app::InputType::Other(key) => match key {
+                                Key::Space => turbo = true,
+                                _ => {}
+                            },
+                        });
                     }
                 }
                 MessageToGB::KeyUp(keys) => {
+                    use eframe::egui::Key;
                     if let Some(gb) = &mut gb {
-                        keys.iter().for_each(|key| gb.key_up(*key));
+                        keys.iter().for_each(|input| match input {
+                            app::InputType::GBInput(keycode) => gb.key_up(*keycode),
+                            app::InputType::Other(key) => match key {
+                                Key::Space => turbo = false,
+                                _ => {}
+                            },
+                        });
                     }
                 }
             }
@@ -54,21 +67,32 @@ fn gb_loop(to_gb_rx: Receiver<MessageToGB>, from_gb_tx: Sender<MessageFromGb>, c
 
         if run {
             if let Some(gb) = &mut gb {
+                let _ = loop_helper.loop_start();
                 loop {
                     gb.tick();
                     if gb.consume_draw_flag() {
                         let _ =
                             from_gb_tx.send(MessageFromGb::Draw(gb.get_frame_buffer().to_vec()));
 
-                        let _ = from_gb_tx.send(MessageFromGb::DebugInfo(gb.debug_info()));
+                        let mut debug_info = gb.debug_info();
+
+                        if let Some(fps) = loop_helper.report_rate() {
+                            debug_info.fps = Some(fps);
+                        }
+
+                        let _ = from_gb_tx.send(MessageFromGb::DebugInfo(debug_info));
+
                         ctx.request_repaint();
                         break;
                     }
                 }
+                if !turbo {
+                    loop_helper.loop_sleep();
+                }
             }
+        } else {
+            std::thread::sleep(Duration::from_millis(100));
         }
-
-        loop_helper.loop_sleep();
     }
 }
 

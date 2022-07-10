@@ -1,14 +1,15 @@
 use gameboy::debug::GBDebugInfo;
-use gameboy::input::Keycode;
 use gameboy::ppu::rgb::Rgb;
+
+use crate::app::InputType;
 
 pub enum MessageToGB {
     /// init with given rom path
     New(String),
     Start,
     Stop,
-    KeyDown(Vec<Keycode>),
-    KeyUp(Vec<Keycode>),
+    KeyDown(Vec<InputType>),
+    KeyUp(Vec<InputType>),
 }
 
 pub enum MessageFromGb {

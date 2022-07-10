@@ -1,5 +1,6 @@
 use eframe::{
     egui::{self, ScrollArea, TextFormat, Ui},
+    emath::Vec2,
     epaint::{text::LayoutJob, Color32, FontId},
 };
 
@@ -12,9 +13,14 @@ impl DebuggerApp {
         let mut logs: Vec<Log> = self.log_rx.try_iter().collect();
         self.logs.append(&mut logs);
 
-        egui::Window::new("Log")
+        if !self.toggle_state.log {
+            return;
+        }
+
+        egui::TopBottomPanel::bottom("log_view")
             .resizable(false)
-            .fixed_size([300.0, 400.0])
+            .min_height(200.0)
+            .max_height(200.0)
             .show(ctx, |ui| {
                 self.render_log_window_display(ctx, ui);
             });
@@ -23,20 +29,22 @@ impl DebuggerApp {
     fn render_log_window_display(&self, _: &egui::Context, ui: &mut Ui) {
         ScrollArea::vertical().stick_to_bottom().show_rows(
             ui,
-            14.0,
+            14.5,
             self.logs.len(),
             |ui, row_range| {
                 for row in row_range {
                     let log = &self.logs[row];
                     render_log_line(ui, log);
+                    ui.allocate_space(Vec2::new(ui.available_width(), 1.0));
                 }
             },
         );
-        ui.allocate_space(ui.available_size());
+        ui.allocate_space(Vec2::new(1.0, ui.available_height()));
     }
 }
 
 fn render_log_line(ui: &mut Ui, log: &Log) {
+    const FONT_SIZE: f32 = 14.0;
     let mut job = LayoutJob::default();
 
     job.append(
@@ -44,7 +52,7 @@ fn render_log_line(ui: &mut Ui, log: &Log) {
         0.0,
         TextFormat {
             color: Color32::BLACK,
-            font_id: FontId::monospace(12.0),
+            font_id: FontId::monospace(FONT_SIZE),
             ..Default::default()
         },
     );
@@ -54,7 +62,7 @@ fn render_log_line(ui: &mut Ui, log: &Log) {
         0.0,
         TextFormat {
             color: log.level_color(),
-            font_id: FontId::monospace(12.0),
+            font_id: FontId::monospace(FONT_SIZE),
             ..Default::default()
         },
     );
@@ -64,7 +72,7 @@ fn render_log_line(ui: &mut Ui, log: &Log) {
         0.0,
         TextFormat {
             color: Color32::BLACK,
-            font_id: FontId::monospace(12.0),
+            font_id: FontId::monospace(FONT_SIZE),
             ..Default::default()
         },
     );
@@ -74,7 +82,7 @@ fn render_log_line(ui: &mut Ui, log: &Log) {
         0.0,
         TextFormat {
             color: Color32::BLACK,
-            font_id: FontId::monospace(12.0),
+            font_id: FontId::monospace(FONT_SIZE),
             ..Default::default()
         },
     );
@@ -84,7 +92,7 @@ fn render_log_line(ui: &mut Ui, log: &Log) {
         0.0,
         TextFormat {
             color: Color32::BLACK,
-            font_id: FontId::monospace(12.0),
+            font_id: FontId::monospace(FONT_SIZE),
             ..Default::default()
         },
     );
@@ -94,7 +102,7 @@ fn render_log_line(ui: &mut Ui, log: &Log) {
         0.0,
         TextFormat {
             color: Color32::BLACK,
-            font_id: FontId::monospace(12.0),
+            font_id: FontId::monospace(FONT_SIZE),
             ..Default::default()
         },
     );

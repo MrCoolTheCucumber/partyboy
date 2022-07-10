@@ -23,6 +23,10 @@ impl DebuggerApp {
             if ui.button("Stop").clicked() {
                 _ = self.to_gb_tx.send(MessageToGB::Stop);
             }
+
+            ui.separator();
+
+            ui.toggle_value(&mut self.toggle_state.log, "Log");
         });
     }
 

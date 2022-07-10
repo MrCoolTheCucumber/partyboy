@@ -9,8 +9,9 @@ mod gb_display;
 mod log_window;
 mod menu_bar;
 mod palette_window;
+mod side_panel;
 
-const KEYS: [egui::Key; 8] = [
+const KEYS: [egui::Key; 9] = [
     egui::Key::W,
     egui::Key::A,
     egui::Key::S,
@@ -19,12 +20,31 @@ const KEYS: [egui::Key; 8] = [
     egui::Key::K,
     egui::Key::M,
     egui::Key::N,
+    egui::Key::Space,
 ];
+
+pub enum InputType {
+    GBInput(Keycode),
+    Other(egui::Key),
+}
+
+pub struct ToggleState {
+    log: bool,
+}
+
+impl Default for ToggleState {
+    fn default() -> Self {
+        Self { log: true }
+    }
+}
 
 pub struct DebuggerApp {
     gb_frame_buffer: Option<Vec<Rgb>>,
     logs: Vec<Log>,
     gb_debug_info: GBDebugInfo,
+    fps: f64,
+
+    toggle_state: ToggleState,
 
     log_rx: Receiver<Log>,
     to_gb_tx: Sender<MessageToGB>,
@@ -42,6 +62,8 @@ impl DebuggerApp {
             gb_frame_buffer: None,
             logs: Vec::new(),
             gb_debug_info: GBDebugInfo::default(),
+            fps: 0.0,
+            toggle_state: ToggleState::default(),
             log_rx,
             to_gb_tx,
             from_gb_rx,
@@ -53,29 +75,29 @@ impl DebuggerApp {
         let key_downs = input
             .keys_down
             .iter()
-            .filter_map(|key| Self::into_gb_keycode(key))
+            .filter_map(|key| Self::into_input(key))
             .collect::<Vec<_>>();
         let _ = self.to_gb_tx.send(MessageToGB::KeyDown(key_downs));
 
         let key_ups = KEYS
             .iter()
             .filter(|key| input.key_released(**key))
-            .filter_map(|key| Self::into_gb_keycode(key))
+            .filter_map(|key| Self::into_input(key))
             .collect::<Vec<_>>();
         let _ = self.to_gb_tx.send(MessageToGB::KeyUp(key_ups));
     }
 
-    fn into_gb_keycode(key: &egui::Key) -> Option<Keycode> {
+    fn into_input(key: &egui::Key) -> Option<InputType> {
         match key {
-            egui::Key::W => Some(Keycode::Up),
-            egui::Key::A => Some(Keycode::Left),
-            egui::Key::S => Some(Keycode::Down),
-            egui::Key::D => Some(Keycode::Right),
-            egui::Key::O => Some(Keycode::A),
-            egui::Key::K => Some(Keycode::B),
-            egui::Key::M => Some(Keycode::Start),
-            egui::Key::N => Some(Keycode::Select),
-            _ => None,
+            egui::Key::W => Some(InputType::GBInput(Keycode::Up)),
+            egui::Key::A => Some(InputType::GBInput(Keycode::Left)),
+            egui::Key::S => Some(InputType::GBInput(Keycode::Down)),
+            egui::Key::D => Some(InputType::GBInput(Keycode::Right)),
+            egui::Key::O => Some(InputType::GBInput(Keycode::A)),
+            egui::Key::K => Some(InputType::GBInput(Keycode::B)),
+            egui::Key::M => Some(InputType::GBInput(Keycode::Start)),
+            egui::Key::N => Some(InputType::GBInput(Keycode::Select)),
+            key => Some(InputType::Other(*key)),
         }
     }
 }
@@ -95,6 +117,7 @@ impl eframe::App for DebuggerApp {
         egui::TopBottomPanel::top("my_panel").show(ctx, |ui| {
             self.show_menu(ui);
         });
+        self.show_side_panel(ctx);
         self.show_gb_display_window(ctx);
         self.show_log_window(ctx);
         self.show_palette_window(ctx);

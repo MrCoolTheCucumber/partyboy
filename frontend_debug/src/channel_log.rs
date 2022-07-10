@@ -49,7 +49,6 @@ impl LogWriter for ChannelLog {
         _: &mut flexi_logger::DeferredNow,
         record: &flexi_logger::Record,
     ) -> std::io::Result<()> {
-        // let log_string = format!("[{} {}] {}", record.level(), record.target(), record.args());
         let log = Log {
             level: record.level(),
             target: record.target().to_string(),

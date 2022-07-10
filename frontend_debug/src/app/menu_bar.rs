@@ -1,9 +1,9 @@
 use eframe::egui;
 use rfd::FileDialog;
 
-use crate::{DebugerApp, MessageToGB};
+use crate::{DebuggerApp, MessageToGB};
 
-impl DebugerApp {
+impl DebuggerApp {
     pub(super) fn show_menu(&mut self, ui: &mut egui::Ui) {
         use egui::menu;
 

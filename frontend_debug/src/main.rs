@@ -1,6 +1,6 @@
 use std::{env, time::Duration};
 
-use app::DebugerApp;
+use app::DebuggerApp;
 use channel_log::ChannelLog;
 use crossbeam::channel::{Receiver, Sender};
 use eframe::{egui::Context, emath::Vec2, NativeOptions};
@@ -59,6 +59,8 @@ fn gb_loop(to_gb_rx: Receiver<MessageToGB>, from_gb_tx: Sender<MessageFromGb>, c
                     if gb.consume_draw_flag() {
                         let _ =
                             from_gb_tx.send(MessageFromGb::Draw(gb.get_frame_buffer().to_vec()));
+
+                        let _ = from_gb_tx.send(MessageFromGb::DebugInfo(gb.debug_info()));
                         ctx.request_repaint();
                         break;
                     }
@@ -100,7 +102,7 @@ fn main() {
             std::thread::spawn(|| {
                 gb_loop(to_gb_rx, from_gb_tx, ctx);
             });
-            Box::new(DebugerApp::new(cc, log_rx, to_gb_tx, from_gb_rx))
+            Box::new(DebuggerApp::new(cc, log_rx, to_gb_tx, from_gb_rx))
         }),
     );
 }

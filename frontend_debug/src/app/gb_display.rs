@@ -4,7 +4,7 @@ use eframe::{
 };
 use gameboy::ppu::rgb::Rgb;
 
-use super::DebugerApp;
+use super::DebuggerApp;
 
 pub const DEFAULT_SCALE: f32 = 2.0;
 pub const WIDTH: f32 = 160.0;
@@ -12,7 +12,7 @@ pub const HEIGHT: f32 = 144.0;
 pub const SCALED_VEC_SIZE: usize =
     (WIDTH * DEFAULT_SCALE) as usize * (HEIGHT * DEFAULT_SCALE) as usize;
 
-impl DebugerApp {
+impl DebuggerApp {
     pub(super) fn show_gb_display_window(&self, ctx: &egui::Context) {
         egui::Window::new("GB Display")
             .default_size([HEIGHT * DEFAULT_SCALE, WIDTH * DEFAULT_SCALE])

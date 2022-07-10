@@ -5,16 +5,16 @@ use eframe::{
 
 use crate::channel_log::Log;
 
-use super::DebugerApp;
+use super::DebuggerApp;
 
-impl DebugerApp {
+impl DebuggerApp {
     pub(super) fn show_log_window(&mut self, ctx: &egui::Context) {
         let mut logs: Vec<Log> = self.log_rx.try_iter().collect();
         self.logs.append(&mut logs);
 
         egui::Window::new("Log")
-            .default_size([400.0, 400.0])
-            .resizable(true)
+            .resizable(false)
+            .fixed_size([300.0, 400.0])
             .show(ctx, |ui| {
                 self.render_log_window_display(ctx, ui);
             });
@@ -28,8 +28,6 @@ impl DebugerApp {
             |ui, row_range| {
                 for row in row_range {
                     let log = &self.logs[row];
-                    // let log_string = format!("[{} {}] {}", record.level(), record.target(), record.args());
-                    // ui.monospace(log);
                     render_log_line(ui, log);
                 }
             },

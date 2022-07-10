@@ -1,13 +1,14 @@
 use crossbeam::channel::{Receiver, Sender};
 use eframe::egui;
-use gameboy::input::Keycode;
 use gameboy::ppu::rgb::Rgb;
+use gameboy::{debug::GBDebugInfo, input::Keycode};
 
 use crate::{channel_log::Log, MessageFromGb, MessageToGB};
 
 mod gb_display;
 mod log_window;
 mod menu_bar;
+mod palette_window;
 
 const KEYS: [egui::Key; 8] = [
     egui::Key::W,
@@ -20,16 +21,17 @@ const KEYS: [egui::Key; 8] = [
     egui::Key::N,
 ];
 
-pub struct DebugerApp {
+pub struct DebuggerApp {
     gb_frame_buffer: Option<Vec<Rgb>>,
     logs: Vec<Log>,
+    gb_debug_info: GBDebugInfo,
 
     log_rx: Receiver<Log>,
     to_gb_tx: Sender<MessageToGB>,
     from_gb_rx: Receiver<MessageFromGb>,
 }
 
-impl DebugerApp {
+impl DebuggerApp {
     pub fn new(
         _: &eframe::CreationContext,
         log_rx: Receiver<Log>,
@@ -39,6 +41,7 @@ impl DebugerApp {
         Self {
             gb_frame_buffer: None,
             logs: Vec::new(),
+            gb_debug_info: GBDebugInfo::default(),
             log_rx,
             to_gb_tx,
             from_gb_rx,
@@ -77,11 +80,13 @@ impl DebugerApp {
     }
 }
 
-impl eframe::App for DebugerApp {
+impl eframe::App for DebuggerApp {
     fn update(&mut self, ctx: &eframe::egui::Context, _: &mut eframe::Frame) {
-        if let Ok(msg) = self.from_gb_rx.try_recv() {
+        let messages = self.from_gb_rx.try_iter();
+        for msg in messages {
             match msg {
                 MessageFromGb::Draw(fb) => self.gb_frame_buffer = Some(fb),
+                MessageFromGb::DebugInfo(debug_info) => self.gb_debug_info = debug_info,
             }
         }
 
@@ -92,6 +97,7 @@ impl eframe::App for DebugerApp {
         });
         self.show_gb_display_window(ctx);
         self.show_log_window(ctx);
+        self.show_palette_window(ctx);
 
         // TODO:
         // - Tile/Map/Sprite viewer

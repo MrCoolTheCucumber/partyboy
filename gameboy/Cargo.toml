@@ -22,3 +22,4 @@ harness = false
 
 [features]
 debug_fetch = []
+debug_info = []

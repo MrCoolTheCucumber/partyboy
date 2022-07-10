@@ -5,11 +5,14 @@ use gameboy::{debug::GBDebugInfo, input::Keycode};
 
 use crate::{channel_log::Log, MessageFromGb, MessageToGB};
 
+use self::tile_window::TileBankState;
+
 mod gb_display;
 mod log_window;
 mod menu_bar;
 mod palette_window;
 mod side_panel;
+mod tile_window;
 
 const KEYS: [egui::Key; 9] = [
     egui::Key::W,
@@ -31,6 +34,8 @@ pub enum InputType {
 pub struct ToggleState {
     log: bool,
     palletes: bool,
+    tile_bank: TileBankState,
+    tile: bool,
 }
 
 impl Default for ToggleState {
@@ -38,6 +43,8 @@ impl Default for ToggleState {
         Self {
             log: true,
             palletes: true,
+            tile: true,
+            tile_bank: TileBankState::Bank0,
         }
     }
 }
@@ -125,6 +132,7 @@ impl eframe::App for DebuggerApp {
         self.show_gb_display_window(ctx);
         self.show_log_window(ctx);
         self.show_palette_window(ctx);
+        self.show_tile_window(ctx);
 
         // TODO:
         // - Tile/Map/Sprite viewer
@@ -133,6 +141,9 @@ impl eframe::App for DebuggerApp {
         // - Rom selector?
         // - ppu event viewer
         // - SideBar of general info? (speed mode, are we in hdma, fps, etc)
+        //   - Current cycle?
+        //   - Run until cycle?
+        //   - Step forward by num of cycles?
 
         egui::CentralPanel::default().show(ctx, |_| {});
 

@@ -12,6 +12,8 @@ mod app;
 mod channel_log;
 mod messages;
 
+pub static mut CYCLE_COUNT: u64 = 0;
+
 fn gb_loop(to_gb_rx: Receiver<MessageToGB>, from_gb_tx: Sender<MessageFromGb>, ctx: Context) -> ! {
     let mut gb: Option<GameBoy> = None;
     let mut loop_helper = LoopHelper::builder()
@@ -31,6 +33,8 @@ fn gb_loop(to_gb_rx: Receiver<MessageToGB>, from_gb_tx: Sender<MessageFromGb>, c
                         .build()
                         .map_err(|e| log::error!("{}", e))
                         .ok();
+
+                    unsafe { CYCLE_COUNT = 0 }
                 }
                 MessageToGB::Start => {
                     run = true;
@@ -69,6 +73,7 @@ fn gb_loop(to_gb_rx: Receiver<MessageToGB>, from_gb_tx: Sender<MessageFromGb>, c
             if let Some(gb) = &mut gb {
                 let _ = loop_helper.loop_start();
                 loop {
+                    unsafe { CYCLE_COUNT += 1 }
                     gb.tick();
                     if gb.consume_draw_flag() {
                         let _ =

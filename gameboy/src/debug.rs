@@ -2,8 +2,6 @@
 
 use crate::{ppu::rgb::Rgb, GameBoy};
 
-pub struct BgData;
-
 #[derive(Default)]
 pub struct GBDebugInfo {
     pub fps: Option<f64>,
@@ -64,12 +62,6 @@ impl GameBoy {
     // in vram bank [1], 0x9800 - 0x9FFF contain attributes for the
     // to apply to the corresponding tile map at vram bank [0]
 
-    // basic greyscale palette
-    // { 255, 255, 255 },
-    // { 192, 192, 192 },
-    // { 96, 96, 96 },
-    // { 0, 0, 0 },
-
     fn get_tile_data_from_bank(&self, bank: usize) -> Vec<GBTile> {
         let ppu = &self.bus().ppu;
         let mut bank_tiles = Vec::new();
@@ -109,5 +101,13 @@ impl GameBoy {
             bank_0: self.get_tile_data_from_bank(0),
             bank_1: self.get_tile_data_from_bank(1),
         }
+    }
+
+    // we are already sending all of the tile and palette data,
+    // so technically we can just send all the map data and
+    // reconstruct the maps with that
+
+    fn map_data(&self) {
+        todo!()
     }
 }

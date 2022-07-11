@@ -1,3 +1,5 @@
+use crate::CYCLE_COUNT;
+
 use super::DebuggerApp;
 use eframe::egui::{self, Ui};
 
@@ -9,11 +11,14 @@ impl DebuggerApp {
     }
 
     fn render_side_panel_display(&mut self, ui: &mut Ui) {
-        ui.heading("PartyBoy Debug");
+        ui.vertical_centered(|ui| {
+            ui.heading("PartyBoy");
+        });
 
         ui.separator();
 
         self.fps = self.gb_debug_info.fps.unwrap_or(self.fps);
         ui.label(format!("FPS: {:.2}", self.fps));
+        ui.label(format!("Cycles: {}", unsafe { CYCLE_COUNT }));
     }
 }

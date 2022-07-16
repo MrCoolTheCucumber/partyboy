@@ -8,6 +8,9 @@ mod interrupts;
 pub mod ppu;
 mod timer;
 
+#[cfg(feature = "debug_info")]
+pub mod debug;
+
 use builder::SerialWriteHandler;
 use dma::{
     hdma::{Hdma, HdmaController},
@@ -105,5 +108,10 @@ impl GameBoy {
 
     pub fn key_up(&mut self, key: Keycode) {
         self.bus.input.key_up(key);
+    }
+
+    #[cfg(feature = "debug_info")]
+    pub(crate) fn bus(&self) -> &Bus {
+        &self.bus
     }
 }

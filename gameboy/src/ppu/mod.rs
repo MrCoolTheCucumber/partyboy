@@ -242,6 +242,10 @@ impl Ppu {
             bg_color_palette_index: 0,
             bg_color_palette_auto_increment: false,
 
+            // TODO: confirm below is conformed to
+            // "Note that while 4 colors are stored per OBJ palette, color #0 is never used,
+            // as it’s always transparent. It’s thus fine to write garbage values,
+            // or even leave color #0 uninitialized." - Pandocs
             sprite_color_palette_ram: [0xFF; 64],
             sprite_color_palette: [[Rgb::default(); 4]; 8],
             sprite_color_palette_specification: 0xFF,
@@ -251,6 +255,16 @@ impl Ppu {
             line_clock_cycles: 0,
             mode_clock_cycles: 0,
         }
+    }
+
+    #[cfg(feature = "debug_info")]
+    pub fn bg_color_palette(&self) -> [[Rgb; 4]; 8] {
+        self.bg_color_palette.clone()
+    }
+
+    #[cfg(feature = "debug_info")]
+    pub fn sprite_color_palette(&self) -> [[Rgb; 4]; 8] {
+        self.sprite_color_palette.clone()
     }
 
     pub fn set_console_compatibility(&mut self, mode: CgbCompatibility) {

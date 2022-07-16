@@ -2,6 +2,7 @@
 members = [
     "benches",
     "frontend",
+    "frontend_debug",
     "gameboy",
     "test/junit_to_md"
 ]

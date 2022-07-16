@@ -20,5 +20,13 @@ impl DebuggerApp {
         self.fps = self.gb_debug_info.fps.unwrap_or(self.fps);
         ui.label(format!("FPS: {:.2}", self.fps));
         ui.label(format!("Cycles: {}", unsafe { CYCLE_COUNT }));
+
+        ui.separator();
+
+        let ppu_info = &self.gb_debug_info.ppu_info;
+        ui.label(format!("scx: {}", ppu_info.scx));
+        ui.label(format!("scy: {}", ppu_info.scy));
+        ui.label(format!("stat: {:#010b}", ppu_info.stat));
+        ui.label(format!("lcdc: {:#010b}", ppu_info.lcdc));
     }
 }

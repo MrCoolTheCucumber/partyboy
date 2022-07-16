@@ -111,6 +111,7 @@ fn main() {
     let _ = flexi_logger::Logger::try_with_env()
         .unwrap()
         .log_to_writer(Box::new(channel_log))
+        .log_to_stdout()
         .start()
         .unwrap();
 
@@ -125,7 +126,7 @@ fn main() {
     let (from_gb_tx, from_gb_rx) = crossbeam::channel::unbounded::<MessageFromGb>();
 
     eframe::run_native(
-        "Partyboy",
+        "Partyboy Debug",
         options,
         Box::new(|cc| {
             let ctx = cc.egui_ctx.clone();

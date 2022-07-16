@@ -9,9 +9,10 @@ use crate::{
 
 include!(concat!(env!("OUT_DIR"), "/boot_rom.rs"));
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub enum CgbCompatibility {
     None,
+    #[default]
     CgbOnly,
     CgbAndDmg,
 }

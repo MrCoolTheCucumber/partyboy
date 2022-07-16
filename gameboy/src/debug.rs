@@ -1,12 +1,16 @@
 #![allow(dead_code)]
 
-use crate::{ppu::rgb::Rgb, GameBoy};
+use crate::{bus::CgbCompatibility, ppu::rgb::Rgb, GameBoy};
 
 #[derive(Default)]
 pub struct GBDebugInfo {
     pub fps: Option<f64>,
+    pub compatibility_mode: CgbCompatibility,
     pub palette: GBPalleteData,
     pub tiles: GBTileData,
+    pub ppu_info: GBPpuInfo,
+    pub map_data: GBMapInfo,
+    pub tile_attr_data: GBTileAttributeInfo,
 }
 
 #[derive(Default)]
@@ -35,12 +39,56 @@ impl Default for GBTileData {
     }
 }
 
+#[derive(Default)]
+pub struct GBPpuInfo {
+    pub lcdc: u8,
+    pub stat: u8,
+    pub scy: u8,
+    pub scx: u8,
+}
+
+#[allow(non_snake_case)]
+pub struct GBMapInfo {
+    pub bg_map_9800: [u8; 32 * 32],
+    pub bg_map_9C00: [u8; 32 * 32],
+}
+
+impl Default for GBMapInfo {
+    fn default() -> Self {
+        let default_map = [0; 32 * 32];
+        Self {
+            bg_map_9800: default_map.clone(),
+            bg_map_9C00: default_map,
+        }
+    }
+}
+
+#[allow(non_snake_case)]
+pub struct GBTileAttributeInfo {
+    pub tile_attr_9800: [u8; 32 * 32],
+    pub tile_attr_9C00: [u8; 32 * 32],
+}
+
+impl Default for GBTileAttributeInfo {
+    fn default() -> Self {
+        let default_attr = [0; 32 * 32];
+        Self {
+            tile_attr_9800: default_attr.clone(),
+            tile_attr_9C00: default_attr,
+        }
+    }
+}
+
 impl GameBoy {
     pub fn debug_info(&self) -> GBDebugInfo {
         GBDebugInfo {
             fps: None,
+            compatibility_mode: self.bus().console_compatibility_mode,
             palette: self.color_palettes(),
             tiles: self.tile_data(),
+            ppu_info: self.ppu_general(),
+            map_data: self.map_data(),
+            tile_attr_data: self.tile_attribute_data(),
         }
     }
 
@@ -103,11 +151,38 @@ impl GameBoy {
         }
     }
 
-    // we are already sending all of the tile and palette data,
-    // so technically we can just send all the map data and
-    // reconstruct the maps with that
+    fn ppu_general(&self) -> GBPpuInfo {
+        let ppu = &self.bus().ppu;
+        GBPpuInfo {
+            lcdc: ppu.lcdc,
+            stat: ppu.stat,
+            scx: ppu.scx,
+            scy: ppu.scy,
+        }
+    }
 
-    fn map_data(&self) {
-        todo!()
+    fn get_data_at_addr(&self, addr: usize, bank: usize) -> [u8; 32 * 32] {
+        let ppu = &self.bus().ppu;
+        let mut map = [0; 32 * 32];
+
+        for i in 0..(32 * 32) {
+            map[i] = ppu.gpu_vram[bank][addr + i - 0x8000]
+        }
+
+        map
+    }
+
+    fn map_data(&self) -> GBMapInfo {
+        GBMapInfo {
+            bg_map_9800: self.get_data_at_addr(0x9800, 0),
+            bg_map_9C00: self.get_data_at_addr(0x9C00, 0),
+        }
+    }
+
+    fn tile_attribute_data(&self) -> GBTileAttributeInfo {
+        GBTileAttributeInfo {
+            tile_attr_9800: self.get_data_at_addr(0x9800, 1),
+            tile_attr_9C00: self.get_data_at_addr(0x9C00, 1),
+        }
     }
 }

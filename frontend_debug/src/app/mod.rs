@@ -9,6 +9,7 @@ use self::tile_window::TileBankState;
 
 mod gb_display;
 mod log_window;
+mod map_window;
 mod menu_bar;
 mod palette_window;
 mod side_panel;
@@ -36,6 +37,7 @@ pub struct ToggleState {
     palletes: bool,
     tile_bank: TileBankState,
     tile: bool,
+    maps: bool,
 }
 
 impl Default for ToggleState {
@@ -45,6 +47,7 @@ impl Default for ToggleState {
             palletes: true,
             tile: true,
             tile_bank: TileBankState::Bank0,
+            maps: true,
         }
     }
 }
@@ -133,6 +136,7 @@ impl eframe::App for DebuggerApp {
         self.show_log_window(ctx);
         self.show_palette_window(ctx);
         self.show_tile_window(ctx);
+        self.show_map_window(ctx);
 
         // TODO:
         // - Tile/Map/Sprite viewer

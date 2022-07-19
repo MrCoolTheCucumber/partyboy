@@ -1,6 +1,6 @@
-use std::{fs::File, io::Read};
+use std::{fs::File, io::Read, path::PathBuf};
 
-use super::Cartridge;
+use super::{Cartridge, RamIter};
 
 pub struct Rom {
     rom_bank_0: [u8; 0x4000],
@@ -40,6 +40,18 @@ impl Cartridge for Rom {
     }
 
     fn write_ram(&mut self, _addr: u16, _value: u8) {}
+
+    fn has_ram(&self) -> bool {
+        false
+    }
+
+    fn iter_ram(&self) -> RamIter {
+        RamIter::empty()
+    }
+
+    fn save_file_path(&self) -> Option<&PathBuf> {
+        None
+    }
 }
 
 #[cfg(test)]

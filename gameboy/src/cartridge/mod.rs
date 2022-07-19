@@ -6,11 +6,33 @@ pub mod rom;
 
 use std::{
     fs::File,
-    io::Read,
+    io::{Read, Write},
     path::{Path, PathBuf},
 };
 
 use crate::cartridge::{mbc1::Mbc1, mbc2::Mbc2, mbc3::Mbc3, mbc5::Mbc5, rom::Rom};
+
+pub struct RamIter {
+    pub(self) ram: Vec<u8>,
+}
+
+impl RamIter {
+    pub fn empty() -> Self {
+        Self { ram: Vec::new() }
+    }
+}
+
+impl From<Vec<u8>> for RamIter {
+    fn from(ram: Vec<u8>) -> Self {
+        Self { ram }
+    }
+}
+
+impl RamIter {
+    pub fn as_slice(&self) -> &[u8] {
+        self.ram.as_slice()
+    }
+}
 
 pub trait Cartridge {
     fn read_rom(&self, addr: u16) -> u8;
@@ -18,6 +40,25 @@ pub trait Cartridge {
 
     fn read_ram(&self, addr: u16) -> u8;
     fn write_ram(&mut self, addr: u16, value: u8);
+
+    // we cant return `impl trait` in rust yet so lets do this
+    fn iter_ram(&self) -> RamIter;
+    fn has_ram(&self) -> bool;
+    fn save_file_path(&self) -> Option<&PathBuf>;
+
+    fn create_save_file(&self) {
+        let ram_iter = self.iter_ram();
+        let save_file_path = self.save_file_path();
+
+        if let Some(save_file_path) = save_file_path {
+            if self.has_ram() {
+                let mut sav_file = File::create(save_file_path).unwrap();
+                // TODO: handle result
+                let _ = sav_file.write_all(ram_iter.as_slice());
+                log::info!("Save file written!");
+            }
+        }
+    }
 }
 
 pub fn create(rom_path: &str) -> Box<dyn Cartridge> {
@@ -136,11 +177,14 @@ pub fn create(rom_path: &str) -> Box<dyn Cartridge> {
 
 fn get_save_file_path_from_rom_path(path: &Path) -> PathBuf {
     let mut save_file_path = PathBuf::from(path);
+    let file_name = save_file_path
+        .file_stem()
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .to_owned();
     save_file_path.pop();
-    let rom_name = path.file_name().unwrap().to_str().unwrap();
-    let mut save_name = rom_name[..3].to_owned();
-    save_name.push_str(".sav");
-    save_file_path.push(save_name);
+    save_file_path.push(format!("{}.sav", file_name));
     save_file_path
 }
 
@@ -181,4 +225,20 @@ fn load_new_ram(ram_banks: &mut Vec<[u8; 0x2000]>, num_ram_banks: u16) {
         let bank = [0; 0x2000];
         ram_banks.push(bank);
     }
+}
+
+macro_rules! impl_drop_save_cartridge {
+    ($($cart:ty),*) => {
+        $(
+            impl Drop for $cart {
+                fn drop(&mut self) {
+                    self.create_save_file()
+                }
+            }
+        )*
+    };
+}
+
+impl_drop_save_cartridge! {
+    Mbc1, Mbc2, Mbc3, Mbc5
 }

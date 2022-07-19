@@ -1,10 +1,10 @@
 use std::{
     fs::File,
-    io::{Read, Write},
+    io::Read,
     path::{Path, PathBuf},
 };
 
-use super::{get_save_file_path_from_rom_path, try_read_save_file, Cartridge};
+use super::{get_save_file_path_from_rom_path, try_read_save_file, Cartridge, RamIter};
 
 pub struct Mbc5 {
     is_ram_enabled: bool,
@@ -66,17 +66,6 @@ impl Mbc5 {
     }
 }
 
-impl Drop for Mbc5 {
-    fn drop(&mut self) {
-        // create save file
-        let mut sav_file = File::create(&self.save_file_path).unwrap();
-        for bank in &self.ram_banks {
-            sav_file.write_all(bank).unwrap();
-        }
-        log::info!("Save file written!");
-    }
-}
-
 impl Cartridge for Mbc5 {
     fn read_rom(&self, addr: u16) -> u8 {
         match addr {
@@ -134,5 +123,23 @@ impl Cartridge for Mbc5 {
         }
 
         self.ram_banks[self.current_ram_bank][addr as usize] = value;
+    }
+
+    fn has_ram(&self) -> bool {
+        !self.ram_banks.is_empty()
+    }
+
+    fn iter_ram(&self) -> RamIter {
+        let iter = self
+            .ram_banks
+            .iter()
+            .flat_map(|slice| slice.iter())
+            .copied()
+            .collect::<Vec<u8>>();
+        iter.into()
+    }
+
+    fn save_file_path(&self) -> Option<&PathBuf> {
+        Some(&self.save_file_path)
     }
 }

@@ -28,6 +28,7 @@ fn gb_loop(to_gb_rx: Receiver<MessageToGB>, from_gb_tx: Sender<MessageFromGb>, c
         for msg in inbound_messages {
             match msg {
                 MessageToGB::New(rom_path) => {
+                    drop(gb);
                     gb = GameBoyBuilder::new()
                         .rom_path(rom_path.as_str())
                         .build()

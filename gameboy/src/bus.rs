@@ -223,7 +223,7 @@ impl Bus {
             0xFF40..=0xFF4B => self.ppu.write_u8(addr, val, &mut self.interrupts),
             0xFF4D => {
                 // Key1 (speed switching)
-                let prepare = (val & 0b0000_0001) == 1;
+                let prepare = (val & 0b0000_0001) != 0;
                 self.cpu_speed_controller.set_prepare_speed_switch(prepare);
             }
             0xFF4F => self.ppu.write_u8(addr, val, &mut self.interrupts),

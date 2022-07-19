@@ -32,6 +32,8 @@ impl CpuSpeedController {
     pub fn set_prepare_speed_switch(&mut self, set: bool) {
         if set {
             log::debug!("CPU SPEED SWITCH PREPARED!!");
+        } else {
+            log::debug!("Blank speed switch write?");
         }
         self.prepare_speed_switch = set;
     }
@@ -52,6 +54,9 @@ impl CpuSpeedController {
     }
 
     pub fn read_key1(&self) -> u8 {
-        ((self.cpu_speed_mode as u8) << 7) & (self.prepare_speed_switch as u8) | 0b0111_1110
+        let key1 =
+            ((self.cpu_speed_mode as u8) << 7) | (self.prepare_speed_switch as u8) | 0b0111_1110;
+        log::debug!("key1: {:#010b}", key1);
+        key1
     }
 }

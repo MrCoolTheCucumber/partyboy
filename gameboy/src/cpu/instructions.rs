@@ -1100,19 +1100,36 @@ fn jp_hl() -> Instruction {
 }
 
 fn stop() -> Instruction {
-    instruction! {
-        InstructionStep::Instant(|_, bus| {
-            // TODO: for now lets just do nothing!
-            // cpu.stopped = true;
-            if bus.cpu_speed_controller.is_speed_switch_prepared() {
-                bus.cpu_speed_controller.switch_speed();
-            }
+    let mut instruction = Instruction {
+        index: 0,
+        steps: Vec::with_capacity(2051),
+    };
 
-            // TODO: the cpu stops for 8200t? when speed switch occurs
+    instruction.steps.push(InstructionStep::Instant(|_, bus| {
+        #[cfg(debug_assertions)]
+        log::debug!("STOP");
 
-            InstructionState::Finished
-        })
+        // TODO: for now lets just do nothing!
+        // cpu.stopped = true;
+        let speed_switch_prepared = bus.cpu_speed_controller.is_speed_switch_prepared();
+        if speed_switch_prepared {
+            bus.cpu_speed_controller.switch_speed();
+        }
+
+        // TODO: the cpu stops for 8200t? when speed switch occurs
+
+        InstructionState::Branch(!speed_switch_prepared)
+    }));
+
+    for _ in 0..2050 {
+        instruction.steps.push(BLANK_PROGRESS);
     }
+
+    instruction
+        .steps
+        .push(InstructionStep::Standard(|_, _| InstructionState::Finished));
+
+    instruction
 }
 
 fn ld_sp_hl() -> Instruction {

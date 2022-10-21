@@ -29,7 +29,7 @@ fn main() {
     test_suites
         .test_suites
         .iter()
-        .for_each(|suite| write_test_suite(&mut markdown, &suite));
+        .for_each(|suite| write_test_suite(&mut markdown, suite));
 
     fs::write("TestReport.md", markdown).expect("Unable to create test report file");
 }
@@ -54,7 +54,7 @@ fn write_test_suite(markdown: &mut String, test_suite: &TestSuite) {
         writeln!(markdown, "| {} | {} |", case.name, result).unwrap();
     });
 
-    writeln!(markdown, "").unwrap();
+    writeln!(markdown).unwrap();
 }
 
 #[derive(Deserialize, Debug)]

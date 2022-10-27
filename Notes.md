@@ -99,3 +99,7 @@ Just search for "pinball" in the #gb channel
 ### Cgb Acid Hell
 
 - discord://discord.com/channels/465585922579103744/465586075830845475/994213676271796266
+
+### Web
+
+- https://www.reddit.com/r/rust/comments/kyae22/is_possible_to_compile_the_std_lib_of_rust_to_wasm/

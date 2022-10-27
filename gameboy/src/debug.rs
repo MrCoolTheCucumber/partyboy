@@ -57,7 +57,7 @@ impl Default for GBMapInfo {
     fn default() -> Self {
         let default_map = [0; 32 * 32];
         Self {
-            bg_map_9800: default_map.clone(),
+            bg_map_9800: default_map,
             bg_map_9C00: default_map,
         }
     }
@@ -73,7 +73,7 @@ impl Default for GBTileAttributeInfo {
     fn default() -> Self {
         let default_attr = [0; 32 * 32];
         Self {
-            tile_attr_9800: default_attr.clone(),
+            tile_attr_9800: default_attr,
             tile_attr_9C00: default_attr,
         }
     }
@@ -165,9 +165,9 @@ impl GameBoy {
         let ppu = &self.bus().ppu;
         let mut map = [0; 32 * 32];
 
-        for i in 0..(32 * 32) {
-            map[i] = ppu.gpu_vram[bank][addr + i - 0x8000]
-        }
+        map.iter_mut()
+            .enumerate()
+            .for_each(|(i, element)| *element = ppu.gpu_vram[bank][addr + i - 0x8000]);
 
         map
     }

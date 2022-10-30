@@ -103,3 +103,8 @@ Just search for "pinball" in the #gb channel
 ### Web
 
 - https://www.reddit.com/r/rust/comments/kyae22/is_possible_to_compile_the_std_lib_of_rust_to_wasm/
+- https://rustwasm.github.io/wasm-bindgen/introduction.html
+- https://web.dev/webassembly-threads/
+
+Architecture:
+Spawn web worker, use multiple shared arrays to handle communication. E.g. one for frame buffer, one for basic messages, etc

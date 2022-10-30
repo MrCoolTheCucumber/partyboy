@@ -13,6 +13,7 @@ macro_rules! define_blargg_cpu_test {
                 path.push($file);
 
                 let path = path.to_str().unwrap();
+                let rom = std::fs::read(path).unwrap();
 
                 let buffer = Rc::new(RefCell::new(Vec::new()));
 
@@ -22,7 +23,7 @@ macro_rules! define_blargg_cpu_test {
                 });
 
                 let mut gb = GameBoy::builder()
-                    .rom_path(path)
+                    .rom(rom)
                     .serial_write_handler(serial_write_handler)
                     .build()
                     .unwrap();

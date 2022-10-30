@@ -36,8 +36,8 @@ pub struct GameBoy {
 }
 
 impl GameBoy {
-    fn new(rom_path: &str, serial_write_handler: SerialWriteHandler) -> Self {
-        let cartridge = cartridge::create(rom_path);
+    fn new(rom: Vec<u8>, ram: Option<Vec<u8>>, serial_write_handler: SerialWriteHandler) -> Self {
+        let cartridge = cartridge::create(rom, ram);
 
         Self {
             instruction_cache: InstructionCache::new(),

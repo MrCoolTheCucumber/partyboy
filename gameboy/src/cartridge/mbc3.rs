@@ -1,11 +1,6 @@
-use std::{
-    fs::File,
-    io::Read,
-    path::{Path, PathBuf},
-    time::{SystemTime, UNIX_EPOCH},
-};
+use std::time::{SystemTime, UNIX_EPOCH};
 
-use super::{get_save_file_path_from_rom_path, try_read_save_file, Cartridge, RamIter};
+use super::{init_rom_and_ram, Cartridge, RamIter};
 
 // TODO: RTC impl is broken?
 
@@ -22,25 +17,15 @@ pub struct Mbc3 {
     rtc_banked: bool,
 
     prev_latch_val: u8,
-    save_file_path: PathBuf,
 }
 
 impl Mbc3 {
     pub fn new(
-        mut file: File,
-        path: &Path,
-        rom_bank_0: [u8; 0x4000],
-        num_rom_banks: u16,
-        num_ram_banks: u16,
+        rom: Vec<u8>,
+        ram: Option<Vec<u8>>,
+        num_rom_banks: usize,
+        num_ram_banks: usize,
     ) -> Self {
-        let mut rom_banks = vec![rom_bank_0];
-
-        for _ in 0..num_rom_banks - 1 {
-            let mut bank = [0; 0x4000];
-            file.read_exact(&mut bank).ok();
-            rom_banks.push(bank);
-        }
-
         let rom_bank_mask = match num_rom_banks - 1 {
             0..=1 => 0b0000_0001,
             2..=3 => 0b0000_0011,
@@ -52,11 +37,7 @@ impl Mbc3 {
             _ => 0b1111_1111,
         };
 
-        let mut ram_banks = Vec::new();
-        let save_file_path = get_save_file_path_from_rom_path(path);
-
-        // try to open save file
-        try_read_save_file(&save_file_path, num_ram_banks, &mut ram_banks);
+        let (rom_banks, ram_banks) = init_rom_and_ram(rom, ram, num_rom_banks, num_ram_banks);
 
         Self {
             is_ram_rtc_enabled: false,
@@ -70,7 +51,6 @@ impl Mbc3 {
             rom_banks,
             ram_banks,
             prev_latch_val: 204, // random val
-            save_file_path,
         }
     }
 }
@@ -164,9 +144,5 @@ impl Cartridge for Mbc3 {
             .copied()
             .collect::<Vec<u8>>();
         iter.into()
-    }
-
-    fn save_file_path(&self) -> Option<&PathBuf> {
-        Some(&self.save_file_path)
     }
 }

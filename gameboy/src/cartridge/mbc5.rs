@@ -1,10 +1,4 @@
-use std::{
-    fs::File,
-    io::Read,
-    path::{Path, PathBuf},
-};
-
-use super::{get_save_file_path_from_rom_path, try_read_save_file, Cartridge, RamIter};
+use super::{init_rom_and_ram, Cartridge, RamIter};
 
 pub struct Mbc5 {
     is_ram_enabled: bool,
@@ -15,26 +9,15 @@ pub struct Mbc5 {
 
     rom_banks: Vec<[u8; 0x4000]>,
     ram_banks: Vec<[u8; 0x2000]>,
-
-    save_file_path: PathBuf,
 }
 
 impl Mbc5 {
     pub fn new(
-        mut file: File,
-        path: &Path,
-        rom_bank_0: [u8; 0x4000],
-        num_rom_banks: u16,
-        num_ram_banks: u16,
+        rom: Vec<u8>,
+        ram: Option<Vec<u8>>,
+        num_rom_banks: usize,
+        num_ram_banks: usize,
     ) -> Self {
-        let mut rom_banks = vec![rom_bank_0];
-
-        for _ in 0..num_rom_banks - 1 {
-            let mut bank = [0; 0x4000];
-            file.read_exact(&mut bank).ok();
-            rom_banks.push(bank);
-        }
-
         let rom_bank_mask = match num_rom_banks - 1 {
             0..=1 => 0b0000_0001,
             2..=3 => 0b0000_0011,
@@ -43,13 +26,10 @@ impl Mbc5 {
             16..=31 => 0b0001_1111,
             32..=63 => 0b0011_1111,
             64..=127 => 0b0111_1111,
-            128..=u16::MAX => 0b1111_1111,
+            _ => 0b1111_1111,
         };
 
-        let mut ram_banks = Vec::new();
-
-        let save_file_path = get_save_file_path_from_rom_path(path);
-        try_read_save_file(&save_file_path, num_ram_banks, &mut ram_banks);
+        let (rom_banks, ram_banks) = init_rom_and_ram(rom, ram, num_rom_banks, num_ram_banks);
 
         Self {
             is_ram_enabled: false,
@@ -60,8 +40,6 @@ impl Mbc5 {
 
             rom_banks,
             ram_banks,
-
-            save_file_path,
         }
     }
 }
@@ -137,9 +115,5 @@ impl Cartridge for Mbc5 {
             .copied()
             .collect::<Vec<u8>>();
         iter.into()
-    }
-
-    fn save_file_path(&self) -> Option<&PathBuf> {
-        Some(&self.save_file_path)
     }
 }

@@ -24,8 +24,9 @@ fn dmg_acid2() {
     let mut path = get_test_rom_root_path();
     path.push("dmg-acid2.gb");
     let path = path.to_str().unwrap();
+    let rom = std::fs::read(path).unwrap();
 
-    let mut gb = GameBoy::builder().rom_path(path).build().unwrap();
+    let mut gb = GameBoy::builder().rom(rom).build().unwrap();
 
     for _ in 0..APPROX_CYCLES_PER_SCREEN_DRAW * 60 * 5 {
         gb.tick();
@@ -44,8 +45,9 @@ fn cgb_acid2() {
     let mut path = get_test_rom_root_path();
     path.push("cgb-acid2.gb");
     let path = path.to_str().unwrap();
+    let rom = std::fs::read(path).unwrap();
 
-    let mut gb = GameBoy::builder().rom_path(path).build().unwrap();
+    let mut gb = GameBoy::builder().rom(rom).build().unwrap();
 
     for _ in 0..APPROX_CYCLES_PER_SCREEN_DRAW * 60 * 5 {
         gb.tick();

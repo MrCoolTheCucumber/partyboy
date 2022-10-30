@@ -7,11 +7,8 @@ fn op_r_imm() {
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.pop();
     path.push("test_roms/blargg/cpu_instrs/individual/04-op r,imm.gb");
-
-    let mut gb = GameBoy::builder()
-        .rom_path(path.to_str().unwrap())
-        .build()
-        .unwrap();
+    let rom = std::fs::read(path).unwrap();
+    let mut gb = GameBoy::builder().rom(rom).build().unwrap();
 
     for _ in 0..12301800 {
         gb.tick();

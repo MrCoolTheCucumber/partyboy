@@ -29,8 +29,10 @@ fn gb_loop(to_gb_rx: Receiver<MessageToGB>, from_gb_tx: Sender<MessageFromGb>, c
             match msg {
                 MessageToGB::New(rom_path) => {
                     drop(gb);
+                    // TODO: handle saving
+                    let rom = std::fs::read(rom_path).expect("Unable to read rom path");
                     gb = GameBoyBuilder::new()
-                        .rom_path(rom_path.as_str())
+                        .rom(rom)
                         .build()
                         .map_err(|e| log::error!("{}", e))
                         .ok();

@@ -1,13 +1,11 @@
-/// We derive Deserialize/Serialize so we can persist app state on shutdown.
-#[derive(serde::Deserialize, serde::Serialize)]
-#[serde(default)] // if we add new fields, give them default values when deserializing old state
-pub struct TemplateApp {
-    // Example stuff:
-    label: String,
+use std::{cell::RefCell, rc::Rc};
 
-    // this how you opt-out of serialization of a member
-    #[serde(skip)]
+use gameboy::{ppu::rgb::Rgb, GameBoy};
+
+pub struct TemplateApp {
+    label: String,
     value: f32,
+    gb: Rc<RefCell<Option<GameBoy>>>,
 }
 
 impl Default for TemplateApp {
@@ -16,6 +14,7 @@ impl Default for TemplateApp {
             // Example stuff:
             label: "Hello World!".to_owned(),
             value: 2.7,
+            gb: Rc::new(RefCell::new(None)),
         }
     }
 }
@@ -29,36 +28,63 @@ impl TemplateApp {
         // Load previous app state (if any).
         // Note that you must enable the `persistence` feature for this to work.
         if let Some(storage) = cc.storage {
-            return eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default();
+            // TODO:
+            // return eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default();
         }
 
         Default::default()
+    }
+
+    pub fn gb_frame_buffer(&self) -> Option<Vec<Rgb>> {
+        //self.gb.borrow().map(|gb| gb.get_frame_buffer())
+        let gb = self.gb.borrow();
+        gb.as_ref().map(|gb| gb.get_frame_buffer().to_vec())
     }
 }
 
 impl eframe::App for TemplateApp {
     /// Called by the frame work to save state before shutdown.
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
-        eframe::set_value(storage, eframe::APP_KEY, self);
+        // TODO:
     }
 
     /// Called each time the UI needs repainting, which may be many times per second.
     /// Put your widgets into a `SidePanel`, `TopPanel`, `CentralPanel`, `Window` or `Area`.
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        let Self { label, value } = self;
+        let Self { label, value, gb } = self;
+
+        {
+            let mut gb = gb.borrow_mut();
+            if let Some(gb) = gb.as_mut() {
+                while !gb.consume_draw_flag() {
+                    gb.tick();
+                }
+            }
+        }
 
         // Examples of how to create different panels and windows.
         // Pick whichever suits you.
         // Tip: a good default choice is to just keep the `CentralPanel`.
         // For inspiration and more examples, go to https://emilk.github.io/egui
 
-        #[cfg(not(target_arch = "wasm32"))] // no File->Quit on web pages!
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             // The top panel is often a good place for a menu bar:
             egui::menu::bar(ui, |ui| {
                 ui.menu_button("File", |ui| {
-                    if ui.button("Quit").clicked() {
-                        _frame.close();
+                    if ui.button("Open").clicked() {
+                        let pick_file_fut = rfd::AsyncFileDialog::new().pick_file();
+
+                        wasm_bindgen_futures::spawn_local({
+                            let gb = gb.clone();
+                            async move {
+                                let file = pick_file_fut.await;
+                                if let Some(file) = file {
+                                    let rom = file.read().await;
+                                    let mut gb = gb.borrow_mut();
+                                    *gb = Some(GameBoy::builder().rom(rom).build().unwrap());
+                                }
+                            }
+                        });
                     }
                 });
             });
@@ -112,5 +138,9 @@ impl eframe::App for TemplateApp {
                 ui.label("You would normally chose either panels OR windows.");
             });
         }
+
+        self.show_gb_display_window(ctx);
+
+        ctx.request_repaint();
     }
 }

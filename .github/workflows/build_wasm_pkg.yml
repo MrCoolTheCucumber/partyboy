@@ -1,0 +1,46 @@
+name: Build WASM Pkg
+
+on: workflow_dispatch
+
+build:
+  runs-on: ubuntu-latest
+  steps:
+    - name: Checkout repo
+      uses: actions/checkout@v3
+
+    - name: Cache (cargo)
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cargo/bin/
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+          target/
+        key: ${{ runner.os }}-cargo-${{ steps.get-date.outputs.date }}-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Setup python
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.8
+
+    - name: Run ci script
+      run: python ./scripts/ci.py
+
+    - name: Install libsdl2-dev for SDL2
+      run: sudo apt-get update && sudo apt-get install libsdl2-dev
+
+    - name: Install wasm-pack
+      uses: jetli/wasm-pack-action@v0.3.0
+      with:
+        version: "latest"
+
+    - name: Build wasm pkg
+      working-directory: ./gameboy_web
+      run: wasm-pack build --target bundler
+
+    - name: Upload pkg
+      uses: actions/upload-artifact@v3
+      with:
+        name: wasm-pkg
+        path: ./gameboy_web/pkg

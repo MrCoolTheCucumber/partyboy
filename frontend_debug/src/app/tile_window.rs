@@ -66,7 +66,7 @@ impl DebuggerApp {
         }
     }
 
-    fn render_bg_tile_table(ctx: &egui::Context, ui: &mut Ui, tiles: &Vec<GBTile>) {
+    fn render_bg_tile_table(ctx: &egui::Context, ui: &mut Ui, tiles: &[GBTile]) {
         TableBuilder::new(ui)
             .cell_layout(Layout::left_to_right().with_cross_align(Align::Center))
             .columns(

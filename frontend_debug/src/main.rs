@@ -50,10 +50,11 @@ fn gb_loop(to_gb_rx: Receiver<MessageToGB>, from_gb_tx: Sender<MessageFromGb>, c
                     if let Some(gb) = &mut gb {
                         keys.iter().for_each(|input| match input {
                             app::InputType::GBInput(keycode) => gb.key_down(*keycode),
-                            app::InputType::Other(key) => match key {
-                                Key::Space => turbo = true,
-                                _ => {}
-                            },
+                            app::InputType::Other(key) => {
+                                if let Key::Space = key {
+                                    turbo = true
+                                }
+                            }
                         });
                     }
                 }
@@ -62,10 +63,11 @@ fn gb_loop(to_gb_rx: Receiver<MessageToGB>, from_gb_tx: Sender<MessageFromGb>, c
                     if let Some(gb) = &mut gb {
                         keys.iter().for_each(|input| match input {
                             app::InputType::GBInput(keycode) => gb.key_up(*keycode),
-                            app::InputType::Other(key) => match key {
-                                Key::Space => turbo = false,
-                                _ => {}
-                            },
+                            app::InputType::Other(key) => {
+                                if let Key::Space = key {
+                                    turbo = false
+                                }
+                            }
                         });
                     }
                 }
@@ -88,7 +90,7 @@ fn gb_loop(to_gb_rx: Receiver<MessageToGB>, from_gb_tx: Sender<MessageFromGb>, c
                             debug_info.fps = Some(fps);
                         }
 
-                        let _ = from_gb_tx.send(MessageFromGb::DebugInfo(debug_info));
+                        let _ = from_gb_tx.send(MessageFromGb::DebugInfo(Box::new(debug_info)));
 
                         ctx.request_repaint();
                         break;

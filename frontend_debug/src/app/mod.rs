@@ -55,7 +55,7 @@ impl Default for ToggleState {
 pub struct DebuggerApp {
     gb_frame_buffer: Option<Vec<Rgb>>,
     logs: Vec<Log>,
-    gb_debug_info: GBDebugInfo,
+    gb_debug_info: Box<GBDebugInfo>,
     fps: f64,
 
     toggle_state: ToggleState,
@@ -75,7 +75,7 @@ impl DebuggerApp {
         Self {
             gb_frame_buffer: None,
             logs: Vec::new(),
-            gb_debug_info: GBDebugInfo::default(),
+            gb_debug_info: Box::new(GBDebugInfo::default()),
             fps: 0.0,
             toggle_state: ToggleState::default(),
             log_rx,
@@ -89,14 +89,14 @@ impl DebuggerApp {
         let key_downs = input
             .keys_down
             .iter()
-            .filter_map(|key| Self::into_input(key))
+            .filter_map(Self::into_input)
             .collect::<Vec<_>>();
         let _ = self.to_gb_tx.send(MessageToGB::KeyDown(key_downs));
 
         let key_ups = KEYS
             .iter()
             .filter(|key| input.key_released(**key))
-            .filter_map(|key| Self::into_input(key))
+            .filter_map(Self::into_input)
             .collect::<Vec<_>>();
         let _ = self.to_gb_tx.send(MessageToGB::KeyUp(key_ups));
     }

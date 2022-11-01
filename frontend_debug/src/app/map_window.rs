@@ -92,7 +92,7 @@ impl DebuggerApp {
                 } else {
                     &tiles.bank_1
                 };
-                let tile_data = bank[mapped_idx].data.clone();
+                let tile_data = bank[mapped_idx].data;
 
                 tile_into_image(
                     &tile_data,

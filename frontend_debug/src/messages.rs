@@ -15,5 +15,5 @@ pub enum MessageToGB {
 pub enum MessageFromGb {
     /// GB wants to draw frame with given frame buffer
     Draw(Vec<Rgb>),
-    DebugInfo(GBDebugInfo),
+    DebugInfo(Box<GBDebugInfo>),
 }

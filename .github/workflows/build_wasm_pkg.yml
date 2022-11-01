@@ -3,7 +3,7 @@ name: Publish wasm pkg to npm
 on: workflow_dispatch
 
 jobs:
-  build:
+  publish:
     runs-on: ubuntu-latest
     env:
       NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -45,4 +45,7 @@ jobs:
 
       - name: Pushlsh
         working-directory: ./gameboy_web
-        run: ./publish.sh
+        run: |
+          wasm-pack build --target bundler --scope mrcoolthecucumber --release
+          cp .npmrc pkg/npmrc
+          npm publish --access public --dry-run

@@ -1,10 +1,12 @@
-name: Build WASM Pkg
+name: Publish wasm pkg to npm
 
 on: workflow_dispatch
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
     steps:
       - name: Checkout repo
         uses: actions/checkout@v3
@@ -36,12 +38,11 @@ jobs:
         with:
           version: "latest"
 
-      - name: Build wasm pkg
-        working-directory: ./gameboy_web
-        run: wasm-pack build --target bundler
-
-      - name: Upload pkg
-        uses: actions/upload-artifact@v3
+      - name: Install NodeJS
+        uses: actions/setup-node@v3
         with:
-          name: wasm-pkg
-          path: ./gameboy_web/pkg
+          node-version: 16
+
+      - name: Pushlsh
+        working-directory: ./gameboy_web
+        run: ./publish.sh

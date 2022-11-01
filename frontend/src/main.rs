@@ -73,17 +73,28 @@ fn parse_args() -> Args {
     }
 }
 
+// fn get_save_file_path_from_rom_path(path: &Path) -> PathBuf {
+//     let mut save_file_path = PathBuf::from(path);
+//     let file_name = save_file_path
+//         .file_stem()
+//         .unwrap()
+//         .to_str()
+//         .unwrap()
+//         .to_owned();
+//     save_file_path.pop();
+//     save_file_path.push(format!("{}.sav", file_name));
+//     save_file_path
+// }
+
 fn main() {
     let args = parse_args();
 
     #[cfg(debug_assertions)]
     init_logger(args.enable_file_logging);
 
-    // let mut gb = GameBoy::new(&args.rom_path);
-    let mut gb = GameBoy::builder()
-        .rom_path(args.rom_path.as_str())
-        .build()
-        .unwrap();
+    // TODO: handle saving
+    let rom = std::fs::read(args.rom_path).expect("Unable to read game file");
+    let mut gb = GameBoy::builder().rom(rom).build().unwrap();
     log::info!("Initialized gameboy.");
 
     let sdl = sdl2::init().unwrap();

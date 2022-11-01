@@ -16,18 +16,23 @@ use dma::{
     hdma::{Hdma, HdmaController},
     oam::OamDma,
 };
-use ppu::rgb::Rgb;
 
-use crate::dma::hdma::DmaType;
+#[cfg(feature = "web")]
+use wasm_bindgen::prelude::wasm_bindgen;
+
+#[cfg(not(feature = "web"))]
+use self::builder::GameBoyBuilder;
 
 use self::{
-    builder::GameBoyBuilder,
     bus::Bus,
     cpu::{instructions::InstructionCache, Cpu},
+    dma::hdma::DmaType,
     input::Keycode,
     interrupts::Interrupts,
+    ppu::rgb::Rgb,
 };
 
+#[cfg_attr(feature = "web", wasm_bindgen)]
 pub struct GameBoy {
     instruction_cache: InstructionCache,
     cpu: Cpu,
@@ -35,9 +40,11 @@ pub struct GameBoy {
     hdma_controller: HdmaController,
 }
 
+#[cfg_attr(feature = "web", wasm_bindgen)]
 impl GameBoy {
-    fn new(rom_path: &str, serial_write_handler: SerialWriteHandler) -> Self {
-        let cartridge = cartridge::create(rom_path);
+    #[cfg(not(feature = "web"))]
+    fn new(rom: Vec<u8>, ram: Option<Vec<u8>>, serial_write_handler: SerialWriteHandler) -> Self {
+        let cartridge = cartridge::create(rom, ram);
 
         Self {
             instruction_cache: InstructionCache::new(),
@@ -47,8 +54,22 @@ impl GameBoy {
         }
     }
 
+    #[cfg(not(feature = "web"))]
     pub fn builder() -> GameBoyBuilder {
         GameBoyBuilder::new()
+    }
+
+    #[cfg(feature = "web")]
+    pub fn new(rom: Vec<u8>, ram: Option<Vec<u8>>) -> Self {
+        console_error_panic_hook::set_once();
+        let cartridge = cartridge::create(rom, ram);
+
+        Self {
+            instruction_cache: InstructionCache::new(),
+            cpu: Cpu::new(),
+            bus: Bus::new(cartridge, Box::new(Bus::get_handle_blargg_output())),
+            hdma_controller: HdmaController::default(),
+        }
     }
 
     fn tick_cpu_related(&mut self) {
@@ -89,8 +110,20 @@ impl GameBoy {
         }
     }
 
+    #[cfg(not(feature = "web"))]
     pub fn get_frame_buffer(&self) -> &[Rgb] {
         self.bus.ppu.get_frame_buffer()
+    }
+
+    #[cfg(feature = "web")]
+    pub fn get_frame_buffer(&self) -> Vec<u8> {
+        self.bus
+            .ppu
+            .get_frame_buffer()
+            .to_vec()
+            .iter()
+            .flat_map(|px| [px.r, px.g, px.b])
+            .collect()
     }
 
     pub fn consume_draw_flag(&mut self) -> bool {
@@ -113,5 +146,12 @@ impl GameBoy {
     #[cfg(feature = "debug_info")]
     pub(crate) fn bus(&self) -> &Bus {
         &self.bus
+    }
+
+    #[cfg(feature = "web")]
+    pub fn tick_to_frame(&mut self) {
+        while !self.consume_draw_flag() {
+            self.tick();
+        }
     }
 }

@@ -42,7 +42,7 @@ jobs:
         run: python ./scripts/ci.py
 
       - name: Install libsdl2-dev for SDL2
-        run: sudo apt-get install libsdl2-dev
+        run: sudo apt-get update && sudo apt-get install libsdl2-dev
 
       - name: Install nextest
         uses: taiki-e/install-action@nextest

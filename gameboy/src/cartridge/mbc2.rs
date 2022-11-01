@@ -1,10 +1,4 @@
-use std::{
-    fs::File,
-    io::Read,
-    path::{Path, PathBuf},
-};
-
-use super::{get_save_file_path_from_rom_path, try_read_save_file, Cartridge, RamIter};
+use super::{init_rom_and_ram, Cartridge, RamIter};
 
 pub struct Mbc2 {
     is_ram_enabled: bool,
@@ -14,38 +8,36 @@ pub struct Mbc2 {
 
     rom_banks: Vec<[u8; 0x4000]>,
     ram_banks: Vec<[u8; 0x2000]>,
-
-    save_file_path: PathBuf,
 }
 
 impl Mbc2 {
-    pub fn new(mut file: File, path: &Path, rom_bank_0: [u8; 0x4000], num_rom_banks: u16) -> Self {
-        let mut rom_banks = vec![rom_bank_0];
-
-        for _ in 0..num_rom_banks - 1 {
-            let mut bank = [0; 0x4000];
-            file.read_exact(&mut bank).ok();
-            rom_banks.push(bank);
-        }
-
+    pub fn new(
+        rom: Vec<u8>,
+        ram: Option<Vec<u8>>,
+        num_rom_banks: usize,
+        num_ram_banks: usize,
+    ) -> Self {
+        println!("RAM BANKS: {}", num_ram_banks);
         let rom_bank_mask = match num_rom_banks - 1 {
             0..=1 => 0b0000_0001,
             2..=3 => 0b0000_0011,
             4..=7 => 0b0000_0111,
-            8..=u16::MAX => 0b0000_1111,
+            _ => 0b0000_1111,
         };
 
-        let mut ram_banks = Vec::new();
-        let save_file_path = get_save_file_path_from_rom_path(path);
+        let (rom_banks, mut ram_banks) = init_rom_and_ram(rom, ram, num_rom_banks, num_ram_banks);
 
-        try_read_save_file(&save_file_path, 1, &mut ram_banks);
+        // MBC2 always has at least 1 bank:
+        // https://gbdev.io/pandocs/The_Cartridge_Header.html#0149--ram-size
+        if num_ram_banks == 0 {
+            ram_banks.push([0; 0x2000]);
+        }
 
         Self {
             is_ram_enabled: false,
             current_rom_bank: 1,
             rom_banks,
             ram_banks,
-            save_file_path,
             rom_bank_mask,
         }
     }
@@ -120,9 +112,5 @@ impl Cartridge for Mbc2 {
             .copied()
             .collect::<Vec<u8>>();
         iter.into()
-    }
-
-    fn save_file_path(&self) -> Option<&PathBuf> {
-        Some(&self.save_file_path)
     }
 }

@@ -259,12 +259,12 @@ impl Ppu {
 
     #[cfg(feature = "debug_info")]
     pub fn bg_color_palette(&self) -> [[Rgb; 4]; 8] {
-        self.bg_color_palette.clone()
+        self.bg_color_palette
     }
 
     #[cfg(feature = "debug_info")]
     pub fn sprite_color_palette(&self) -> [[Rgb; 4]; 8] {
-        self.sprite_color_palette.clone()
+        self.sprite_color_palette
     }
 
     pub fn set_console_compatibility(&mut self, mode: CgbCompatibility) {
@@ -276,8 +276,14 @@ impl Ppu {
         }
     }
 
+    #[cfg(not(feature = "web"))]
     pub fn get_frame_buffer(&self) -> &[Rgb] {
         &self.frame_buffer
+    }
+
+    #[cfg(feature = "web")]
+    pub fn get_frame_buffer(&self) -> [Rgb; 160 * 144] {
+        self.frame_buffer
     }
 
     pub fn consume_draw_flag(&mut self) -> bool {

@@ -3,12 +3,17 @@ members = [
     "benches",
     "frontend",
     "frontend_debug",
+    "frontend_web",
     "gameboy",
     "test/junit_to_md"
 ]
 default-members = [
     "frontend",
     "gameboy",
+]
+exclude = [
+    # for some reason it messes up intellisense if its a member
+    "gameboy_web", 
 ]
 
 [profile.dev]

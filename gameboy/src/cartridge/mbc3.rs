@@ -1,11 +1,4 @@
-use std::{
-    fs::File,
-    io::Read,
-    path::{Path, PathBuf},
-    time::{SystemTime, UNIX_EPOCH},
-};
-
-use super::{get_save_file_path_from_rom_path, try_read_save_file, Cartridge, RamIter};
+use super::{init_rom_and_ram, Cartridge, RamIter};
 
 // TODO: RTC impl is broken?
 
@@ -22,25 +15,15 @@ pub struct Mbc3 {
     rtc_banked: bool,
 
     prev_latch_val: u8,
-    save_file_path: PathBuf,
 }
 
 impl Mbc3 {
     pub fn new(
-        mut file: File,
-        path: &Path,
-        rom_bank_0: [u8; 0x4000],
-        num_rom_banks: u16,
-        num_ram_banks: u16,
+        rom: Vec<u8>,
+        ram: Option<Vec<u8>>,
+        num_rom_banks: usize,
+        num_ram_banks: usize,
     ) -> Self {
-        let mut rom_banks = vec![rom_bank_0];
-
-        for _ in 0..num_rom_banks - 1 {
-            let mut bank = [0; 0x4000];
-            file.read_exact(&mut bank).ok();
-            rom_banks.push(bank);
-        }
-
         let rom_bank_mask = match num_rom_banks - 1 {
             0..=1 => 0b0000_0001,
             2..=3 => 0b0000_0011,
@@ -52,11 +35,7 @@ impl Mbc3 {
             _ => 0b1111_1111,
         };
 
-        let mut ram_banks = Vec::new();
-        let save_file_path = get_save_file_path_from_rom_path(path);
-
-        // try to open save file
-        try_read_save_file(&save_file_path, num_ram_banks, &mut ram_banks);
+        let (rom_banks, ram_banks) = init_rom_and_ram(rom, ram, num_rom_banks, num_ram_banks);
 
         Self {
             is_ram_rtc_enabled: false,
@@ -70,7 +49,6 @@ impl Mbc3 {
             rom_banks,
             ram_banks,
             prev_latch_val: 204, // random val
-            save_file_path,
         }
     }
 }
@@ -116,11 +94,11 @@ impl Cartridge for Mbc3 {
 
             0x6000..=0x7FFF => {
                 if self.prev_latch_val == 0x00 && value == 0x01 {
-                    let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
+                    let now = now_secs();
 
-                    self.rtc_regs[0] = (now.as_secs() % 60) as u8;
-                    self.rtc_regs[1] = ((now.as_secs() / 60) % 60) as u8;
-                    self.rtc_regs[2] = (((now.as_secs() / 60) / 60) % 24) as u8;
+                    self.rtc_regs[0] = (now % 60) as u8;
+                    self.rtc_regs[1] = ((now / 60) % 60) as u8;
+                    self.rtc_regs[2] = (((now / 60) / 60) % 24) as u8;
                 }
 
                 self.prev_latch_val = value;
@@ -165,8 +143,28 @@ impl Cartridge for Mbc3 {
             .collect::<Vec<u8>>();
         iter.into()
     }
+}
 
-    fn save_file_path(&self) -> Option<&PathBuf> {
-        Some(&self.save_file_path)
-    }
+#[cfg(not(feature = "web"))]
+fn now_secs() -> u64 {
+    use std::time::UNIX_EPOCH;
+    UNIX_EPOCH.elapsed().unwrap().as_secs()
+}
+
+#[cfg(feature = "web")]
+use wasm_bindgen::prelude::wasm_bindgen;
+
+#[wasm_bindgen(inline_js = r#"
+export function performance_now() {
+    return performance.now();
+}
+"#)]
+#[cfg(feature = "web")]
+extern "C" {
+    fn performance_now() -> f64;
+}
+
+#[cfg(feature = "web")]
+fn now_secs() -> u64 {
+    unsafe { performance_now() as u64 }
 }

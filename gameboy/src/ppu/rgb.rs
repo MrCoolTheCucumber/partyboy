@@ -1,6 +1,10 @@
 use std::{cmp, fmt};
 
+#[cfg(feature = "web")]
+use wasm_bindgen::prelude::wasm_bindgen;
+
 #[derive(Clone, Copy, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "web", wasm_bindgen)]
 pub struct Rgb {
     pub r: u8,
     pub g: u8,

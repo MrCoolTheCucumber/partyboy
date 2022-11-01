@@ -1,31 +1,23 @@
-use std::{fs::File, io::Read, path::PathBuf};
-
 use super::{Cartridge, RamIter};
 
 pub struct Rom {
-    rom_bank_0: [u8; 0x4000],
-    rom_bank_1: [u8; 0x4000],
+    data: Box<[u8]>,
 }
 
 impl Rom {
-    pub fn new(mut file: File, rom_bank_0: [u8; 0x4000]) -> Self {
-        let mut rom_bank_1: [u8; 0x4000] = [0; 0x4000];
-        file.read_exact(&mut rom_bank_1).ok();
-
+    pub fn new(rom: Vec<u8>) -> Self {
+        assert_eq!(rom.len(), 0x8000);
         Self {
-            rom_bank_0,
-            rom_bank_1,
+            data: rom.into_boxed_slice(),
         }
     }
 }
 
 impl Cartridge for Rom {
     fn read_rom(&self, addr: u16) -> u8 {
-        match addr & 0xF000 {
-            0x0000 | 0x1000 | 0x2000 | 0x3000 => self.rom_bank_0[addr as usize],
-            0x4000 | 0x5000 | 0x6000 | 0x7000 => self.rom_bank_1[(addr - 0x4000) as usize],
-
-            _ => panic!("Invalid address when reading from ROM cart"),
+        match addr < 0x8000 {
+            true => self.data[addr as usize],
+            false => panic!("Invalid address when reading from ROM cart"),
         }
     }
 
@@ -33,13 +25,13 @@ impl Cartridge for Rom {
         // NOP
     }
 
-    // This cart has no ram?
-
     fn read_ram(&self, _addr: u16) -> u8 {
         0
     }
 
-    fn write_ram(&mut self, _addr: u16, _value: u8) {}
+    fn write_ram(&mut self, _addr: u16, _value: u8) {
+        // NOP
+    }
 
     fn has_ram(&self) -> bool {
         false
@@ -48,16 +40,11 @@ impl Cartridge for Rom {
     fn iter_ram(&self) -> RamIter {
         RamIter::empty()
     }
-
-    fn save_file_path(&self) -> Option<&PathBuf> {
-        None
-    }
 }
 
 #[cfg(test)]
 pub fn create_test_rom() -> Rom {
     Rom {
-        rom_bank_0: [0; 0x4000],
-        rom_bank_1: [0; 0x4000],
+        data: Box::new([0; 0x8000]),
     }
 }

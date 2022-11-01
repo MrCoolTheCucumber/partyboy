@@ -16,8 +16,3 @@ tracing-wasm = "0.2"
 wasm-bindgen-futures = "0.4"
 # wasm-mt = "0.1"
 wasm-rs-shared-channel = "0.1.0"
-
-
-
-[profile.release]
-opt-level = 2 # fast and small wasm

@@ -1,5 +1,3 @@
-use std::time::{SystemTime, UNIX_EPOCH};
-
 use super::{init_rom_and_ram, Cartridge, RamIter};
 
 // TODO: RTC impl is broken?
@@ -96,11 +94,11 @@ impl Cartridge for Mbc3 {
 
             0x6000..=0x7FFF => {
                 if self.prev_latch_val == 0x00 && value == 0x01 {
-                    let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
+                    let now = now_secs();
 
-                    self.rtc_regs[0] = (now.as_secs() % 60) as u8;
-                    self.rtc_regs[1] = ((now.as_secs() / 60) % 60) as u8;
-                    self.rtc_regs[2] = (((now.as_secs() / 60) / 60) % 24) as u8;
+                    self.rtc_regs[0] = (now % 60) as u8;
+                    self.rtc_regs[1] = ((now / 60) % 60) as u8;
+                    self.rtc_regs[2] = (((now / 60) / 60) % 24) as u8;
                 }
 
                 self.prev_latch_val = value;
@@ -145,4 +143,28 @@ impl Cartridge for Mbc3 {
             .collect::<Vec<u8>>();
         iter.into()
     }
+}
+
+#[cfg(not(feature = "web"))]
+fn now_secs() -> u64 {
+    use std::time::UNIX_EPOCH;
+    UNIX_EPOCH.elapsed().unwrap().as_secs()
+}
+
+#[cfg(feature = "web")]
+use wasm_bindgen::prelude::wasm_bindgen;
+
+#[wasm_bindgen(inline_js = r#"
+export function performance_now() {
+    return performance.now();
+}
+"#)]
+#[cfg(feature = "web")]
+extern "C" {
+    fn performance_now() -> f64;
+}
+
+#[cfg(feature = "web")]
+fn now_secs() -> u64 {
+    unsafe { performance_now() as u64 }
 }

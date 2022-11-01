@@ -108,3 +108,7 @@ Just search for "pinball" in the #gb channel
 
 Architecture:
 Spawn web worker, use multiple shared arrays to handle communication. E.g. one for frame buffer, one for basic messages, etc
+
+### Fifo
+
+- https://github.com/gbdev/pandocs/pull/379

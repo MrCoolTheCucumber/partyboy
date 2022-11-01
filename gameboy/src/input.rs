@@ -1,3 +1,6 @@
+#[cfg(feature = "web")]
+use wasm_bindgen::prelude::wasm_bindgen;
+
 pub struct Input {
     pub up: u8,
     pub down: u8,
@@ -104,6 +107,7 @@ impl Input {
 }
 
 #[derive(Clone, Copy)]
+#[cfg_attr(feature = "web", wasm_bindgen)]
 pub enum Keycode {
     Up,
     Down,

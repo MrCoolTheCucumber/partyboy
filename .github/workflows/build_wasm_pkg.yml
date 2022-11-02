@@ -5,8 +5,6 @@ on: workflow_dispatch
 jobs:
   publish:
     runs-on: ubuntu-latest
-    env:
-      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
     steps:
       - name: Checkout repo
         uses: actions/checkout@v3
@@ -43,10 +41,15 @@ jobs:
         with:
           node-version: 16
 
-      - name: Pushlsh
+      - name: Build pkg
         working-directory: ./gameboy_web
         run: |
           wasm-pack build --target bundler --scope mrcoolthecucumber --release
-          cp .npmrc pkg/npmrc
-          cd pkg/
+
+      - name: Publish to npm
+        working-directory: ./gameboy_web/pkg
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          cp ../.npmrc .npmrc
           npm publish --access public

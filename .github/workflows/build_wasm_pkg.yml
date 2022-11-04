@@ -52,4 +52,6 @@ jobs:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           cp ../.npmrc .npmrc
+          sed -E -z -i 's/\s\s"files":\s\[(.|\n)*\],\n//mg' package.json
+          rm .gitignore
           npm publish --access public

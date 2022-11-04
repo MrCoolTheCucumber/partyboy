@@ -832,7 +832,7 @@ impl Ppu {
             let cgb_sprite_palette = (sprite.flags & 0b0000_0111) as usize;
             let tile_vram_bank = ((sprite.flags & 0b0000_1000) >> 3) as usize;
 
-            let sprite_palette: usize = if sprite.flags & (1 << 4) != 0 { 1 } else { 0 };
+            let sprite_palette: usize = usize::from(sprite.flags & (1 << 4) != 0);
             let xflip: bool = sprite.flags & (1 << 5) != 0;
             let yflip: bool = sprite.flags & (1 << 6) != 0;
             let bg_wd_prio: bool = sprite.flags & (1 << 7) != 0;
@@ -917,8 +917,7 @@ impl Ppu {
                 }
 
                 let xbit = 1 << (if xflip { x } else { 7 - x } as u32);
-                let colnr =
-                    (if b1 & xbit != 0 { 1 } else { 0 }) | (if b2 & xbit != 0 { 2 } else { 0 });
+                let colnr = usize::from(b1 & xbit != 0) | (if b2 & xbit != 0 { 2 } else { 0 });
 
                 // LCDControl Mater Priority cleared still means we skip sprites if they are the bit 0 ("transparent")
                 if colnr == 0 {

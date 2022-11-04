@@ -1371,7 +1371,7 @@ impl Cpu {
     }
 
     fn rl(&mut self, val: u8) -> u8 {
-        let carry = if self.is_flag_set(Flag::C) { 1 } else { 0 };
+        let carry = u8::from(self.is_flag_set(Flag::C));
         let result = (val << 1).wrapping_add(carry);
 
         self.set_flag_if_cond_else_clear(val & 0x80 != 0, Flag::C);

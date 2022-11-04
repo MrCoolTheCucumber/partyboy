@@ -7,6 +7,7 @@ pub mod rom;
 use crate::cartridge::{mbc1::Mbc1, mbc2::Mbc2, mbc3::Mbc3, mbc5::Mbc5, rom::Rom};
 
 pub struct RamIter {
+    #[allow(dead_code)]
     pub(self) ram: Vec<u8>,
 }
 
@@ -23,6 +24,7 @@ impl From<Vec<u8>> for RamIter {
 }
 
 impl RamIter {
+    #[allow(dead_code)]
     pub fn as_slice(&self) -> &[u8] {
         self.ram.as_slice()
     }

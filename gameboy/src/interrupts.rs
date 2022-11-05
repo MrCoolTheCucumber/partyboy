@@ -1,5 +1,9 @@
 use super::cpu::Cpu;
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub(crate) struct Interrupts {
     pub master: u8,
     pub enable: u8,

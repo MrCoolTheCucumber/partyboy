@@ -3,16 +3,19 @@ pub mod register;
 pub mod speed_controller;
 mod tests;
 
-use std::fmt::Debug;
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 
-use crate::cpu::instructions::InstructionStep;
+use std::fmt::Debug;
 
 use self::{
     instructions::{Instruction, InstructionCache, InstructionOpcode, InstructionState},
     register::Register,
 };
 use super::bus::Bus;
+use crate::cpu::instructions::InstructionStep;
 
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub(crate) struct Cpu {
     af: Register,
     bc: Register,

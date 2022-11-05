@@ -1,6 +1,9 @@
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 #[cfg(feature = "web")]
 use wasm_bindgen::prelude::wasm_bindgen;
 
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Input {
     pub up: u8,
     pub down: u8,

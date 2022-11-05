@@ -1,9 +1,11 @@
 use std::fmt::Debug;
 
+use super::{register::Flag, Cpu};
 use crate::bus::Bus;
 
-use super::{register::Flag, Cpu};
 use paste::paste;
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 
 type InstructionFn = fn(&mut Cpu, &mut Bus) -> InstructionState;
 
@@ -28,6 +30,7 @@ pub(crate) enum InstructionStep {
 }
 
 #[derive(Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum InstructionOpcode {
     InterruptServiceRoutine,
     Unprefixed(u8),
@@ -1494,6 +1497,12 @@ pub struct InstructionCache {
     interrupt_service_routine: Instruction,
     instructions: [Instruction; 256],
     cb_instructions: [Instruction; 256],
+}
+
+impl Default for InstructionCache {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl InstructionCache {

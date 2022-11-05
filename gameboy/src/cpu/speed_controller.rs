@@ -1,11 +1,16 @@
 use crate::bus::CgbCompatibility;
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
 #[derive(Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 enum CpuSpeedMode {
     Single = 0,
     Double = 1,
 }
 
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct CpuSpeedController {
     cpu_speed_mode: CpuSpeedMode,
     prepare_speed_switch: bool,

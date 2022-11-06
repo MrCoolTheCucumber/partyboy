@@ -51,6 +51,10 @@ OPTIONS:
 - Improve UI to not rely on CLI
 - Audio support
 - Cycle accurate FIFO PPU
+- Dissasembler for debug frontend?
+- Make `frontend_debug` work for web without separate crate
+- Make gbc double speed mode work properly
+- Implement some sort of mass rom test suite similar to [sameboy](https://sameboy.github.io/automation/)?
 
 ## Build Instructions
 

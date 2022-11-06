@@ -53,17 +53,10 @@ impl GameBoyBuilder {
     }
 
     pub fn build(self) -> Result<GameBoy, GameBoyBuilderError> {
-        if self.rom.is_none() {
-            return Err(GameBoyBuilderError::NoRomPath);
-        }
         let serial_write_handler = self
             .serial_write_handler
             .unwrap_or_else(|| Box::new(Bus::get_handle_blargg_output()));
 
-        Ok(GameBoy::new(
-            self.rom.unwrap(),
-            self.ram,
-            serial_write_handler,
-        ))
+        Ok(GameBoy::new(self.rom, self.ram, serial_write_handler))
     }
 }

@@ -68,10 +68,6 @@ Based on what I've read so far:
 - https://github.com/pinobatch/little-things-gb
   - https://github.com/pinobatch/little-things-gb/tree/master/firstwhite
 
-### SDL2 wasm example
-
-- https://github.com/tanis2000/rust-sdl2-wasm
-
 ### Pinball
 
 Just search for "pinball" in the #gb channel

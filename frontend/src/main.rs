@@ -25,7 +25,7 @@ pub const WIDTH: u32 = 160;
 pub const HEIGHT: u32 = 144;
 
 struct Args {
-    rom_path: String,
+    rom_path: Option<String>,
     enable_file_logging: bool,
 }
 
@@ -33,12 +33,12 @@ fn parse_args() -> Args {
     let matches = clap_app!(partyboy =>
         (version: "1.0")
         (about: "A Gameboy color emulator")
-        (@arg rom_path: -r --rom +takes_value +required "The path to the rom to load.")
+        (@arg rom_path: -r --rom +takes_value "The path to the rom to load.")
         (@arg enable_file_logging: -l --log "Enables file logging.")
     )
     .get_matches();
 
-    let rom_path = matches.value_of("rom_path").unwrap().to_owned();
+    let rom_path = matches.value_of("rom_path").map(|str| str.to_owned());
     let enable_file_logging = matches.is_present("enable_file_logging");
 
     Args {
@@ -66,7 +66,9 @@ fn main() {
     #[cfg(debug_assertions)]
     init_logger(args.enable_file_logging);
 
-    let rom = std::fs::read(args.rom_path).expect("Unable to read game file");
+    let rom = args
+        .rom_path
+        .map(|path| std::fs::read(path).expect("Unable to read game file"));
 
     let event_loop = EventLoop::new();
     let mut input = WinitInputHelper::new();

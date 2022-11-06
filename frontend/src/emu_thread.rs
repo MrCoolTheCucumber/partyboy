@@ -6,7 +6,7 @@ use spin_sleep::LoopHelper;
 
 use crate::msgs::{MsgFromGb, MsgToGb};
 
-pub fn new(rom: Vec<u8>) -> (Sender<MsgToGb>, Receiver<MsgFromGb>) {
+pub fn new(rom: Option<Vec<u8>>) -> (Sender<MsgToGb>, Receiver<MsgFromGb>) {
     let (s_to_gb, r_from_ui) = crossbeam::channel::bounded::<MsgToGb>(32);
     let (s_to_ui, r_from_gb) = crossbeam::channel::bounded::<MsgFromGb>(128);
 
@@ -15,8 +15,11 @@ pub fn new(rom: Vec<u8>) -> (Sender<MsgToGb>, Receiver<MsgFromGb>) {
             let (s, r) = (s_to_ui, r_from_ui);
 
             // TODO: make this an option and be able to set rom via msg
-            let mut gb = GameBoy::builder()
-                .rom(rom)
+            let mut builder = GameBoy::builder();
+            if let Some(rom) = rom {
+                builder = builder.rom(rom);
+            }
+            let mut gb = builder
                 .build()
                 .expect("Internal error: unable to construct emulator instance");
 
@@ -44,8 +47,8 @@ pub fn new(rom: Vec<u8>) -> (Sender<MsgToGb>, Receiver<MsgFromGb>) {
                         MsgToGb::Turbo(state) => turbo = state,
                         MsgToGb::SaveSnapshot => {
                             let buf = rmp_serde::to_vec(&gb).unwrap();
+                            log::info!("Snapshot taken: {}", buf.len());
                             snapshot = Some(buf);
-                            log::info!("Snapshot taken");
                         }
                         MsgToGb::LoadSnapshot => {
                             if let Some(snapshot) = &snapshot {

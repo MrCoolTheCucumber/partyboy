@@ -35,6 +35,8 @@ pub fn init_logger(enable_file_logging: bool) {
         env_logger::builder()
             .format_timestamp(None)
             .filter_module("wgpu_core", LevelFilter::Warn)
+            .filter_module("wgpu_hal", LevelFilter::Warn)
+            .filter_module("naga", LevelFilter::Warn)
             .init();
     }
 

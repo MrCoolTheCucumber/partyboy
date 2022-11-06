@@ -44,13 +44,17 @@ pub struct GameBoy {
 #[cfg_attr(feature = "web", wasm_bindgen)]
 impl GameBoy {
     #[cfg(not(feature = "web"))]
-    fn new(rom: Vec<u8>, ram: Option<Vec<u8>>, serial_write_handler: SerialWriteHandler) -> Self {
-        let cartridge = cartridge::create(rom, ram);
+    fn new(
+        rom: Option<Vec<u8>>,
+        ram: Option<Vec<u8>>,
+        serial_write_handler: SerialWriteHandler,
+    ) -> Self {
+        let cartridge = rom.map(|rom| cartridge::create(rom, ram));
 
         Self {
             instruction_cache: InstructionCache::new(),
             cpu: Cpu::new(),
-            bus: Bus::new(Some(cartridge), serial_write_handler),
+            bus: Bus::new(cartridge, serial_write_handler),
             hdma_controller: HdmaController::default(),
         }
     }

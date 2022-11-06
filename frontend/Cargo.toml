@@ -2,16 +2,19 @@
 name = "partyboy"
 version = "0.1.0"
 edition = "2021"
+resolver="2"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 env_logger = "0.9"
 clap = "2"
+crossbeam = "0.8"
 gameboy = { path = "../gameboy" }
-gl = "0.14"
 log = "0.4"
 log-panics = "2"
 log4rs = "1"
-sdl2 = "0.35"
-spin_sleep = "1.1.1"
+pixels = "0.10"
+spin_sleep = "1.1"
+winit = "0.27"
+winit_input_helper = "0.13"

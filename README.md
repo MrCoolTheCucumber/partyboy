@@ -57,7 +57,6 @@ OPTIONS:
 First, make sure you have the following dependentcies:
 
 - [Rust](https://www.rust-lang.org/tools/install)
-- SDL2 - read the requirements [here](https://github.com/Rust-SDL2/rust-sdl2#requirements) for your given OS
 
 Then just run `cargo b` in the root directory of the repo.
 

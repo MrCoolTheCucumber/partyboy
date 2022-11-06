@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "web")]
@@ -109,7 +111,7 @@ impl Input {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 #[cfg_attr(feature = "web", wasm_bindgen)]
 pub enum Keycode {
     Up,
@@ -120,4 +122,19 @@ pub enum Keycode {
     B,
     Start,
     Select,
+}
+
+impl Display for Keycode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Keycode::Up => write!(f, "Up"),
+            Keycode::Down => write!(f, "Down"),
+            Keycode::Left => write!(f, "Left"),
+            Keycode::Right => write!(f, "Right"),
+            Keycode::A => write!(f, "A"),
+            Keycode::B => write!(f, "B"),
+            Keycode::Start => write!(f, "Start"),
+            Keycode::Select => write!(f, "Select"),
+        }
+    }
 }

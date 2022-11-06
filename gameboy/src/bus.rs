@@ -145,7 +145,7 @@ impl Bus {
             0xA000..=0xBFFF => self
                 .cartridge
                 .as_ref()
-                .map(|cart| cart.read_ram(addr))
+                .map(|cart| cart.read_ram(addr - 0xA000))
                 .unwrap_or(0xFF),
 
             0xC000..=0xCFFF => self.working_ram[0][(addr - 0xC000) as usize],
@@ -197,7 +197,7 @@ impl Bus {
             0x8000..=0x9FFF => self.ppu.write_vram(addr - 0x8000, val),
             0xA000..=0xBFFF => {
                 if let Some(cartridge) = &mut self.cartridge {
-                    cartridge.write_ram(addr, val)
+                    cartridge.write_ram(addr - 0xA000, val)
                 }
             }
 

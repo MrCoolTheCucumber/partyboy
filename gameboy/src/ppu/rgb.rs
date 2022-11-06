@@ -1,10 +1,13 @@
 use std::{cmp, fmt};
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 #[cfg(feature = "web")]
 use wasm_bindgen::prelude::wasm_bindgen;
 
 #[derive(Clone, Copy, PartialEq, Eq, Default)]
 #[cfg_attr(feature = "web", wasm_bindgen)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Rgb {
     pub r: u8,
     pub g: u8,

@@ -1,39 +1,40 @@
 pub mod builder;
 mod bus;
 mod cartridge;
+mod common;
 mod cpu;
+#[cfg(feature = "debug_info")]
+pub mod debug;
 mod dma;
 pub mod input;
 mod interrupts;
 pub mod ppu;
 mod timer;
 
-#[cfg(feature = "debug_info")]
-pub mod debug;
-
-use builder::SerialWriteHandler;
-use dma::{
-    hdma::{Hdma, HdmaController},
-    oam::OamDma,
-};
-
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 #[cfg(feature = "web")]
 use wasm_bindgen::prelude::wasm_bindgen;
 
 #[cfg(not(feature = "web"))]
 use self::builder::GameBoyBuilder;
-
 use self::{
+    builder::SerialWriteHandler,
     bus::Bus,
     cpu::{instructions::InstructionCache, Cpu},
-    dma::hdma::DmaType,
+    dma::{
+        hdma::{DmaType, Hdma, HdmaController},
+        oam::OamDma,
+    },
     input::Keycode,
     interrupts::Interrupts,
     ppu::rgb::Rgb,
 };
 
 #[cfg_attr(feature = "web", wasm_bindgen)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct GameBoy {
+    #[cfg_attr(feature = "serde", serde(skip))]
     instruction_cache: InstructionCache,
     cpu: Cpu,
     bus: Bus,
@@ -49,7 +50,7 @@ impl GameBoy {
         Self {
             instruction_cache: InstructionCache::new(),
             cpu: Cpu::new(),
-            bus: Bus::new(cartridge, serial_write_handler),
+            bus: Bus::new(Some(cartridge), serial_write_handler),
             hdma_controller: HdmaController::default(),
         }
     }
@@ -153,5 +154,12 @@ impl GameBoy {
         while !self.consume_draw_flag() {
             self.tick();
         }
+    }
+
+    #[cfg(not(feature = "web"))]
+    pub fn load_snapshot(&mut self, snapshot: GameBoy) {
+        let cartridge = self.bus.cartridge.take();
+        *self = snapshot;
+        self.bus.cartridge = cartridge;
     }
 }

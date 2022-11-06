@@ -1,5 +1,8 @@
 use std::{fmt::Debug, ops};
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
 #[derive(Clone, Copy)]
 pub enum Flag {
     Z = 0b10000000,
@@ -9,6 +12,7 @@ pub enum Flag {
 }
 
 #[derive(Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Register {
     pub hi: u8,
     pub lo: u8,

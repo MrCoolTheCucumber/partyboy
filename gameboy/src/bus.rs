@@ -4,12 +4,20 @@ use std::fmt::Display;
 
 use super::{cartridge::Cartridge, input::Input, interrupts::Interrupts, ppu::Ppu, timer::Timer};
 use crate::{
-    builder::SerialWriteHandler, cpu::speed_controller::CpuSpeedController, dma::oam::OamDma,
+    builder::SerialWriteHandler, common::D2Array, cpu::speed_controller::CpuSpeedController,
+    dma::oam::OamDma,
+};
+
+#[cfg(feature = "serde")]
+use {
+    serde::{Deserialize, Serialize},
+    serde_big_array::BigArray,
 };
 
 include!(concat!(env!("OUT_DIR"), "/boot_rom.rs"));
 
 #[derive(Clone, Copy, Default)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum CgbCompatibility {
     None,
     #[default]
@@ -43,21 +51,30 @@ impl From<u8> for CgbCompatibility {
     }
 }
 
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub(crate) struct Bus {
+    #[cfg_attr(
+        feature = "serde",
+        serde(skip, default = "Bus::get_handle_blargg_output")
+    )]
     serial_write_handler: SerialWriteHandler,
 
-    pub cartridge: Box<dyn Cartridge>,
+    #[cfg_attr(feature = "serde", serde(skip))]
+    pub cartridge: Option<Box<dyn Cartridge>>,
     pub ppu: Ppu,
 
-    pub working_ram: [[u8; 0x1000]; 8],
+    pub working_ram: D2Array<u8, 0x1000, 8>,
     working_ram_bank: usize,
 
+    #[cfg_attr(feature = "serde", serde(with = "BigArray"))]
     pub io: [u8; 0x100],
+    #[cfg_attr(feature = "serde", serde(with = "BigArray"))]
     pub zero_page: [u8; 0x80],
 
     pub oam_dma: OamDma,
 
     pub bios_enabled: bool,
+    #[cfg_attr(feature = "serde", serde(with = "BigArray"))]
     pub bios: [u8; 0x900],
     pub console_compatibility_mode: CgbCompatibility,
 
@@ -68,14 +85,17 @@ pub(crate) struct Bus {
 }
 
 impl Bus {
-    pub fn new(cartridge: Box<dyn Cartridge>, serial_write_handler: SerialWriteHandler) -> Self {
+    pub fn new(
+        cartridge: Option<Box<dyn Cartridge>>,
+        serial_write_handler: SerialWriteHandler,
+    ) -> Self {
         Self {
             serial_write_handler,
 
             cartridge,
             ppu: Ppu::new(),
 
-            working_ram: [[0; 0x1000]; 8],
+            working_ram: [[0; 0x1000]; 8].into(),
             working_ram_bank: 1,
 
             io: [0; 0x100],
@@ -116,9 +136,17 @@ impl Bus {
             0x0000..=0x00FF if self.bios_enabled => self.bios[addr as usize],
             0x0200..=0x08FF if self.bios_enabled => self.bios[addr as usize],
 
-            0x0000..=0x7FFF => self.cartridge.read_rom(addr),
+            0x0000..=0x7FFF => self
+                .cartridge
+                .as_ref()
+                .map(|cart| cart.read_rom(addr))
+                .unwrap_or(0xFF),
             0x8000..=0x9FFF => self.ppu.read_vram(addr - 0x8000),
-            0xA000..=0xBFFF => self.cartridge.read_ram(addr - 0xA000),
+            0xA000..=0xBFFF => self
+                .cartridge
+                .as_ref()
+                .map(|cart| cart.read_ram(addr - 0xA000))
+                .unwrap_or(0xFF),
 
             0xC000..=0xCFFF => self.working_ram[0][(addr - 0xC000) as usize],
             0xD000..=0xDFFF => self.working_ram[self.working_ram_bank][(addr - 0xD000) as usize],
@@ -162,10 +190,16 @@ impl Bus {
     pub fn write_u8(&mut self, addr: u16, val: u8) {
         match addr {
             0x0000..=0x7FFF => {
-                self.cartridge.write_rom(addr, val);
+                if let Some(cartridge) = &mut self.cartridge {
+                    cartridge.write_rom(addr, val)
+                }
             }
             0x8000..=0x9FFF => self.ppu.write_vram(addr - 0x8000, val),
-            0xA000..=0xBFFF => self.cartridge.write_ram(addr - 0xA000, val),
+            0xA000..=0xBFFF => {
+                if let Some(cartridge) = &mut self.cartridge {
+                    cartridge.write_ram(addr - 0xA000, val)
+                }
+            }
 
             0xC000..=0xCFFF => self.working_ram[0][(addr - 0xC000) as usize] = val,
             0xD000..=0xDFFF => {
@@ -260,7 +294,9 @@ impl Bus {
 
     pub fn hdma_copy_word(&mut self) -> bool {
         self.ppu.hdma.tick_hdma(
-            self.cartridge.as_ref(),
+            // unwrap: if we have no cart by the time we need to run hdma
+            // then something is horribly wrong
+            self.cartridge.as_ref().unwrap().as_ref(),
             &self.working_ram,
             self.working_ram_bank,
             &mut self.ppu.gpu_vram,

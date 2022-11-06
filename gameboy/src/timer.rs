@@ -1,7 +1,9 @@
-use crate::interrupts::InterruptFlag;
+use crate::interrupts::{InterruptFlag, Interrupts};
 
-use super::interrupts::Interrupts;
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub(crate) struct Timer {
     div: u16,
     tima: u8,

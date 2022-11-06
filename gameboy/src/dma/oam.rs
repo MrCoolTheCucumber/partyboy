@@ -1,5 +1,9 @@
 use crate::bus::Bus;
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub(crate) struct OamDma {
     io_reg: u8,
 

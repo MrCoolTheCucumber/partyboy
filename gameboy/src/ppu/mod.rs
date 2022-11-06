@@ -2,21 +2,28 @@ pub mod rgb;
 
 use std::hint::unreachable_unchecked;
 
-use crate::{bus::CgbCompatibility, dma::hdma::Hdma};
-
 use self::rgb::Rgb;
-
 use super::interrupts::{InterruptFlag, Interrupts};
+use crate::{bus::CgbCompatibility, common::D2Array, dma::hdma::Hdma};
+
+#[cfg(feature = "serde")]
+use {
+    serde::{Deserialize, Serialize},
+    serde_big_array::BigArray,
+};
 
 const CGB_PTR_PALETTE: [usize; 4] = [0, 1, 2, 3];
 
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub(crate) struct Ppu {
-    pub gpu_vram: [[u8; 0x2000]; 2],
+    pub gpu_vram: D2Array<u8, 0x2000, 2>,
     pub gpu_vram_bank: u8,
 
+    #[cfg_attr(feature = "serde", serde(with = "BigArray"))]
     pub sprite_table: [u8; 0xA0],
     pub sprite_palette: [[usize; 4]; 2],
 
+    #[cfg_attr(feature = "serde", serde(with = "BigArray"))]
     frame_buffer: [Rgb; 160 * 144],
     draw_flag: bool,
 
@@ -48,13 +55,17 @@ pub(crate) struct Ppu {
     pub wy: u8,   // FF4A
     pub wx: u8,   // FF4B
 
+    #[cfg_attr(feature = "serde", serde(with = "BigArray"))]
     bg_color_palette_ram: [u8; 64],
+    #[cfg_attr(feature = "serde", serde(with = "BigArray"))]
     bg_color_palette: [[Rgb; 4]; 8],
     bg_color_palette_specification: u8, // FF68
     bg_color_palette_index: usize,
     bg_color_palette_auto_increment: bool,
 
+    #[cfg_attr(feature = "serde", serde(with = "BigArray"))]
     sprite_color_palette_ram: [u8; 64],
+    #[cfg_attr(feature = "serde", serde(with = "BigArray"))]
     sprite_color_palette: [[Rgb; 4]; 8],
     sprite_color_palette_specification: u8, // FF6A
     sprite_color_palette_index: usize,
@@ -102,6 +113,7 @@ pub enum LcdControlFlag {
 }
 
 #[derive(Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[allow(clippy::upper_case_acronyms)]
 pub enum PpuMode {
     HBlank = 0, // mode 0
@@ -124,6 +136,7 @@ impl From<u8> for PpuMode {
 }
 
 #[derive(Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 enum ObjectPriorityMode {
     OamOrder,
     CoordinateOrder,
@@ -181,7 +194,7 @@ impl Default for ScanLinePxInfo {
 impl Ppu {
     pub fn new() -> Self {
         Self {
-            gpu_vram: [[0; 0x2000]; 2],
+            gpu_vram: [[0; 0x2000]; 2].into(),
             gpu_vram_bank: 0b1111_1110,
 
             sprite_table: [0; 0xA0],

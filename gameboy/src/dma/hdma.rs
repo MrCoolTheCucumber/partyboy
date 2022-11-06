@@ -7,7 +7,11 @@ use crate::{
     ppu::{Ppu, PpuMode},
 };
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
 #[derive(Copy, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum DmaType {
     Hdma,
     Gdma,
@@ -22,6 +26,7 @@ impl Display for DmaType {
     }
 }
 
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub(crate) struct Hdma {
     pub src_hi: u8,
     pub src_lo: u8,
@@ -254,6 +259,7 @@ impl Hdma {
 const HDMA_T_PER_WORD_COPY: u32 = 4;
 const HDMA_WIND_UP_T: u32 = 4;
 
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub(crate) struct HdmaController {
     state: HdmaControllerState,
     clock: u32,
@@ -376,18 +382,21 @@ impl HdmaController {
 }
 
 #[derive(Copy, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub(crate) enum HdmaControllerState {
     Waiting,
     Started(HdmaState),
 }
 
 #[derive(Copy, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub(crate) enum HdmaState {
     CopyBlock,
     WaitingForHBlank,
 }
 
 #[derive(Copy, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 enum HBlankRisingEdge {
     Lo,
     /// bool is have we "consumed" the rising edge, true => yes, false => no

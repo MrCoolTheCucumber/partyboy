@@ -27,6 +27,7 @@ pub fn new(rom: Vec<u8>) -> (Sender<MsgToGb>, Receiver<MsgFromGb>) {
                 .build_with_target_rate(59.73);
 
             let mut turbo = false;
+            let mut snapshot: Option<Vec<u8>> = None;
 
             loop {
                 loop_helper.loop_start();
@@ -41,6 +42,18 @@ pub fn new(rom: Vec<u8>) -> (Sender<MsgToGb>, Receiver<MsgFromGb>) {
                         }
                         MsgToGb::KeyUp(keys) => keys.into_iter().for_each(|key| gb.key_up(key)),
                         MsgToGb::Turbo(state) => turbo = state,
+                        MsgToGb::SaveSnapshot => {
+                            let buf = rmp_serde::to_vec(&gb).unwrap();
+                            snapshot = Some(buf);
+                            log::info!("Snapshot taken");
+                        }
+                        MsgToGb::LoadSnapshot => {
+                            if let Some(snapshot) = &snapshot {
+                                let snapshot: GameBoy = rmp_serde::from_slice(snapshot).unwrap();
+                                gb.load_snapshot(snapshot);
+                                log::info!("Loaded snapshot")
+                            }
+                        }
                     }
                 }
 

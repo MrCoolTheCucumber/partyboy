@@ -1,21 +1,24 @@
-use std::{env, time::Duration};
+use gameboy::ppu::rgb::Rgb;
+use input::{get_key_downs, get_key_ups};
+use logging::init_logger;
+use msgs::MsgFromGb;
 
-use crate::input::{handle_key_down, handle_key_up};
 use clap::clap_app;
-use gameboy::GameBoy;
-use gl::types::GLuint;
-use log::LevelFilter;
-use log4rs::{
-    append::file::FileAppender,
-    config::{Appender, Root},
-    encode::pattern::PatternEncoder,
-    Config,
+use pixels::{PixelsBuilder, SurfaceTexture};
+use winit::{
+    dpi::LogicalSize,
+    event::{Event, VirtualKeyCode},
+    event_loop::{ControlFlow, EventLoop},
+    window::WindowBuilder,
 };
-use sdl2::video::SwapInterval;
-use spin_sleep::LoopHelper;
+use winit_input_helper::WinitInputHelper;
 
+use crate::msgs::MsgToGb;
+
+mod emu_thread;
 mod input;
-mod render;
+mod logging;
+mod msgs;
 
 pub const SCALE: u32 = 2;
 pub const WIDTH: u32 = 160;
@@ -24,35 +27,6 @@ pub const HEIGHT: u32 = 144;
 struct Args {
     rom_path: String,
     enable_file_logging: bool,
-}
-
-fn init_logger(enable_file_logging: bool) {
-    if env::var("RUST_LOG").is_err() {
-        env::set_var("RUST_LOG", "info")
-    }
-
-    if enable_file_logging {
-        const LOG_PATTERN: &str = "{m}\n";
-        let logfile = FileAppender::builder()
-            .encoder(Box::new(PatternEncoder::new(LOG_PATTERN)))
-            .build("log/output.log")
-            .unwrap();
-
-        let config = Config::builder()
-            .appender(Appender::builder().build("logfile", Box::new(logfile)))
-            .build(
-                Root::builder()
-                    .appender("logfile")
-                    .build(LevelFilter::Debug),
-            )
-            .unwrap();
-
-        log4rs::init_config(config).unwrap();
-    } else {
-        env_logger::builder().format_timestamp(None).init();
-    }
-
-    log_panics::init();
 }
 
 fn parse_args() -> Args {
@@ -92,106 +66,91 @@ fn main() {
     #[cfg(debug_assertions)]
     init_logger(args.enable_file_logging);
 
-    // TODO: handle saving
     let rom = std::fs::read(args.rom_path).expect("Unable to read game file");
-    let mut gb = GameBoy::builder().rom(rom).build().unwrap();
-    log::info!("Initialized gameboy.");
 
-    let sdl = sdl2::init().unwrap();
-    let video = sdl.video().unwrap();
+    let event_loop = EventLoop::new();
+    let mut input = WinitInputHelper::new();
+    let window = WindowBuilder::new()
+        .with_title("Partyboy 🎉")
+        .with_inner_size(LogicalSize::new(WIDTH * SCALE, HEIGHT * SCALE))
+        .with_resizable(false)
+        .build(&event_loop)
+        .expect("Unable to create window");
 
-    {
-        let gl_attr = video.gl_attr();
-        gl_attr.set_context_profile(sdl2::video::GLProfile::Core);
-        gl_attr.set_context_version(3, 0);
-    }
+    let mut pixels = {
+        let window_size = window.inner_size();
+        let surface_texture = SurfaceTexture::new(window_size.width, window_size.height, &window);
+        PixelsBuilder::new(WIDTH, HEIGHT, surface_texture)
+            .enable_vsync(false)
+            .build()
+            .unwrap()
+    };
 
-    let mut window = video
-        .window("Partyboy", WIDTH * SCALE, HEIGHT * SCALE)
-        .position_centered()
-        .opengl()
-        .allow_highdpi()
-        .build()
-        .unwrap();
+    let (s, r) = emu_thread::new(rom);
+    let mut frame_to_draw: Option<Vec<Rgb>> = None;
 
-    let _gl_context = window
-        .gl_create_context()
-        .expect("Couldn't create GL context");
-
-    let _ = video.gl_set_swap_interval(SwapInterval::Immediate);
-    gl::load_with(|s| video.gl_get_proc_address(s) as _);
-
-    let mut event_pump = sdl.event_pump().unwrap();
-
-    let mut fb_id: GLuint = 0;
-    let mut tex_id: GLuint = 0;
-    render::init_gl_state(&mut tex_id, &mut fb_id);
-
-    unsafe {
-        gl::ClearColor(0.4549, 0.92549, 0.968627, 0.7);
-        gl::Clear(gl::COLOR_BUFFER_BIT);
-    }
-
-    let mut loop_helper = LoopHelper::builder()
-        .report_interval(Duration::from_millis(500))
-        .build_with_target_rate(59.73);
-
-    let mut turbo = false;
-
-    'running: loop {
-        use sdl2::event::Event;
-
-        let _ = loop_helper.loop_start();
-
-        for event in event_pump.poll_iter() {
-            match event {
-                Event::KeyDown {
-                    keycode, repeat, ..
-                } => {
-                    if !repeat {
-                        if let Some(keycode) = keycode {
-                            if matches!(keycode, sdl2::keyboard::Keycode::Tab) {
-                                turbo = true;
-                            } else {
-                                handle_key_down(&mut gb, keycode);
-                            }
-                        }
-                    }
-                }
-
-                Event::KeyUp {
-                    keycode, repeat, ..
-                } => {
-                    if !repeat {
-                        if let Some(keycode) = keycode {
-                            if matches!(keycode, sdl2::keyboard::Keycode::Tab) {
-                                turbo = false;
-                            } else {
-                                handle_key_up(&mut gb, keycode);
-                            }
-                        }
-                    }
-                }
-
-                Event::Quit { .. } => break 'running,
-
-                _ => {}
+    event_loop.run(move |event, _, control_flow| {
+        let msgs: Vec<MsgFromGb> = r.try_iter().collect();
+        for msg in msgs {
+            match msg {
+                MsgFromGb::Frame(fb) => frame_to_draw = Some(fb),
+                MsgFromGb::Fps(fps) => window.set_title(format!("{:.2}", fps).as_str()),
             }
         }
 
-        while !gb.consume_draw_flag() {
-            gb.tick();
+        match event {
+            Event::RedrawRequested(_) => {
+                if let Some(frame) = &frame_to_draw {
+                    let flat_frame = frame
+                        .iter()
+                        .flat_map(|px| [px.r, px.g, px.b, 0xFF])
+                        .collect::<Vec<_>>();
+                    pixels
+                        .get_frame_mut()
+                        .copy_from_slice(flat_frame.as_slice());
+                }
+
+                if let Err(e) = pixels.render() {
+                    log::error!("pixels.render() failed: {}", e);
+                    *control_flow = ControlFlow::Exit;
+                    return;
+                }
+            }
+            Event::LoopDestroyed => {
+                *control_flow = ControlFlow::Exit;
+                return;
+            }
+            _ => {}
         }
 
-        render::render_gb(&gb, fb_id, tex_id);
-        window.gl_swap_window();
+        if input.update(&event) {
+            // TODO: use 1 message..
+            let key_downs = get_key_downs(&mut input);
+            let key_ups = get_key_ups(&mut input);
 
-        if let Some(fps) = loop_helper.report_rate() {
-            let _ = window.set_title(format!("{:.2}", fps).as_str());
+            if !key_downs.is_empty() {
+                let keydown_msg = MsgToGb::KeyDown(key_downs);
+                s.send(keydown_msg).unwrap();
+            }
+
+            if !key_ups.is_empty() {
+                let keyup_msg = MsgToGb::KeyUp(key_ups);
+                s.send(keyup_msg).unwrap();
+            }
+
+            if input.key_pressed(VirtualKeyCode::Escape) || input.quit() {
+                *control_flow = ControlFlow::Exit;
+                return;
+            }
+
+            if input.key_pressed(VirtualKeyCode::Space) {
+                s.send(MsgToGb::Turbo(true)).unwrap();
+            }
+            if input.key_released(VirtualKeyCode::Space) {
+                s.send(MsgToGb::Turbo(false)).unwrap();
+            }
         }
 
-        if !turbo {
-            loop_helper.loop_sleep();
-        }
-    }
+        window.request_redraw();
+    });
 }

@@ -1,31 +1,49 @@
-use gameboy::GameBoy;
-use sdl2::keyboard::Keycode;
+use gameboy::input::Keycode;
+use winit::event::VirtualKeyCode;
+use winit_input_helper::WinitInputHelper;
 
-fn try_into_gameboy_input(code: Keycode) -> Option<gameboy::input::Keycode> {
-    match code {
-        Keycode::W => Some(gameboy::input::Keycode::Up),
-        Keycode::A => Some(gameboy::input::Keycode::Left),
-        Keycode::S => Some(gameboy::input::Keycode::Down),
-        Keycode::D => Some(gameboy::input::Keycode::Right),
+const GB_KEYS: [VirtualKeyCode; 8] = [
+    VirtualKeyCode::W,
+    VirtualKeyCode::A,
+    VirtualKeyCode::S,
+    VirtualKeyCode::D,
+    VirtualKeyCode::O,
+    VirtualKeyCode::K,
+    VirtualKeyCode::M,
+    VirtualKeyCode::N,
+];
 
-        Keycode::O => Some(gameboy::input::Keycode::A),
-        Keycode::K => Some(gameboy::input::Keycode::B),
+pub fn try_into_gameboy_input(key: VirtualKeyCode) -> Option<Keycode> {
+    match key {
+        VirtualKeyCode::W => Some(gameboy::input::Keycode::Up),
+        VirtualKeyCode::A => Some(gameboy::input::Keycode::Left),
+        VirtualKeyCode::S => Some(gameboy::input::Keycode::Down),
+        VirtualKeyCode::D => Some(gameboy::input::Keycode::Right),
 
-        Keycode::M => Some(gameboy::input::Keycode::Start),
-        Keycode::N => Some(gameboy::input::Keycode::Select),
+        VirtualKeyCode::O => Some(gameboy::input::Keycode::A),
+        VirtualKeyCode::K => Some(gameboy::input::Keycode::B),
+
+        VirtualKeyCode::M => Some(gameboy::input::Keycode::Start),
+        VirtualKeyCode::N => Some(gameboy::input::Keycode::Select),
 
         _ => None,
     }
 }
 
-pub fn handle_key_down(gb: &mut GameBoy, code: Keycode) {
-    if let Some(key) = try_into_gameboy_input(code) {
-        gb.key_down(key)
-    }
+pub fn get_key_downs(input: &mut WinitInputHelper) -> Vec<Keycode> {
+    GB_KEYS
+        .iter()
+        .copied()
+        .filter(|key| input.key_pressed(*key))
+        .filter_map(try_into_gameboy_input)
+        .collect()
 }
 
-pub fn handle_key_up(gb: &mut GameBoy, code: Keycode) {
-    if let Some(key) = try_into_gameboy_input(code) {
-        gb.key_up(key)
-    }
+pub fn get_key_ups(input: &mut WinitInputHelper) -> Vec<Keycode> {
+    GB_KEYS
+        .iter()
+        .copied()
+        .filter(|key| input.key_released(*key))
+        .filter_map(try_into_gameboy_input)
+        .collect()
 }

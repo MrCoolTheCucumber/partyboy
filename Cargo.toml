@@ -15,6 +15,7 @@ exclude = [
     # for some reason it messes up intellisense if its a member
     "gameboy_web", 
 ]
+resolver="2"
 
 [profile.dev]
 opt-level = 3

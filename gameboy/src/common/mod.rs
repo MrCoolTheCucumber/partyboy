@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 /// A type to wrap 2d arrays so we can serialize and deserialize them more easily
 /// by converting it into/from a 1d vector.
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(
     feature = "serde",
@@ -16,9 +16,9 @@ use serde::{Deserialize, Serialize};
 )]
 pub(crate) struct D2Array<T, const N: usize, const M: usize>
 where
-    T: Default + Copy,
+    T: Default + Clone + Copy,
 {
-    array: [[T; N]; M],
+    array: Box<[[T; N]; M]>,
 }
 
 #[cfg(feature = "serde")]
@@ -32,7 +32,7 @@ struct SerializableD2Array<T> {
 #[cfg(feature = "serde")]
 impl<T, const N: usize, const M: usize> From<SerializableD2Array<T>> for D2Array<T, N, M>
 where
-    T: Default + Copy,
+    T: Default + Clone + Copy,
 {
     fn from(val: SerializableD2Array<T>) -> Self {
         let mut array = [[T::default(); N]; M];
@@ -43,14 +43,16 @@ where
             inner_arr.copy_from_slice(chunk);
         }
 
-        D2Array { array }
+        D2Array {
+            array: Box::new(array),
+        }
     }
 }
 
 #[cfg(feature = "serde")]
 impl<T, const N: usize, const M: usize> From<D2Array<T, N, M>> for SerializableD2Array<T>
 where
-    T: Default + Copy,
+    T: Default + Clone + Copy,
 {
     fn from(val: D2Array<T, N, M>) -> Self {
         let mut vec = Vec::new();
@@ -66,16 +68,18 @@ where
 
 impl<T, const N: usize, const M: usize> From<[[T; N]; M]> for D2Array<T, N, M>
 where
-    T: Default + Copy,
+    T: Default + Clone + Copy,
 {
     fn from(array: [[T; N]; M]) -> Self {
-        Self { array }
+        Self {
+            array: Box::new(array),
+        }
     }
 }
 
 impl<T, const N: usize, const M: usize> AsRef<[[T; N]; M]> for D2Array<T, N, M>
 where
-    T: Default + Copy,
+    T: Default + Clone + Copy,
 {
     fn as_ref(&self) -> &[[T; N]; M] {
         &self.array
@@ -84,7 +88,7 @@ where
 
 impl<T, const N: usize, const M: usize> Deref for D2Array<T, N, M>
 where
-    T: Default + Copy,
+    T: Default + Clone + Copy,
 {
     type Target = [[T; N]; M];
 
@@ -95,7 +99,7 @@ where
 
 impl<T, const N: usize, const M: usize> DerefMut for D2Array<T, N, M>
 where
-    T: Default + Copy,
+    T: Default + Clone + Copy,
 {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.array
@@ -104,7 +108,7 @@ where
 
 impl<T, const N: usize, const M: usize, Idx> Index<Idx> for D2Array<T, N, M>
 where
-    T: Default + Copy,
+    T: Default + Clone + Copy,
     Idx: SliceIndex<[[T; N]], Output = [T; N]>,
 {
     type Output = [T; N];
@@ -116,7 +120,7 @@ where
 
 impl<T, const N: usize, const M: usize, Idx> IndexMut<Idx> for D2Array<T, N, M>
 where
-    T: Default + Copy,
+    T: Default + Clone + Copy,
     Idx: SliceIndex<[[T; N]], Output = [T; N]>,
 {
     fn index_mut(&mut self, index: Idx) -> &mut Self::Output {

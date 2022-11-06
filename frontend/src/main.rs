@@ -149,6 +149,13 @@ fn main() {
             if input.key_released(VirtualKeyCode::Space) {
                 s.send(MsgToGb::Turbo(false)).unwrap();
             }
+
+            if input.key_pressed(VirtualKeyCode::C) {
+                s.send(MsgToGb::SaveSnapshot).unwrap();
+            }
+            if input.key_released(VirtualKeyCode::V) {
+                s.send(MsgToGb::LoadSnapshot).unwrap();
+            }
         }
 
         window.request_redraw();

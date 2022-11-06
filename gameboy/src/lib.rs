@@ -155,4 +155,11 @@ impl GameBoy {
             self.tick();
         }
     }
+
+    #[cfg(not(feature = "web"))]
+    pub fn load_snapshot(&mut self, snapshot: GameBoy) {
+        let cartridge = self.bus.cartridge.take();
+        *self = snapshot;
+        self.bus.cartridge = cartridge;
+    }
 }

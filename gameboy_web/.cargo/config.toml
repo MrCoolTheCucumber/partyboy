@@ -1,0 +1,8 @@
+# This file exists so we can set some rustc flags
+# We need to increase the stack size in wasm otherwise serde deserialization will
+# cause a memory error in the browser
+
+[target.wasm32-unknown-unknown]
+rustflags = [
+  "-C", "link-args=-z stack-size=1500000", # 1.5 Mb 
+]

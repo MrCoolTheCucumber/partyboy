@@ -2835,7 +2835,6 @@ dependencies = [
  "log-panics",
  "log4rs",
  "pixels",
- "rmp",
  "rmp-serde",
  "serde",
  "spin_sleep",

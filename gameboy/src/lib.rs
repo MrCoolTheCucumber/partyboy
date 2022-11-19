@@ -72,7 +72,7 @@ impl GameBoy {
         Self {
             instruction_cache: InstructionCache::new(),
             cpu: Cpu::new(),
-            bus: Bus::new(cartridge, Box::new(Bus::get_handle_blargg_output())),
+            bus: Bus::new(Some(cartridge), Box::new(Bus::get_handle_blargg_output())),
             hdma_controller: HdmaController::default(),
         }
     }
@@ -160,7 +160,6 @@ impl GameBoy {
         }
     }
 
-    #[cfg(not(feature = "web"))]
     pub fn load_snapshot(&mut self, snapshot: GameBoy) {
         let cartridge = self.bus.cartridge.take();
         *self = snapshot;

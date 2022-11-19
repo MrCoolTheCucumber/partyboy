@@ -31,6 +31,8 @@ use self::{
     ppu::rgb::Rgb,
 };
 
+pub const SPEED: u64 = 4_194_304;
+
 #[cfg_attr(feature = "web", wasm_bindgen)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct GameBoy {

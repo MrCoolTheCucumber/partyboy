@@ -24,7 +24,7 @@ pub(crate) struct Ppu {
     pub sprite_palette: [[usize; 4]; 2],
 
     #[cfg_attr(feature = "serde", serde(with = "BigArray"))]
-    frame_buffer: [Rgb; 160 * 144],
+    pub frame_buffer: [Rgb; 160 * 144],
     draw_flag: bool,
 
     bg_palette: [usize; 4],

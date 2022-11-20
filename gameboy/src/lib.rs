@@ -31,6 +31,9 @@ use self::{
     ppu::rgb::Rgb,
 };
 
+/// Number of cycles per second the gameboy does in single speed mode.
+/// When the emulator is in double speed mode, you don't need to double the speed
+/// as the `tick` function will internally tick twice
 pub const SPEED: u64 = 4_194_304;
 
 #[cfg_attr(feature = "web", wasm_bindgen)]

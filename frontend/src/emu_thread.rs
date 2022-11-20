@@ -98,7 +98,7 @@ pub fn new(rom: Option<Vec<u8>>) -> (Sender<MsgToGb>, Receiver<MsgFromGb>) {
                 }
 
                 if !turbo {
-                    std::thread::sleep(Duration::from_millis(1000 / 60));
+                    std::thread::sleep(Duration::from_millis(1));
                 }
             }
         });

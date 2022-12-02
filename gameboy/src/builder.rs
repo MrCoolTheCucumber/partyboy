@@ -1,7 +1,7 @@
 use crate::{
     bus::{Bus, CgbCompatibility},
     cartridge,
-    ppu::{cgb_palette, rgb::Rgb},
+    ppu::{cgb_palette, rgb::Rgb, ObjectPriorityMode},
     GameBoy,
 };
 use thiserror::Error;
@@ -112,6 +112,19 @@ impl GameBoyBuilder {
 
                 gb.bus.ppu.override_color_palettes(&palettes);
             }
+        }
+
+        log::error!("{}", compatibility);
+
+        // TODO: is this set also for CgbAndDmg mode?
+        let obj_prio_mode = match compatibility {
+            CgbCompatibility::CgbOnly => ObjectPriorityMode::OamOrder,
+            _ => ObjectPriorityMode::CoordinateOrder,
+        };
+        gb.bus.ppu.override_obj_prio_mode(obj_prio_mode);
+
+        if let Some(serial_write_handler) = self.serial_write_handler {
+            gb.bus.set_serial_write_handler(serial_write_handler);
         }
 
         gb.bus.cartridge = cartridge;

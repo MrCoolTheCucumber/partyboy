@@ -113,6 +113,10 @@ impl Bus {
         }
     }
 
+    pub fn set_serial_write_handler(&mut self, handler: SerialWriteHandler) {
+        self.serial_write_handler = handler;
+    }
+
     pub(crate) fn get_handle_blargg_output() -> SerialWriteHandler {
         let mut blargg_output_buffer: Vec<char> = Vec::new();
 

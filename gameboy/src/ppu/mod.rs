@@ -138,7 +138,7 @@ impl From<u8> for PpuMode {
 
 #[derive(Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-enum ObjectPriorityMode {
+pub enum ObjectPriorityMode {
     OamOrder,
     CoordinateOrder,
 }
@@ -275,6 +275,10 @@ impl Ppu {
         self.bg_color_palette[0].copy_from_slice(&palettes[0..4]);
         self.sprite_color_palette[0].copy_from_slice(&palettes[4..8]);
         self.sprite_color_palette[1].copy_from_slice(&palettes[8..12]);
+    }
+
+    pub fn override_obj_prio_mode(&mut self, mode: ObjectPriorityMode) {
+        self.obj_prio_mode = mode;
     }
 
     #[cfg(feature = "debug_info")]

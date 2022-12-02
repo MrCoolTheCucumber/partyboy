@@ -113,7 +113,7 @@ impl Cpu {
     }
 
     pub fn handle_bios_skip(&mut self) {
-        self.pc = 0x150;
+        self.pc = 0x100;
         self.instruction_opcode = None;
         self.is_fetching = true;
     }

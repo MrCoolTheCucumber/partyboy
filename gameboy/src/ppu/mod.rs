@@ -1,3 +1,4 @@
+pub mod cgb_palette;
 pub mod rgb;
 
 use std::hint::unreachable_unchecked;
@@ -268,6 +269,12 @@ impl Ppu {
             line_clock_cycles: 0,
             mode_clock_cycles: 0,
         }
+    }
+
+    pub fn override_color_palettes(&mut self, palettes: &[Rgb; 12]) {
+        self.bg_color_palette[0].copy_from_slice(&palettes[0..4]);
+        self.sprite_color_palette[0].copy_from_slice(&palettes[4..8]);
+        self.sprite_color_palette[1].copy_from_slice(&palettes[8..12]);
     }
 
     #[cfg(feature = "debug_info")]

@@ -29,6 +29,14 @@ impl Rgb {
         }
     }
 
+    pub fn from_rgb32(val: u32) -> Self {
+        let b = (val & 0x00_00_00_FF) as u8;
+        let g = ((val & 0x00_00_FF_00) >> 8) as u8;
+        let r = ((val & 0x00_FF_00_00) >> 16) as u8;
+
+        Rgb { r, g, b }
+    }
+
     pub(super) fn from_bgr555(bgr555: u16) -> Self {
         Self {
             r: (bgr555 & 0x1F) as u8,

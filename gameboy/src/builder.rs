@@ -1,4 +1,9 @@
-use crate::{bus::Bus, cartridge, ppu::rgb::Rgb, GameBoy};
+use crate::{
+    bus::{Bus, CgbCompatibility},
+    cartridge,
+    ppu::{cgb_palette, rgb::Rgb},
+    GameBoy,
+};
 use thiserror::Error;
 
 pub type SerialWriteHandler = Box<dyn FnMut(u8)>;
@@ -73,8 +78,6 @@ impl GameBoyBuilder {
             .map_err(|_| GameBoyBuilderError::UnableToLoadBiosSkipSnapshot)?;
         let cartridge = self.rom.map(|rom| cartridge::create(rom, self.ram));
 
-        gb.bus.cartridge = cartridge;
-
         gb.bus.ppu.gpu_vram[0].iter_mut().for_each(|x| *x = 0);
         gb.bus.ppu.gpu_vram[1].iter_mut().for_each(|x| *x = 0);
         gb.bus.ppu.sprite_table.iter_mut().for_each(|x| *x = 0);
@@ -86,9 +89,32 @@ impl GameBoyBuilder {
         gb.cpu.handle_bios_skip();
         gb.bus.bios_enabled = false;
 
-        // TODO: detect if game is dmg or cgb?
-        // TODO: set cpu compatibility mode by inspecting cartridge
-        // TODO: set color palettes
+        // Set compatibility mode
+        let cart_header_cgb_flag = match &cartridge {
+            Some(cartridge) => cartridge.read_rom(0x143),
+            None => 0,
+        };
+        gb.bus.write_u8(0xFF4C, cart_header_cgb_flag);
+
+        let compatibility = CgbCompatibility::from(cart_header_cgb_flag);
+        if matches!(
+            compatibility,
+            CgbCompatibility::None | CgbCompatibility::CgbAndDmg
+        ) {
+            if let Some(cartridge) = &cartridge {
+                // unwrap: get_color_palettes(..) returns an array of 12 too
+                let palettes: [Rgb; 12] = cgb_palette::get_color_palettes(cartridge.as_ref())
+                    .into_iter()
+                    .map(Rgb::from_rgb32)
+                    .collect::<Vec<_>>()
+                    .try_into()
+                    .unwrap();
+
+                gb.bus.ppu.override_color_palettes(&palettes);
+            }
+        }
+
+        gb.bus.cartridge = cartridge;
 
         Ok(gb)
     }

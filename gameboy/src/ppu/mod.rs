@@ -369,7 +369,7 @@ impl Ppu {
 
                 // is the ppu turning off
                 if self.lcdc & LcdControlFlag::LCDDisplayEnable as u8 == 0 {
-                    log::debug!("Poweromg LCD OFF");
+                    log::debug!("Powering LCD OFF");
                     self.reset();
                     // TODO: oam/vram unlocking
                 }

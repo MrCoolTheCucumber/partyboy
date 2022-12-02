@@ -52,7 +52,6 @@ pub fn new(rom: Option<Vec<u8>>) -> (Sender<MsgToGb>, Receiver<MsgFromGb>) {
                     MsgToGb::SaveSnapshot => {
                         let buf = rmp_serde::to_vec(&gb).unwrap();
                         log::info!("Snapshot taken: {}", buf.len());
-                        std::fs::write("snapshot", &buf).unwrap();
                         snapshot = Some(buf);
                     }
                     MsgToGb::LoadSnapshot => {

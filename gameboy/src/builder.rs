@@ -114,8 +114,6 @@ impl GameBoyBuilder {
             }
         }
 
-        log::error!("{}", compatibility);
-
         // TODO: is this set also for CgbAndDmg mode?
         let obj_prio_mode = match compatibility {
             CgbCompatibility::CgbOnly => ObjectPriorityMode::OamOrder,

@@ -52,6 +52,7 @@ impl GameBoy {
     fn new(
         rom: Option<Vec<u8>>,
         ram: Option<Vec<u8>>,
+        bios: [u8; 2304],
         serial_write_handler: SerialWriteHandler,
     ) -> Self {
         let cartridge = rom.map(|rom| cartridge::create(rom, ram));
@@ -59,7 +60,7 @@ impl GameBoy {
         Self {
             instruction_cache: InstructionCache::new(),
             cpu: Cpu::new(),
-            bus: Bus::new(cartridge, serial_write_handler),
+            bus: Bus::new(cartridge, serial_write_handler, bios),
             hdma_controller: HdmaController::default(),
         }
     }

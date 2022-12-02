@@ -112,6 +112,12 @@ impl Cpu {
         self.halted = false; // TODO: un-halting should take extra 4t (TCAGBD 4.9?)
     }
 
+    pub fn handle_bios_skip(&mut self) {
+        self.pc = 0x100;
+        self.instruction_opcode = None;
+        self.is_fetching = true;
+    }
+
     pub fn stopped(&self) -> bool {
         self.stopped
     }

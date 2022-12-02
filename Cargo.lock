@@ -1652,6 +1652,7 @@ dependencies = [
  "image",
  "log",
  "paste",
+ "rmp-serde",
  "seq-macro",
  "serde",
  "serde-big-array",

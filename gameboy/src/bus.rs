@@ -14,8 +14,6 @@ use {
     serde_big_array::BigArray,
 };
 
-include!(concat!(env!("OUT_DIR"), "/boot_rom.rs"));
-
 #[derive(Clone, Copy, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum CgbCompatibility {
@@ -88,6 +86,7 @@ impl Bus {
     pub fn new(
         cartridge: Option<Box<dyn Cartridge>>,
         serial_write_handler: SerialWriteHandler,
+        bios: [u8; 2304],
     ) -> Self {
         Self {
             serial_write_handler,
@@ -104,7 +103,7 @@ impl Bus {
             oam_dma: OamDma::default(),
 
             bios_enabled: true,
-            bios: BOOT_ROM,
+            bios,
             console_compatibility_mode: CgbCompatibility::CgbOnly,
 
             interrupts: Interrupts::new(),
@@ -112,6 +111,10 @@ impl Bus {
             input: Input::new(),
             cpu_speed_controller: CpuSpeedController::new(CgbCompatibility::CgbOnly),
         }
+    }
+
+    pub fn set_serial_write_handler(&mut self, handler: SerialWriteHandler) {
+        self.serial_write_handler = handler;
     }
 
     pub(crate) fn get_handle_blargg_output() -> SerialWriteHandler {

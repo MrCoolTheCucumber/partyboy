@@ -1,3 +1,4 @@
+pub mod cgb_palette;
 pub mod rgb;
 
 use std::hint::unreachable_unchecked;
@@ -24,7 +25,7 @@ pub(crate) struct Ppu {
     pub sprite_palette: [[usize; 4]; 2],
 
     #[cfg_attr(feature = "serde", serde(with = "BigArray"))]
-    frame_buffer: [Rgb; 160 * 144],
+    pub frame_buffer: [Rgb; 160 * 144],
     draw_flag: bool,
 
     bg_palette: [usize; 4],
@@ -137,7 +138,7 @@ impl From<u8> for PpuMode {
 
 #[derive(Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-enum ObjectPriorityMode {
+pub enum ObjectPriorityMode {
     OamOrder,
     CoordinateOrder,
 }
@@ -270,6 +271,16 @@ impl Ppu {
         }
     }
 
+    pub fn override_color_palettes(&mut self, palettes: &[Rgb; 12]) {
+        self.bg_color_palette[0].copy_from_slice(&palettes[0..4]);
+        self.sprite_color_palette[0].copy_from_slice(&palettes[4..8]);
+        self.sprite_color_palette[1].copy_from_slice(&palettes[8..12]);
+    }
+
+    pub fn override_obj_prio_mode(&mut self, mode: ObjectPriorityMode) {
+        self.obj_prio_mode = mode;
+    }
+
     #[cfg(feature = "debug_info")]
     pub fn bg_color_palette(&self) -> [[Rgb; 4]; 8] {
         self.bg_color_palette
@@ -369,7 +380,7 @@ impl Ppu {
 
                 // is the ppu turning off
                 if self.lcdc & LcdControlFlag::LCDDisplayEnable as u8 == 0 {
-                    log::debug!("Poweromg LCD OFF");
+                    log::debug!("Powering LCD OFF");
                     self.reset();
                     // TODO: oam/vram unlocking
                 }

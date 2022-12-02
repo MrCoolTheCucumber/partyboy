@@ -33,7 +33,12 @@ fn init_default_state() -> (Cpu, Bus, InstructionCache) {
     let mut cpu = Cpu::new();
     cpu.is_fetching = true;
     let cartridge = Box::new(crate::cartridge::rom::create_test_rom());
-    let bus = Bus::new(Some(cartridge), Box::new(Bus::get_handle_blargg_output()));
+    let dummy_bios = [0; 2304];
+    let bus = Bus::new(
+        Some(cartridge),
+        Box::new(Bus::get_handle_blargg_output()),
+        dummy_bios,
+    );
     let instruction_cache = InstructionCache::new();
 
     (cpu, bus, instruction_cache)

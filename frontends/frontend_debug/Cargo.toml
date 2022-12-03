@@ -15,6 +15,6 @@ env_logger = "0.9"
 flexi_logger = "0.22"
 log = "0.4"
 log-panics = "2"
-gameboy = { path = "../gameboy", features = ["debug_info"]}
+gameboy = { path = "../../core/gameboy", features = ["debug_info"]}
 rfd = "0.10"
 spin_sleep = "1.1.1"

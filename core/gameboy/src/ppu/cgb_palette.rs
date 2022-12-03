@@ -1,6 +1,9 @@
 /*
    This file is based on the following src code:
    https://github.com/TASEmulators/BizHawk/blob/d4bb5e047e07dbfc078d171c99c80eafd01b5eb0/src/BizHawk.Emulation.Cores/Consoles/Nintendo/Gameboy/Gambatte.cs#L401-L529
+
+   The gameboy color bios will initialize a color palette for gameboy games based on a hash of the cart header title.
+   In order to still have colors for game boy games when booting in bios skip mode we need to replicate this functionality.
 */
 
 use crate::cartridge::Cartridge;

@@ -10,7 +10,7 @@ resolver="2"
 env_logger = "0.9"
 clap = "2"
 crossbeam = "0.8"
-gameboy = { path = "../gameboy" }
+gameboy = { path = "../../core/gameboy" }
 log = "0.4"
 log-panics = "2"
 log4rs = "1"

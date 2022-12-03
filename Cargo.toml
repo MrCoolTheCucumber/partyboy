@@ -1,19 +1,19 @@
 [workspace]
 members = [
     "benches",
-    "frontend",
-    "frontend_debug",
-    "frontend_web",
-    "gameboy",
+    "frontends/frontend",
+    "frontends/frontend_debug",
+    "frontends/frontend_web",
+    "core/gameboy",
     "test/junit_to_md"
 ]
 default-members = [
-    "frontend",
-    "gameboy",
+    "frontends/frontend",
+    "core/gameboy",
 ]
 exclude = [
     # for some reason it messes up intellisense if its a member
-    "gameboy_web", 
+    "core/gameboy_web", 
 ]
 resolver="2"
 

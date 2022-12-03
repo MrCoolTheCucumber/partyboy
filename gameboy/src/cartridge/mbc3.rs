@@ -166,5 +166,5 @@ extern "C" {
 
 #[cfg(feature = "web")]
 fn now_secs() -> u64 {
-    unsafe { performance_now() as u64 }
+    performance_now() as u64
 }

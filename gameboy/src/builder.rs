@@ -6,10 +6,13 @@ use crate::{
 };
 use thiserror::Error;
 
+#[cfg(feature = "web")]
+use wasm_bindgen::prelude::wasm_bindgen;
+
 pub type SerialWriteHandler = Box<dyn FnMut(u8)>;
 
 #[derive(Error, Debug)]
-#[cfg(not(feature = "web"))]
+#[cfg_attr(feature = "web", wasm_bindgen)]
 pub enum GameBoyBuilderError {
     #[error("A rom path must be specified")]
     NoRomPath,
@@ -19,7 +22,7 @@ pub enum GameBoyBuilderError {
     UnableToLoadBiosSkipSnapshot,
 }
 
-#[cfg(not(feature = "web"))]
+#[cfg_attr(feature = "web", wasm_bindgen)]
 pub struct GameBoyBuilder {
     rom: Option<Vec<u8>>,
     ram: Option<Vec<u8>>,
@@ -27,14 +30,12 @@ pub struct GameBoyBuilder {
     serial_write_handler: Option<SerialWriteHandler>,
 }
 
-#[cfg(not(feature = "web"))]
 impl Default for GameBoyBuilder {
     fn default() -> Self {
         Self::new()
     }
 }
-
-#[cfg(not(feature = "web"))]
+#[cfg_attr(feature = "web", wasm_bindgen)]
 impl GameBoyBuilder {
     pub fn new() -> Self {
         GameBoyBuilder {
@@ -57,6 +58,7 @@ impl GameBoyBuilder {
         builder
     }
 
+    #[cfg(not(feature = "web"))]
     pub fn serial_write_handler(self, on_serial_write: SerialWriteHandler) -> Self {
         let mut builder = self;
         builder.serial_write_handler = Some(on_serial_write);
@@ -130,6 +132,7 @@ impl GameBoyBuilder {
         Ok(gb)
     }
 
+    #[cfg(not(feature = "web"))]
     pub fn build(self) -> Result<GameBoy, GameBoyBuilderError> {
         match self.bios {
             Some(bios) => {
@@ -143,6 +146,24 @@ impl GameBoyBuilder {
                 Ok(GameBoy::new(self.rom, self.ram, bios, serial_write_handler))
             }
             None => self.create_gameboy_from_snapshot(),
+        }
+    }
+
+    #[cfg(feature = "web")]
+    pub fn build(self) -> GameBoy {
+        match self.bios {
+            Some(bios) => {
+                let serial_write_handler = self
+                    .serial_write_handler
+                    .unwrap_or_else(|| Box::new(Bus::get_handle_blargg_output()));
+                let bios: [u8; 2304] = bios
+                    .try_into()
+                    .map_err(|_| GameBoyBuilderError::UnableToParseBios)
+                    .unwrap();
+
+                GameBoy::new(self.rom, self.ram, bios, serial_write_handler)
+            }
+            None => self.create_gameboy_from_snapshot().unwrap(),
         }
     }
 }

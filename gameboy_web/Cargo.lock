@@ -43,6 +43,7 @@ dependencies = [
  "console_error_panic_hook",
  "log",
  "paste",
+ "rmp-serde",
  "serde",
  "serde-big-array",
  "thiserror",
@@ -51,7 +52,7 @@ dependencies = [
 
 [[package]]
 name = "gameboy_web"
-version = "0.1.8"
+version = "0.2.0"
 dependencies = [
  "gameboy",
  "js-sys",

@@ -16,7 +16,6 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "web")]
 use wasm_bindgen::prelude::wasm_bindgen;
 
-#[cfg(not(feature = "web"))]
 use self::builder::GameBoyBuilder;
 use self::{
     builder::SerialWriteHandler,
@@ -48,7 +47,6 @@ pub struct GameBoy {
 
 #[cfg_attr(feature = "web", wasm_bindgen)]
 impl GameBoy {
-    #[cfg(not(feature = "web"))]
     fn new(
         rom: Option<Vec<u8>>,
         ram: Option<Vec<u8>>,
@@ -65,22 +63,8 @@ impl GameBoy {
         }
     }
 
-    #[cfg(not(feature = "web"))]
     pub fn builder() -> GameBoyBuilder {
         GameBoyBuilder::new()
-    }
-
-    #[cfg(feature = "web")]
-    pub fn new(rom: Vec<u8>, ram: Option<Vec<u8>>) -> Self {
-        console_error_panic_hook::set_once();
-        let cartridge = cartridge::create(rom, ram);
-
-        Self {
-            instruction_cache: InstructionCache::new(),
-            cpu: Cpu::new(),
-            bus: Bus::new(Some(cartridge), Box::new(Bus::get_handle_blargg_output())),
-            hdma_controller: HdmaController::default(),
-        }
     }
 
     fn tick_cpu_related(&mut self) {

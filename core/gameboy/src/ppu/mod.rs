@@ -1,7 +1,7 @@
 pub mod cgb_palette;
 pub mod rgb;
 
-use std::hint::unreachable_unchecked;
+use std::{collections::VecDeque, hint::unreachable_unchecked};
 
 use self::rgb::Rgb;
 use super::interrupts::{InterruptFlag, Interrupts};
@@ -72,6 +72,10 @@ pub(crate) struct Ppu {
 
     line_clock_cycles: u64,
     mode_clock_cycles: u64,
+
+    // fifo
+    scanned_sprites: VecDeque<SpriteInfo>,
+    scanned_sprites_peek: Option<SpriteInfo>,
 }
 
 #[derive(Clone, Copy)]
@@ -190,6 +194,26 @@ impl Default for ScanLinePxInfo {
     }
 }
 
+#[derive(Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+struct SpriteInfo {
+    y: i32,
+    x: i32,
+    tile_num: u16,
+    flags: u8,
+}
+
+impl From<(&[u8], i32)> for SpriteInfo {
+    fn from((data, sprite_size): (&[u8], i32)) -> Self {
+        Self {
+            y: data[0] as u16 as i32 - 16,
+            x: data[1] as u16 as i32 - 8,
+            tile_num: (data[2] & (if sprite_size == 16 { 0xFE } else { 0xFF })) as u16,
+            flags: data[3],
+        }
+    }
+}
+
 impl Ppu {
     pub fn new() -> Self {
         Self {
@@ -247,6 +271,10 @@ impl Ppu {
 
             line_clock_cycles: 0,
             mode_clock_cycles: 0,
+
+            // fifo
+            scanned_sprites: VecDeque::new(),
+            scanned_sprites_peek: None,
         }
     }
 
@@ -537,6 +565,14 @@ impl Ppu {
         }
     }
 
+    fn get_sprite_size(&self) -> i32 {
+        if self.lcdc & LcdControlFlag::OBJSize as u8 != 0 {
+            16
+        } else {
+            8
+        }
+    }
+
     fn hblank(&mut self, interrupts: &mut Interrupts) {
         if self.line_clock_cycles == 456 {
             self.mode_clock_cycles = 0;
@@ -587,13 +623,42 @@ impl Ppu {
             self.mode_clock_cycles = 0;
             self.mode = PpuMode::VRAM;
             self.set_mode_stat(PpuMode::VRAM);
+
+            // technically each sprite check takes 2 cycles, with 40 objs 40 * 2 = 80 cycles
+            // hence why oam is 80 cycles long
+            // but for now lets just wait till the end and then scan the oam all at once
+            // this is technically fine if oam memory is write locked, which I believe it is at this point
+
+            let sprite_size = self.get_sprite_size();
+            let mut sprites: Vec<SpriteInfo> = self
+                .sprite_table
+                .chunks(4)
+                .filter_map(|raw_obj_data| {
+                    let sprite_info = SpriteInfo::from((raw_obj_data, sprite_size));
+                    if sprite_info.x > 0
+                        && self.ly + 16 >= sprite_info.y as u8
+                        && self.ly as i32 + 16 < sprite_info.y + sprite_size
+                    {
+                        return Some(sprite_info);
+                    }
+
+                    None
+                })
+                .collect();
+
+            if matches!(self.obj_prio_mode, ObjectPriorityMode::CoordinateOrder) {
+                sprites.sort_by_key(|sprite| sprite.x);
+            }
+
+            self.scanned_sprites = VecDeque::from(sprites);
+            self.scanned_sprites_peek = self.scanned_sprites.pop_front();
         }
     }
 
     fn vram(&mut self) {
         if self.mode_clock_cycles == 172 {
             self.mode_clock_cycles = 0;
-            self.draw_scan_line(); // draw line!
+            //self.draw_scan_line(); // draw line!
             self.mode = PpuMode::HBlank;
             self.set_mode_stat(PpuMode::HBlank);
         }

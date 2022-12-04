@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
-use crate::{bus::CgbCompatibility, ppu::rgb::Rgb, GameBoy};
+pub use crate::bus::CgbCompatibility;
+use crate::{ppu::rgb::Rgb, GameBoy};
 
 #[derive(Default)]
 pub struct GBDebugInfo {
@@ -15,6 +16,8 @@ pub struct GBDebugInfo {
 
 #[derive(Default)]
 pub struct GBPalleteData {
+    pub bg_palette_dmg_map: [usize; 4],
+    pub sprite_palette_dmg_map: [[usize; 4]; 2],
     pub bg: [[Rgb; 4]; 8],
     pub sprite: [[Rgb; 4]; 8],
 }
@@ -97,6 +100,8 @@ impl GameBoy {
         GBPalleteData {
             bg: ppu.bg_color_palette(),
             sprite: ppu.sprite_color_palette(),
+            bg_palette_dmg_map: ppu.bg_palette(),
+            sprite_palette_dmg_map: ppu.sprite_palette(),
         }
     }
 

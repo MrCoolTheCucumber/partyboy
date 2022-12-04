@@ -199,31 +199,12 @@ impl Ppu {
             gpu_vram_bank: 0b1111_1110,
 
             sprite_table: [0; 0xA0],
-            sprite_palette: [
-                [
-                    CGB_PTR_PALETTE[0],
-                    CGB_PTR_PALETTE[1],
-                    CGB_PTR_PALETTE[2],
-                    CGB_PTR_PALETTE[3],
-                ],
-                [
-                    CGB_PTR_PALETTE[0],
-                    CGB_PTR_PALETTE[1],
-                    CGB_PTR_PALETTE[2],
-                    CGB_PTR_PALETTE[3],
-                ],
-            ],
+            sprite_palette: [[0, 1, 2, 3], [0, 1, 2, 3]],
 
             frame_buffer: [Rgb::default(); 160 * 144],
             draw_flag: false,
 
-            // ppu
-            bg_palette: [
-                CGB_PTR_PALETTE[0],
-                CGB_PTR_PALETTE[1],
-                CGB_PTR_PALETTE[2],
-                CGB_PTR_PALETTE[3],
-            ],
+            bg_palette: [0, 1, 2, 3],
 
             mode: PpuMode::OAM,
             stat_irq_state: false,
@@ -289,6 +270,16 @@ impl Ppu {
     #[cfg(feature = "debug_info")]
     pub fn sprite_color_palette(&self) -> [[Rgb; 4]; 8] {
         self.sprite_color_palette
+    }
+
+    #[cfg(feature = "debug_info")]
+    pub fn bg_palette(&self) -> [usize; 4] {
+        self.bg_palette
+    }
+
+    #[cfg(feature = "debug_info")]
+    pub fn sprite_palette(&self) -> [[usize; 4]; 2] {
+        self.sprite_palette
     }
 
     pub fn set_console_compatibility(&mut self, mode: CgbCompatibility) {
@@ -403,19 +394,19 @@ impl Ppu {
             0xFF47 => {
                 self.bgp = val;
                 for i in 0..4 {
-                    self.bg_palette[i] = CGB_PTR_PALETTE[((val >> (i * 2)) & 3) as usize];
+                    self.bg_palette[i] = ((val >> (i * 2)) & 0b11) as usize;
                 }
             }
             0xFF48 => {
                 self.obp0 = val;
                 for i in 0..4 {
-                    self.sprite_palette[0][i] = CGB_PTR_PALETTE[((val >> (i * 2)) & 3) as usize];
+                    self.sprite_palette[0][i] = ((val >> (i * 2)) & 0b11) as usize;
                 }
             }
             0xFF49 => {
                 self.obp1 = val;
                 for i in 0..4 {
-                    self.sprite_palette[1][i] = CGB_PTR_PALETTE[((val >> (i * 2)) & 3) as usize];
+                    self.sprite_palette[1][i] = ((val >> (i * 2)) & 0b11) as usize;
                 }
             }
             0xFF4A => self.wy = val,
@@ -750,14 +741,24 @@ impl Ppu {
         let mut pixels_drawn_for_current_tile: u8 = 0;
 
         for px in scan_line_row.iter_mut() {
-            let color_bit = tile_data.color_index_row[tile_local_x as usize];
-            let color_index = self.bg_palette[color_bit as usize];
-            let color = match self.console_compatibility_mode {
+            let palette = match self.console_compatibility_mode {
                 CgbCompatibility::CgbOnly => {
-                    self.bg_color_palette[tile_data.flags.bg_palette_number][color_bit as usize]
+                    self.bg_color_palette[tile_data.flags.bg_palette_number]
                 }
-                _ => self.bg_color_palette[0][color_index as usize],
+                _ => self.bg_color_palette[0],
             };
+
+            let color_index = match self.console_compatibility_mode {
+                CgbCompatibility::CgbOnly => {
+                    tile_data.color_index_row[tile_local_x as usize] as usize
+                }
+                _ => {
+                    let color_bit = tile_data.color_index_row[tile_local_x as usize] as usize;
+                    self.bg_palette[color_bit]
+                }
+            };
+
+            let color = palette[color_index];
 
             *px = ScanLinePxInfo::new(color_index, tile_data.flags.bg_oam_prio);
             self.frame_buffer[frame_buffer_offset] = color;
@@ -790,13 +791,21 @@ impl Ppu {
 
         let start = x;
         for i in start..160 {
-            let color_bit = tile_data.color_index_row[tile_local_x as usize];
-            let color_index = self.bg_palette[color_bit as usize];
-            let color_palette_index = match self.console_compatibility_mode {
-                CgbCompatibility::CgbOnly => tile_data.flags.bg_palette_number,
-                _ => 0,
+            let palette = match self.console_compatibility_mode {
+                CgbCompatibility::CgbOnly => {
+                    self.bg_color_palette[tile_data.flags.bg_palette_number]
+                }
+                _ => self.bg_color_palette[0],
             };
-            let color = self.bg_color_palette[color_palette_index][color_index];
+
+            let color_index = match self.console_compatibility_mode {
+                CgbCompatibility::CgbOnly => {
+                    tile_data.color_index_row[tile_local_x as usize] as usize
+                }
+                _ => self.bg_palette[tile_data.color_index_row[tile_local_x as usize] as usize],
+            };
+
+            let color = palette[color_index];
 
             scan_line_row[i as usize] =
                 ScanLinePxInfo::new(color_index, tile_data.flags.bg_oam_prio); // TODO: Do we set the flag?
@@ -853,10 +862,7 @@ impl Ppu {
         let sprites = fetch_sprites(self, sprite_size);
 
         for (i, sprite) in sprites.iter().enumerate() {
-            let cgb_sprite_palette = (sprite.flags & 0b0000_0111) as usize;
             let tile_vram_bank = ((sprite.flags & 0b0000_1000) >> 3) as usize;
-
-            let sprite_palette: usize = usize::from(sprite.flags & (1 << 4) != 0);
             let xflip: bool = sprite.flags & (1 << 5) != 0;
             let yflip: bool = sprite.flags & (1 << 6) != 0;
             let bg_wd_prio: bool = sprite.flags & (1 << 7) != 0;
@@ -948,13 +954,16 @@ impl Ppu {
                     continue;
                 }
 
+                let cgb_sprite_palette_idx = (sprite.flags & 0b0000_0111) as usize;
+                let sprite_palette_idx: usize = usize::from(sprite.flags & (1 << 4) != 0);
+
                 let color = match self.console_compatibility_mode {
                     CgbCompatibility::None | CgbCompatibility::CgbAndDmg => {
-                        let color_bit = self.sprite_palette[sprite_palette][colnr];
-                        self.sprite_color_palette[sprite_palette][color_bit]
+                        let color_bit = self.sprite_palette[sprite_palette_idx][colnr];
+                        self.sprite_color_palette[sprite_palette_idx][color_bit]
                     }
                     CgbCompatibility::CgbOnly => {
-                        self.sprite_color_palette[cgb_sprite_palette][colnr]
+                        self.sprite_color_palette[cgb_sprite_palette_idx][colnr]
                     }
                 };
 

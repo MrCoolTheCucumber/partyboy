@@ -4,7 +4,7 @@ use eframe::{
     epaint::Color32,
 };
 use egui_extras::{Size, TableBuilder};
-use gameboy::ppu::rgb::Rgb;
+use gameboy::{debug::CgbCompatibility, ppu::rgb::Rgb};
 
 use super::DebuggerApp;
 
@@ -27,10 +27,33 @@ impl DebuggerApp {
     fn render_palette_window_display(&self, _: &egui::Context, ui: &mut Ui) {
         ui.columns(2, |cols| {
             cols[0].heading("BG");
-            Self::render_palette_table(&mut cols[0], self.gb_debug_info.palette.bg, "bg");
+            let bg_palette_data = match self.gb_debug_info.compatibility_mode {
+                CgbCompatibility::CgbOnly => self.gb_debug_info.palette.bg,
+                _ => {
+                    let mut data = self.gb_debug_info.palette.bg;
+                    data[0] = self
+                        .gb_debug_info
+                        .palette
+                        .bg_palette_dmg_map
+                        .map(|idx| data[0][idx]);
+                    data
+                }
+            };
+            Self::render_palette_table(&mut cols[0], bg_palette_data, "bg");
 
             cols[1].heading("Obj");
-            Self::render_palette_table(&mut cols[1], self.gb_debug_info.palette.sprite, "obj");
+            let sprite_palette_data = match self.gb_debug_info.compatibility_mode {
+                CgbCompatibility::CgbOnly => self.gb_debug_info.palette.bg,
+                _ => {
+                    let mut data = self.gb_debug_info.palette.bg;
+                    data[0] = self.gb_debug_info.palette.sprite_palette_dmg_map[0]
+                        .map(|idx| data[0][idx]);
+                    data[1] = self.gb_debug_info.palette.sprite_palette_dmg_map[1]
+                        .map(|idx| data[1][idx]);
+                    data
+                }
+            };
+            Self::render_palette_table(&mut cols[1], sprite_palette_data, "obj");
         });
     }
 

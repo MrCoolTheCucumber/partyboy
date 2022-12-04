@@ -13,8 +13,6 @@ use {
     serde_big_array::BigArray,
 };
 
-const CGB_PTR_PALETTE: [usize; 4] = [0, 1, 2, 3];
-
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub(crate) struct Ppu {
     pub gpu_vram: D2Array<u8, 0x2000, 2>,

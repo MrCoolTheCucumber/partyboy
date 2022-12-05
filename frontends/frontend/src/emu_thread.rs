@@ -8,7 +8,7 @@ use crate::msgs::{MsgFromGb, MsgToGb};
 
 const FPS_REPORT_RATE_MS: u64 = 500;
 
-pub fn new(rom: Option<Vec<u8>>) -> (Sender<MsgToGb>, Receiver<MsgFromGb>) {
+pub fn new(rom: Option<Vec<u8>>, bios: Option<Vec<u8>>) -> (Sender<MsgToGb>, Receiver<MsgFromGb>) {
     let (s_to_gb, r_from_ui) = crossbeam::channel::bounded::<MsgToGb>(32);
     let (s_to_ui, r_from_gb) = crossbeam::channel::bounded::<MsgFromGb>(128);
 
@@ -17,8 +17,12 @@ pub fn new(rom: Option<Vec<u8>>) -> (Sender<MsgToGb>, Receiver<MsgFromGb>) {
 
         // TODO: make this an option and be able to set rom via msg
         let mut builder = GameBoy::builder();
+        // TODO: make builder take optionals?
         if let Some(rom) = rom {
             builder = builder.rom(rom);
+        }
+        if let Some(bios) = bios {
+            builder = builder.bios(bios);
         }
         let mut gb = builder
             .build()

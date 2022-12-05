@@ -219,6 +219,7 @@ impl From<(&[u8], i32)> for SpriteInfo {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct FifoState {
     lx: u8,
+    scx_skipped_px: u8,
 
     scanned_sprites: VecDeque<SpriteInfo>,
     scanned_sprites_peek: Option<SpriteInfo>,
@@ -228,13 +229,19 @@ pub struct FifoState {
     sprite_fifo: VecDeque<FifoPixel>,
 }
 
+impl FifoState {
+    fn reset(&mut self) {
+        *self = Self::default();
+    }
+}
+
 #[derive(Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 struct FifoPixel {
     color_index: u8,
     palette_index: u8,
     sprite_info: Option<SpriteInfo>,
-    priority: u8,
+    priority: Option<u8>,
 }
 
 impl Ppu {
@@ -599,6 +606,10 @@ impl Ppu {
         self.lcdc & LcdControlFlag::BGAndWindowTileData as u8 == 0
     }
 
+    fn is_bg_enabled(&self) -> bool {
+        self.lcdc & LcdControlFlag::BGEnable as u8 != 0
+    }
+
     fn hblank(&mut self, interrupts: &mut Interrupts) {
         if self.line_clock_cycles == 456 {
             self.mode_clock_cycles = 0;
@@ -676,15 +687,16 @@ impl Ppu {
                 sprites.sort_by_key(|sprite| sprite.x);
             }
 
+            self.fifo_state.reset();
+
             self.fifo_state.scanned_sprites = VecDeque::from(sprites);
             self.fifo_state.scanned_sprites_peek = self.fifo_state.scanned_sprites.pop_front();
         }
     }
 
     fn vram(&mut self) {
-        if self.mode_clock_cycles == 172 {
+        if self.tick_fifo() {
             self.mode_clock_cycles = 0;
-            //self.draw_scan_line(); // draw line!
             self.mode = PpuMode::HBlank;
             self.set_mode_stat(PpuMode::HBlank);
         }
@@ -750,6 +762,31 @@ impl Ppu {
     fn tick_fifo(&mut self) -> bool {
         self.tick_fetcher();
 
-        todo!()
+        let Some(mut px) = self.fifo_state.bg_fifo.pop_front() else {
+            return false;
+        };
+
+        if self.fifo_state.scx_skipped_px < self.scx & 7 {
+            self.fifo_state.scx_skipped_px += 1;
+            return false;
+        }
+
+        // TODO: if bg isnt enabled, do we draw a white px, or what ever is in palette index 0?
+        // TODO: "On CGB when palette access is blocked a black pixel is pushed to the LCD."
+        if !self.is_bg_enabled() {
+            //px.color_index = 0;
+        }
+
+        let color_index = match self.console_compatibility_mode {
+            CgbCompatibility::CgbOnly => px.color_index,
+            _ => self.bg_palette[px.color_index as usize] as u8,
+        };
+        let color = self.bg_color_palette[px.palette_index as usize][color_index as usize];
+
+        let frame_buffer_px_index = (self.ly * 160) + self.fifo_state.lx;
+        self.frame_buffer[frame_buffer_px_index as usize] = color;
+
+        self.fifo_state.lx += 1;
+        self.fifo_state.lx == 160
     }
 }

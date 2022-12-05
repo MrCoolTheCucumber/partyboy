@@ -26,6 +26,7 @@ pub const HEIGHT: u32 = 144;
 
 struct Args {
     rom_path: Option<String>,
+    bios_path: Option<String>,
     enable_file_logging: bool,
 }
 
@@ -34,15 +35,18 @@ fn parse_args() -> Args {
         (version: "1.0")
         (about: "A Gameboy color emulator")
         (@arg rom_path: -r --rom +takes_value "The path to the rom to load.")
+        (@arg bios_path: -b --bios +takes_value "The path to the bios to use.")
         (@arg enable_file_logging: -l --log "Enables file logging.")
     )
     .get_matches();
 
     let rom_path = matches.value_of("rom_path").map(|str| str.to_owned());
+    let bios_path = matches.value_of("bios_path").map(|str| str.to_owned());
     let enable_file_logging = matches.is_present("enable_file_logging");
 
     Args {
         rom_path,
+        bios_path,
         enable_file_logging,
     }
 }
@@ -70,6 +74,10 @@ fn main() {
         .rom_path
         .map(|path| std::fs::read(path).expect("Unable to read game file"));
 
+    let bios = args
+        .bios_path
+        .map(|path| std::fs::read(path).expect("Unable to read bios file"));
+
     let event_loop = EventLoop::new();
     let mut input = WinitInputHelper::new();
     let window = WindowBuilder::new()
@@ -88,7 +96,7 @@ fn main() {
             .unwrap()
     };
 
-    let (s, r) = emu_thread::new(rom);
+    let (s, r) = emu_thread::new(rom, bios);
     let mut frame_to_draw: Option<Vec<Rgb>> = None;
 
     event_loop.run(move |event, _, control_flow| {

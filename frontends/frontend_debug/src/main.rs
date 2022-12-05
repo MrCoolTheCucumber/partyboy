@@ -31,8 +31,10 @@ fn gb_loop(to_gb_rx: Receiver<MessageToGB>, from_gb_tx: Sender<MessageFromGb>, c
                     drop(gb);
                     // TODO: handle saving
                     let rom = std::fs::read(rom_path).expect("Unable to read rom path");
+                    let bios = include_bytes!("../../../bin/_cgb_boot.bin");
                     gb = GameBoyBuilder::new()
                         .rom(rom)
+                        .bios(bios.to_vec())
                         .build()
                         .map_err(|e| log::error!("{}", e))
                         .ok();

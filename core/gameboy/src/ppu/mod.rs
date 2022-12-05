@@ -166,35 +166,6 @@ impl From<u8> for BGMapFlags {
     }
 }
 
-struct TileData {
-    color_index_row: [u8; 8],
-    flags: BGMapFlags,
-}
-
-#[derive(Clone, Copy)]
-struct ScanLinePxInfo {
-    color_index: usize,
-    bg_prio_set: bool,
-}
-
-impl ScanLinePxInfo {
-    pub fn new(color_index: usize, bg_prio_set: bool) -> Self {
-        ScanLinePxInfo {
-            color_index,
-            bg_prio_set,
-        }
-    }
-}
-
-impl Default for ScanLinePxInfo {
-    fn default() -> Self {
-        Self {
-            color_index: 255,
-            bg_prio_set: false,
-        }
-    }
-}
-
 #[derive(Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 struct SpriteInfo {
@@ -219,6 +190,7 @@ impl From<(&[u8], i32)> for SpriteInfo {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct FifoState {
     lx: u8,
+    window_line_counter: u8,
     scx_skipped_px: u8,
 
     scanned_sprites: VecDeque<SpriteInfo>,
@@ -378,6 +350,7 @@ impl Ppu {
         self.mode = PpuMode::OAM;
         self.frame_buffer = [Rgb::const_mono(255); 160 * 144];
         self.stat &= 0b1111_1100;
+        self.fifo_state.reset();
     }
 
     pub fn read_u8(&self, addr: u16) -> u8 {
@@ -566,34 +539,6 @@ impl Ppu {
         }
     }
 
-    fn get_bg_map_start_addr(&self) -> u16 {
-        match (self.lcdc & LcdControlFlag::BGTileMapAddress as u8) != 0 {
-            true => 0x9C00,
-            false => 0x9800,
-        }
-    }
-
-    fn get_window_map_start_addr(&self) -> u16 {
-        match (self.lcdc & LcdControlFlag::WindowTileMapAddress as u8) != 0 {
-            true => 0x9C00,
-            false => 0x9800,
-        }
-    }
-
-    fn get_adjusted_tile_index(&self, addr: u16, signed_tile_index: bool) -> u16 {
-        let addr = (addr - 0x8000) as usize;
-        if signed_tile_index {
-            let tile = self.gpu_vram[0][addr] as i8 as i16;
-            if tile >= 0 {
-                tile as u16 + 256
-            } else {
-                256 - (tile.unsigned_abs() as u16)
-            }
-        } else {
-            self.gpu_vram[0][addr] as u16
-        }
-    }
-
     fn get_sprite_size(&self) -> i32 {
         if self.lcdc & LcdControlFlag::OBJSize as u8 != 0 {
             16
@@ -687,7 +632,7 @@ impl Ppu {
                 sprites.sort_by_key(|sprite| sprite.x);
             }
 
-            self.fifo_state.reset();
+            self.fifo_state = Default::default();
 
             self.fifo_state.scanned_sprites = VecDeque::from(sprites);
             self.fifo_state.scanned_sprites_peek = self.fifo_state.scanned_sprites.pop_front();
@@ -774,7 +719,7 @@ impl Ppu {
         // TODO: if bg isnt enabled, do we draw a white px, or what ever is in palette index 0?
         // TODO: "On CGB when palette access is blocked a black pixel is pushed to the LCD."
         if !self.is_bg_enabled() {
-            //px.color_index = 0;
+            px.color_index = 0;
         }
 
         let color_index = match self.console_compatibility_mode {
@@ -783,7 +728,7 @@ impl Ppu {
         };
         let color = self.bg_color_palette[px.palette_index as usize][color_index as usize];
 
-        let frame_buffer_px_index = (self.ly * 160) + self.fifo_state.lx;
+        let frame_buffer_px_index = (self.ly as usize * 160) + self.fifo_state.lx as usize;
         self.frame_buffer[frame_buffer_px_index as usize] = color;
 
         self.fifo_state.lx += 1;

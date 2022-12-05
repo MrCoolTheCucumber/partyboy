@@ -1,9 +1,10 @@
 pub mod cgb_palette;
+mod pixel_slice_fetcher;
 pub mod rgb;
 
 use std::{collections::VecDeque, hint::unreachable_unchecked};
 
-use self::rgb::Rgb;
+use self::{pixel_slice_fetcher::PixelSliceFetcherState, rgb::Rgb};
 use super::interrupts::{InterruptFlag, Interrupts};
 use crate::{bus::CgbCompatibility, common::D2Array, dma::hdma::Hdma};
 
@@ -73,9 +74,7 @@ pub(crate) struct Ppu {
     line_clock_cycles: u64,
     mode_clock_cycles: u64,
 
-    // fifo
-    scanned_sprites: VecDeque<SpriteInfo>,
-    scanned_sprites_peek: Option<SpriteInfo>,
+    fifo_state: FifoState,
 }
 
 #[derive(Clone, Copy)]
@@ -145,6 +144,8 @@ pub enum ObjectPriorityMode {
     CoordinateOrder,
 }
 
+#[derive(Clone, Copy, Default)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 struct BGMapFlags {
     bg_oam_prio: bool, // true=use bg bit, false=use oam bit
     vertical_flip: bool,
@@ -214,6 +215,28 @@ impl From<(&[u8], i32)> for SpriteInfo {
     }
 }
 
+#[derive(Default, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct FifoState {
+    lx: u8,
+
+    scanned_sprites: VecDeque<SpriteInfo>,
+    scanned_sprites_peek: Option<SpriteInfo>,
+
+    fetcher: PixelSliceFetcherState,
+    bg_fifo: VecDeque<FifoPixel>,
+    sprite_fifo: VecDeque<FifoPixel>,
+}
+
+#[derive(Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+struct FifoPixel {
+    color_index: u8,
+    palette_index: u8,
+    sprite_info: Option<SpriteInfo>,
+    priority: u8,
+}
+
 impl Ppu {
     pub fn new() -> Self {
         Self {
@@ -273,8 +296,7 @@ impl Ppu {
             mode_clock_cycles: 0,
 
             // fifo
-            scanned_sprites: VecDeque::new(),
-            scanned_sprites_peek: None,
+            fifo_state: FifoState::default(),
         }
     }
 
@@ -573,6 +595,10 @@ impl Ppu {
         }
     }
 
+    fn is_signed_tile_addressing(&self) -> bool {
+        self.lcdc & LcdControlFlag::BGAndWindowTileData as u8 == 0
+    }
+
     fn hblank(&mut self, interrupts: &mut Interrupts) {
         if self.line_clock_cycles == 456 {
             self.mode_clock_cycles = 0;
@@ -650,8 +676,8 @@ impl Ppu {
                 sprites.sort_by_key(|sprite| sprite.x);
             }
 
-            self.scanned_sprites = VecDeque::from(sprites);
-            self.scanned_sprites_peek = self.scanned_sprites.pop_front();
+            self.fifo_state.scanned_sprites = VecDeque::from(sprites);
+            self.fifo_state.scanned_sprites_peek = self.fifo_state.scanned_sprites.pop_front();
         }
     }
 
@@ -717,5 +743,13 @@ impl Ppu {
         }
 
         self.update_stat_irq_conditions(interrupts);
+    }
+
+    /// Returns `true` if the last pixel is pushed to the scan line
+    /// and therefore mode 3 can be ended
+    fn tick_fifo(&mut self) -> bool {
+        self.tick_fetcher();
+
+        todo!()
     }
 }

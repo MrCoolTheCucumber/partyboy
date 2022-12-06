@@ -804,6 +804,11 @@ impl Ppu {
     /// Returns `true` if the last pixel is pushed to the scan line
     /// and therefore mode 3 can be ended
     fn tick_fifo(&mut self) -> bool {
+        // TODO: work around for timing issues in fifo
+        if self.mode_clock_cycles < 8 {
+            return false;
+        }
+
         // check sprite
 
         // Note: according to the ISSOtm fifo PR for pandocs, OBJEnable does not affect

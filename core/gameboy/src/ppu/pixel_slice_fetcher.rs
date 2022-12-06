@@ -1,3 +1,5 @@
+use std::collections::VecDeque;
+
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -61,8 +63,15 @@ impl Ppu {
 
     /// Change the fetch mode, this will reset the whole fetcher state
     pub(super) fn set_fifo_fetch_mode(&mut self, fetch_mode: FetchMode) {
+        let tile_counter = self.fifo_state.fetcher.bg_state.tile_counter;
         self.reset_fetcher();
+        self.fifo_state.fetcher.bg_state.tile_counter = tile_counter;
         self.fifo_state.fetcher.fetch_mode = fetch_mode;
+    }
+
+    pub(super) fn set_bg_fifo_to_window(&mut self) {
+        self.reset_fetcher();
+        self.fifo_state.fetcher.fetch_mode = FetchMode::Background(BackgroundFetchMode::Window);
     }
 
     pub(super) fn tick_fetcher(&mut self) {
@@ -70,6 +79,13 @@ impl Ppu {
             FetchMode::Background(mode) => self.tick_bg(mode),
             FetchMode::Sprite => self.tick_sprite(),
         }
+    }
+
+    /// Returns true if the fetcher has just pushed pixels to a fifo
+    pub(super) fn fifo_pushed_px(&self) -> bool {
+        // Once the fetcher successfully pushes pixels it sets the cycle back to 0
+        // so we can just check it like this
+        self.fifo_state.fetcher.cycle == 0
     }
 
     fn get_bg_map_start_addr(&self) -> u16 {
@@ -98,6 +114,85 @@ impl Ppu {
         } else {
             self.gpu_vram[0][addr] as u16
         }
+    }
+
+    fn attempt_px_push_to_bg_fifo(&mut self) {
+        if !self.fifo_state.bg_fifo.is_empty() {
+            return;
+        }
+
+        let tile_attr = self.fifo_state.fetcher.bg_state.tile_attr;
+        let b1 = self.fifo_state.fetcher.bg_state.data_lo;
+        let b2 = self.fifo_state.fetcher.bg_state.data_hi;
+
+        (0..8u8)
+            .rev()
+            .map(|shift| ((b1 & (1 << shift)) >> shift) | ((b2 & (1 << shift)) >> shift) << 1)
+            .map(|color_index| {
+                let palette_index = match self.console_compatibility_mode {
+                    CgbCompatibility::CgbOnly => tile_attr.bg_palette_number,
+                    _ => 0,
+                } as u8;
+
+                let priority = match self.console_compatibility_mode {
+                    CgbCompatibility::CgbOnly => Some(tile_attr.bg_oam_prio as u8),
+                    _ => None,
+                };
+
+                FifoPixel {
+                    color_index,
+                    palette_index,
+                    sprite_info: None,
+                    priority,
+                }
+            })
+            .for_each(|px| self.fifo_state.bg_fifo.push_back(px));
+
+        self.fifo_state.fetcher.cycle = 0;
+        self.fifo_state.fetcher.bg_state.tile_counter += 1;
+    }
+
+    fn attempt_px_push_to_sprite_fifo(&mut self) {
+        let sprite = self.fifo_state.scanned_sprites_peek.as_ref().unwrap();
+        let mut fifo_buffer = self
+            .fifo_state
+            .sprite_fifo
+            .iter()
+            .copied()
+            .collect::<Vec<_>>();
+
+        while fifo_buffer.len() < 8 {
+            fifo_buffer.push(FifoPixel::transparent_px());
+        }
+
+        for x in 0..8 {
+            if sprite.x + x < 0 {
+                continue;
+            }
+
+            let b1 = self.fifo_state.fetcher.sprite_state.data_low;
+            let b2 = self.fifo_state.fetcher.sprite_state.data_high;
+
+            let xbit = 1 << (7 - x as u32);
+            let color_index = u8::from(b1 & xbit != 0) | (if b2 & xbit != 0 { 2 } else { 0 });
+
+            if fifo_buffer[x as usize].color_index == 0 {
+                let palette_index = match self.console_compatibility_mode {
+                    CgbCompatibility::CgbOnly => sprite.flags & 0b0000_0111,
+                    _ => u8::from(sprite.flags & (1 << 4) != 0),
+                };
+
+                fifo_buffer[x as usize] = FifoPixel {
+                    color_index,
+                    palette_index,
+                    sprite_info: Some(*sprite),
+                    priority: Some((sprite.flags & 0b1000_0000) >> 7),
+                }
+            }
+        }
+
+        self.fifo_state.sprite_fifo = VecDeque::from(fifo_buffer);
+        self.fifo_state.fetcher.cycle = 0;
     }
 
     fn tick_bg(&mut self, bg_fetch_mode: BackgroundFetchMode) {
@@ -181,52 +276,74 @@ impl Ppu {
                 }
 
                 self.fifo_state.fetcher.bg_state.data_hi = tile_byte_hi;
+
+                // TODO: experimental, does the pixel slice fetcher run for a min of 6 dots?
+                self.attempt_px_push_to_bg_fifo();
             }
 
-            // push pixels into fifo
-            8..=u8::MAX => {
-                if !self.fifo_state.bg_fifo.is_empty() {
-                    return;
-                }
-
-                let tile_attr = self.fifo_state.fetcher.bg_state.tile_attr;
-                let b1 = self.fifo_state.fetcher.bg_state.data_lo;
-                let b2 = self.fifo_state.fetcher.bg_state.data_hi;
-
-                (0..8u8)
-                    .rev()
-                    .map(|shift| {
-                        ((b1 & (1 << shift)) >> shift) | ((b2 & (1 << shift)) >> shift) << 1
-                    })
-                    .map(|color_index| {
-                        let palette_index = match self.console_compatibility_mode {
-                            CgbCompatibility::CgbOnly => tile_attr.bg_palette_number,
-                            _ => 0,
-                        } as u8;
-
-                        let priority = match self.console_compatibility_mode {
-                            CgbCompatibility::CgbOnly => Some(tile_attr.bg_oam_prio as u8),
-                            _ => None,
-                        };
-
-                        FifoPixel {
-                            color_index,
-                            palette_index,
-                            sprite_info: None,
-                            priority,
-                        }
-                    })
-                    .for_each(|px| self.fifo_state.bg_fifo.push_back(px));
-
-                self.fifo_state.fetcher.cycle = 0;
-                self.fifo_state.fetcher.bg_state.tile_counter += 1;
-            }
+            // contiinue attempts to push pixels into fifo
+            7..=u8::MAX => self.attempt_px_push_to_bg_fifo(),
 
             _ => {}
         }
     }
 
     fn tick_sprite(&mut self) {
-        todo!()
+        self.fifo_state.fetcher.cycle += 1;
+
+        match self.fifo_state.fetcher.cycle {
+            2 => {
+                // NOP: here is where we would fetch the tile id. We already have that in the peeked sprite object
+            }
+
+            4 => {
+                // unrwap: this code should only be ran if the peeked sprite is Some, so panicing is ok
+                // as we are in an invalid state
+                let sprite = self.fifo_state.scanned_sprites_peek.as_ref().unwrap();
+                let sprite_size = self.get_sprite_size();
+                let ly = self.ly as i32;
+
+                let tile_y = match sprite.yflip() {
+                    true => sprite_size - 1 - (ly - sprite.y),
+                    false => ly - sprite.y,
+                } as u16;
+
+                let tile_addr = sprite.tile_num * 16 + tile_y * 2;
+                let tile_bank = match self.console_compatibility_mode {
+                    CgbCompatibility::CgbOnly => sprite.tile_vram_bank(),
+                    _ => 0,
+                };
+
+                let mut tile_byte_lo = self.gpu_vram[tile_bank][tile_addr as usize];
+                if sprite.xflip() {
+                    tile_byte_lo = tile_byte_lo.reverse_bits();
+                }
+
+                self.fifo_state.fetcher.sprite_state.data_low = tile_byte_lo;
+                self.fifo_state.fetcher.sprite_state.tile_addr = tile_addr;
+            }
+
+            6 => {
+                let sprite = self.fifo_state.scanned_sprites_peek.as_ref().unwrap();
+                let tile_addr = self.fifo_state.fetcher.sprite_state.tile_addr;
+                let tile_bank = match self.console_compatibility_mode {
+                    CgbCompatibility::CgbOnly => sprite.tile_vram_bank(),
+                    _ => 0,
+                };
+
+                let mut tile_byte_hi = self.gpu_vram[tile_bank][tile_addr as usize + 1];
+                if sprite.xflip() {
+                    tile_byte_hi = tile_byte_hi.reverse_bits();
+                }
+
+                self.fifo_state.fetcher.sprite_state.data_high = tile_byte_hi;
+
+                self.attempt_px_push_to_sprite_fifo();
+            }
+
+            7..=u8::MAX => self.attempt_px_push_to_sprite_fifo(),
+
+            _ => {}
+        }
     }
 }

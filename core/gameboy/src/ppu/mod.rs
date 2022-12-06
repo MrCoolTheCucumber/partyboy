@@ -180,6 +180,7 @@ struct SpriteInfo {
     x: i32,
     tile_num: u16,
     flags: u8,
+    fetched: bool,
 }
 
 impl From<(&[u8], i32)> for SpriteInfo {
@@ -189,7 +190,26 @@ impl From<(&[u8], i32)> for SpriteInfo {
             x: data[1] as u16 as i32 - 8,
             tile_num: (data[2] & (if sprite_size == 16 { 0xFE } else { 0xFF })) as u16,
             flags: data[3],
+            fetched: false,
         }
+    }
+}
+
+impl SpriteInfo {
+    fn xflip(&self) -> bool {
+        self.flags & (1 << 5) != 0
+    }
+
+    fn yflip(&self) -> bool {
+        self.flags & (1 << 6) != 0
+    }
+
+    fn tile_vram_bank(&self) -> usize {
+        ((self.flags & 0b0000_1000) >> 3) as usize
+    }
+
+    fn bg_wd_prio(&self) -> bool {
+        self.flags & (1 << 7) != 0
     }
 }
 
@@ -200,7 +220,7 @@ pub struct FifoState {
     scx_skipped_px: u8,
     drawing_window: bool,
 
-    scanned_sprites: VecDeque<SpriteInfo>,
+    scanned_sprites: Vec<SpriteInfo>,
     scanned_sprites_peek: Option<SpriteInfo>,
 
     fetcher: PixelSliceFetcherState,
@@ -221,6 +241,23 @@ struct FifoPixel {
     palette_index: u8,
     sprite_info: Option<SpriteInfo>,
     priority: Option<u8>,
+}
+
+impl FifoPixel {
+    fn transparent_px() -> Self {
+        Self {
+            color_index: 0,
+            palette_index: 0,
+            sprite_info: Some(SpriteInfo {
+                y: 0,
+                x: 0,
+                tile_num: 0,
+                flags: 0,
+                fetched: false,
+            }),
+            priority: Some(0),
+        }
+    }
 }
 
 impl Ppu {
@@ -611,6 +648,9 @@ impl Ppu {
 
     fn oam(&mut self) {
         // TODO: wy == ly equality is latched at this point
+        if self.mode_clock_cycles == 1 {
+            self.wy_ly_equality_latch = self.wy <= self.ly;
+        }
 
         if self.mode_clock_cycles == 80 {
             self.mode_clock_cycles = 0;
@@ -628,15 +668,15 @@ impl Ppu {
                 .chunks(4)
                 .filter_map(|raw_obj_data| {
                     let sprite_info = SpriteInfo::from((raw_obj_data, sprite_size));
-                    if sprite_info.x > 0
-                        && self.ly + 16 >= sprite_info.y as u8
-                        && self.ly as i32 + 16 < sprite_info.y + sprite_size
+                    if (self.ly as i32) >= sprite_info.y
+                        && (self.ly as i32) < sprite_info.y + sprite_size
                     {
                         return Some(sprite_info);
                     }
 
                     None
                 })
+                .take(10)
                 .collect();
 
             if matches!(self.obj_prio_mode, ObjectPriorityMode::CoordinateOrder) {
@@ -645,8 +685,8 @@ impl Ppu {
 
             self.fifo_state = Default::default();
 
-            self.fifo_state.scanned_sprites = VecDeque::from(sprites);
-            self.fifo_state.scanned_sprites_peek = self.fifo_state.scanned_sprites.pop_front();
+            self.fifo_state.scanned_sprites = sprites;
+            self.fifo_state.scanned_sprites_peek = None;
         }
     }
 
@@ -717,18 +757,53 @@ impl Ppu {
     /// and therefore mode 3 can be ended
     fn tick_fifo(&mut self) -> bool {
         // check sprite
-        // TODO:
+
+        // Note: according to the ISSOtm fifo PR for pandocs, OBJEnable does not affect
+        // the obj_fetcher in cgb models. This means if "sprite draws are disabled", we
+        // should still go and fetch them anyway. I guess this means we only check this flag
+        // in the pixel mixing step.
+        let sprite_draw_enabled = self.lcdc & LcdControlFlag::OBJEnable as u8 != 0;
+
+        if self.fifo_state.scanned_sprites_peek.is_none() {
+            if let Some(sprite) = self.fifo_state.scanned_sprites.iter_mut().find(|sprite| {
+                !sprite.fetched
+                    && sprite.x > -8
+                    && sprite.x < 160
+                    && sprite.x == self.fifo_state.lx as i32
+            }) {
+                sprite.fetched = true;
+                self.fifo_state.scanned_sprites_peek = Some(*sprite);
+                self.set_fifo_fetch_mode(FetchMode::Sprite);
+                return false; // TODO: verify if we should return here or tick the fetcher once
+            }
+        } else {
+            self.tick_fetcher();
+            // Note: we could write this code at the last step of the of the obj slice fetch code
+            // too if we wanted
+            if self.fifo_pushed_px() {
+                // go back to bg fetch mode
+                let bg_mode = match self.fifo_state.drawing_window {
+                    true => BackgroundFetchMode::Window,
+                    false => BackgroundFetchMode::Background,
+                };
+                self.set_fifo_fetch_mode(FetchMode::Background(bg_mode));
+                self.fifo_state.scanned_sprites_peek = None;
+                // TODO: Do we return here or continue on?
+            } else {
+                return false;
+            }
+        }
 
         // check if we have reached the window
         // once the window is reached we won't go back to background fetching (on this scan line)
         let window_enabled = self.lcdc & LcdControlFlag::WindowEnable as u8 != 0;
         let window_x = self.wx.saturating_sub(7);
-        let start_drawing_window = self.wy <= self.ly && window_x <= self.fifo_state.lx;
+        let start_drawing_window = self.wy_ly_equality_latch && window_x <= self.fifo_state.lx;
 
         if !self.fifo_state.drawing_window && window_enabled && start_drawing_window {
             self.fifo_state.drawing_window = true;
             self.window_internal_line_counter += 1;
-            self.set_fifo_fetch_mode(FetchMode::Background(BackgroundFetchMode::Window));
+            self.set_bg_fifo_to_window();
             self.fifo_state.bg_fifo.clear();
         }
 
@@ -737,7 +812,7 @@ impl Ppu {
         self.tick_fetcher();
 
         // Pop fifo, is its empty then return
-        let Some(mut px) = self.fifo_state.bg_fifo.pop_front() else {
+        let Some(mut bg_px) = self.fifo_state.bg_fifo.pop_front() else {
             return false;
         };
 
@@ -748,15 +823,54 @@ impl Ppu {
 
         // TODO: if bg isnt enabled, do we draw a white px, or what ever is in palette index 0?
         // TODO: "On CGB when palette access is blocked a black pixel is pushed to the LCD."
-        if !self.is_bg_enabled() {
-            px.color_index = 0;
+        if !self.is_bg_enabled() && !self.console_compatibility_mode.is_cgb_mode() {
+            bg_px.color_index = 0;
         }
 
         let color_index = match self.console_compatibility_mode {
-            CgbCompatibility::CgbOnly => px.color_index,
-            _ => self.bg_palette[px.color_index as usize] as u8,
+            CgbCompatibility::CgbOnly => bg_px.color_index,
+            _ => self.bg_palette[bg_px.color_index as usize] as u8,
         };
-        let color = self.bg_color_palette[px.palette_index as usize][color_index as usize];
+        let mut color = self.bg_color_palette[bg_px.palette_index as usize][color_index as usize];
+
+        // Check/handle sprite fifo
+        if let Some(sprite_px) = self.fifo_state.sprite_fifo.pop_front() {
+            let mut use_sprite_px = false;
+
+            #[allow(clippy::if_same_then_else)]
+            // For now, lets be verbose
+            if self.console_compatibility_mode.is_cgb_mode() && self.lcdc & 0b0000_0001 == 0 {
+                // use bg px - do nothing
+            } else if !self.console_compatibility_mode.is_cgb_mode() && self.lcdc & 0b0000_0001 == 0
+            {
+                use_sprite_px = true;
+            } else if !sprite_draw_enabled {
+                // use bg px
+            } else if self.console_compatibility_mode.is_cgb_mode()
+                && bg_px.priority.unwrap() != 0
+                && bg_px.color_index != 0
+            {
+                // use bg px
+            } else if sprite_px.sprite_info.unwrap().bg_wd_prio() && bg_px.color_index != 0 {
+                // use bg px
+            } else if sprite_px.color_index == 0 {
+                // use bg px
+            } else {
+                use_sprite_px = true;
+            }
+
+            if use_sprite_px {
+                let color_index = match self.console_compatibility_mode {
+                    CgbCompatibility::CgbOnly => sprite_px.color_index as usize,
+                    _ => {
+                        self.sprite_palette[sprite_px.palette_index as usize]
+                            [sprite_px.color_index as usize]
+                    }
+                };
+
+                color = self.sprite_color_palette[sprite_px.palette_index as usize][color_index];
+            }
+        }
 
         let frame_buffer_px_index = (self.ly as usize * 160) + self.fifo_state.lx as usize;
         self.frame_buffer[frame_buffer_px_index as usize] = color;

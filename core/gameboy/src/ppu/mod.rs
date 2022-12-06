@@ -1,9 +1,13 @@
 pub mod cgb_palette;
+mod pixel_slice_fetcher;
 pub mod rgb;
 
-use std::hint::unreachable_unchecked;
+use std::{collections::VecDeque, hint::unreachable_unchecked};
 
-use self::rgb::Rgb;
+use self::{
+    pixel_slice_fetcher::{BackgroundFetchMode, FetchMode, PixelSliceFetcherState},
+    rgb::Rgb,
+};
 use super::interrupts::{InterruptFlag, Interrupts};
 use crate::{bus::CgbCompatibility, common::D2Array, dma::hdma::Hdma};
 
@@ -72,6 +76,12 @@ pub(crate) struct Ppu {
 
     line_clock_cycles: u64,
     mode_clock_cycles: u64,
+
+    fifo_state: FifoState,
+
+    /// Is wy == ly? Comparison is checked at the beginning of mode 2
+    /// and stored in this variable
+    wy_ly_equality_latch: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -141,6 +151,8 @@ pub enum ObjectPriorityMode {
     CoordinateOrder,
 }
 
+#[derive(Clone, Copy, Default)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 struct BGMapFlags {
     bg_oam_prio: bool, // true=use bg bit, false=use oam bit
     vertical_flip: bool,
@@ -161,33 +173,76 @@ impl From<u8> for BGMapFlags {
     }
 }
 
-struct TileData {
-    color_index_row: [u8; 8],
-    flags: BGMapFlags,
+#[derive(Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+struct SpriteInfo {
+    y: i32,
+    x: i32,
+    tile_num: u16,
+    flags: u8,
+    fetched: bool,
+    id: usize,
+}
+
+impl From<(&[u8], i32, usize)> for SpriteInfo {
+    fn from((data, sprite_size, id): (&[u8], i32, usize)) -> Self {
+        Self {
+            y: data[0] as u16 as i32 - 16,
+            x: data[1] as u16 as i32 - 8,
+            tile_num: (data[2] & (if sprite_size == 16 { 0xFE } else { 0xFF })) as u16,
+            flags: data[3],
+            fetched: false,
+            id,
+        }
+    }
+}
+
+impl SpriteInfo {
+    fn xflip(&self) -> bool {
+        self.flags & (1 << 5) != 0
+    }
+
+    fn yflip(&self) -> bool {
+        self.flags & (1 << 6) != 0
+    }
+
+    fn tile_vram_bank(&self) -> usize {
+        ((self.flags & 0b0000_1000) >> 3) as usize
+    }
+
+    fn bg_wd_prio(&self) -> bool {
+        self.flags & (1 << 7) != 0
+    }
+}
+
+#[derive(Default, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct FifoState {
+    lx: u8,
+    scx_skipped_px: u8,
+    drawing_window: bool,
+
+    scanned_sprites: Vec<SpriteInfo>,
+    scanned_sprites_peek: Option<SpriteInfo>,
+
+    fetcher: PixelSliceFetcherState,
+    bg_fifo: VecDeque<FifoPixel>,
+    sprite_fifo: VecDeque<FifoPixel>,
+}
+
+impl FifoState {
+    fn reset(&mut self) {
+        *self = Self::default();
+    }
 }
 
 #[derive(Clone, Copy)]
-struct ScanLinePxInfo {
-    color_index: usize,
-    bg_prio_set: bool,
-}
-
-impl ScanLinePxInfo {
-    pub fn new(color_index: usize, bg_prio_set: bool) -> Self {
-        ScanLinePxInfo {
-            color_index,
-            bg_prio_set,
-        }
-    }
-}
-
-impl Default for ScanLinePxInfo {
-    fn default() -> Self {
-        Self {
-            color_index: 255,
-            bg_prio_set: false,
-        }
-    }
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+struct FifoPixel {
+    color_index: u8,
+    palette_index: u8,
+    sprite_info: Option<SpriteInfo>,
+    priority: Option<u8>,
 }
 
 impl Ppu {
@@ -247,6 +302,11 @@ impl Ppu {
 
             line_clock_cycles: 0,
             mode_clock_cycles: 0,
+
+            // fifo
+            fifo_state: FifoState::default(),
+
+            wy_ly_equality_latch: false,
         }
     }
 
@@ -321,6 +381,7 @@ impl Ppu {
         self.mode = PpuMode::OAM;
         self.frame_buffer = [Rgb::const_mono(255); 160 * 144];
         self.stat &= 0b1111_1100;
+        self.fifo_state.reset();
     }
 
     pub fn read_u8(&self, addr: u16) -> u8 {
@@ -509,32 +570,20 @@ impl Ppu {
         }
     }
 
-    fn get_bg_map_start_addr(&self) -> u16 {
-        match (self.lcdc & LcdControlFlag::BGTileMapAddress as u8) != 0 {
-            true => 0x9C00,
-            false => 0x9800,
-        }
-    }
-
-    fn get_window_map_start_addr(&self) -> u16 {
-        match (self.lcdc & LcdControlFlag::WindowTileMapAddress as u8) != 0 {
-            true => 0x9C00,
-            false => 0x9800,
-        }
-    }
-
-    fn get_adjusted_tile_index(&self, addr: u16, signed_tile_index: bool) -> u16 {
-        let addr = (addr - 0x8000) as usize;
-        if signed_tile_index {
-            let tile = self.gpu_vram[0][addr] as i8 as i16;
-            if tile >= 0 {
-                tile as u16 + 256
-            } else {
-                256 - (tile.unsigned_abs() as u16)
-            }
+    fn get_sprite_size(&self) -> i32 {
+        if self.lcdc & LcdControlFlag::OBJSize as u8 != 0 {
+            16
         } else {
-            self.gpu_vram[0][addr] as u16
+            8
         }
+    }
+
+    fn is_signed_tile_addressing(&self) -> bool {
+        self.lcdc & LcdControlFlag::BGAndWindowTileData as u8 == 0
+    }
+
+    fn is_bg_enabled(&self) -> bool {
+        self.lcdc & LcdControlFlag::BGEnable as u8 != 0
     }
 
     fn hblank(&mut self, interrupts: &mut Interrupts) {
@@ -583,39 +632,56 @@ impl Ppu {
     }
 
     fn oam(&mut self) {
+        // TODO: wy == ly equality is latched at this point
+        if self.mode_clock_cycles == 1 {
+            self.wy_ly_equality_latch = self.wy <= self.ly;
+        }
+
         if self.mode_clock_cycles == 80 {
             self.mode_clock_cycles = 0;
             self.mode = PpuMode::VRAM;
             self.set_mode_stat(PpuMode::VRAM);
+
+            // technically each sprite check takes 2 cycles, with 40 objs 40 * 2 = 80 cycles
+            // hence why oam is 80 cycles long
+            // but for now lets just wait till the end and then scan the oam all at once
+            // this is technically fine if oam memory is write locked, which I believe it is at this point
+
+            let sprite_size = self.get_sprite_size();
+            let mut sprites: Vec<SpriteInfo> = self
+                .sprite_table
+                .chunks(4)
+                .enumerate()
+                .filter_map(|(id, raw_obj_data)| {
+                    let sprite_info = SpriteInfo::from((raw_obj_data, sprite_size, id));
+                    if (self.ly as i32) >= sprite_info.y
+                        && (self.ly as i32) < sprite_info.y + sprite_size
+                    {
+                        return Some(sprite_info);
+                    }
+
+                    None
+                })
+                .take(10)
+                .collect();
+
+            if matches!(self.obj_prio_mode, ObjectPriorityMode::CoordinateOrder) {
+                sprites.sort_by_key(|sprite| sprite.x);
+            }
+
+            self.fifo_state = Default::default();
+
+            self.fifo_state.scanned_sprites = sprites;
+            self.fifo_state.scanned_sprites_peek = None;
         }
     }
 
     fn vram(&mut self) {
-        if self.mode_clock_cycles == 172 {
+        if self.tick_fifo() {
             self.mode_clock_cycles = 0;
-            self.draw_scan_line(); // draw line!
             self.mode = PpuMode::HBlank;
             self.set_mode_stat(PpuMode::HBlank);
         }
-    }
-
-    pub fn tick(&mut self, interrupts: &mut Interrupts) {
-        // is the ppu off?
-        if self.lcdc & LcdControlFlag::LCDDisplayEnable as u8 == 0 {
-            return;
-        }
-
-        self.mode_clock_cycles += 1;
-        self.line_clock_cycles += 1;
-
-        match self.mode {
-            PpuMode::HBlank => self.hblank(interrupts),
-            PpuMode::VBlank => self.vblank(interrupts),
-            PpuMode::OAM => self.oam(),
-            PpuMode::VRAM => self.vram(),
-        }
-
-        self.update_stat_irq_conditions(interrupts);
     }
 
     fn update_stat_irq_conditions(&mut self, interrupts: &mut Interrupts) {
@@ -654,329 +720,168 @@ impl Ppu {
         self.stat_irq_state = stat_irq_state;
     }
 
-    fn draw_scan_line(&mut self) {
-        let mut scan_line_row: [ScanLinePxInfo; 160] = [ScanLinePxInfo::default(); 160];
+    pub fn tick(&mut self, interrupts: &mut Interrupts) {
+        // is the ppu off?
+        if self.lcdc & LcdControlFlag::LCDDisplayEnable as u8 == 0 {
+            return;
+        }
 
-        if self.console_compatibility_mode.is_cgb_mode()
-            || self.lcdc & LcdControlFlag::BGEnable as u8 != 0
+        self.mode_clock_cycles += 1;
+        self.line_clock_cycles += 1;
+
+        match self.mode {
+            PpuMode::HBlank => self.hblank(interrupts),
+            PpuMode::VBlank => self.vblank(interrupts),
+            PpuMode::OAM => self.oam(),
+            PpuMode::VRAM => self.vram(),
+        }
+
+        self.update_stat_irq_conditions(interrupts);
+    }
+
+    // Copied from scan line code as the rules are quite complicated
+    fn should_draw_sprite(&self, bg_px: FifoPixel, sprite_px: FifoPixel) -> bool {
+        let cgb_sprite_alawys_display = if self.console_compatibility_mode.is_cgb_mode() {
+            let always_display_sprite = self.lcdc & LcdControlFlag::BGEnable as u8 == 0;
+            if !always_display_sprite && bg_px.priority.unwrap() != 0 && bg_px.color_index != 0 {
+                return false;
+            }
+
+            always_display_sprite
+        } else {
+            false
+        };
+
+        if !cgb_sprite_alawys_display
+            && sprite_px.sprite_info.unwrap().bg_wd_prio()
+            && bg_px.color_index != 0
         {
-            self.draw_background(&mut scan_line_row);
+            return false;
         }
 
-        let skip_window_draw =
-            self.wy > 166 || (self.wx.wrapping_sub(7)) > 143 || self.wy > self.ly;
-
-        // TODO: skip window draw if if non cgb mode and if BGEnable is disabled?
-        if self.lcdc & LcdControlFlag::WindowEnable as u8 != 0 && !skip_window_draw {
-            self.draw_window(&mut scan_line_row);
+        if sprite_px.color_index == 0 {
+            return false;
         }
 
-        if self.lcdc & LcdControlFlag::OBJEnable as u8 != 0 {
-            self.draw_sprites(&mut scan_line_row);
-        }
+        true
     }
 
-    fn fetch_tile_data(&self, x: u8, y: u8, map_start_addr: u16) -> TileData {
-        let tile_y = y / 8;
-        let tile_x = x / 8;
-
-        let map_tile_index = ((tile_y as u16) * 32) + tile_x as u16;
-        let signed_tile_addressing: bool =
-            self.lcdc & LcdControlFlag::BGAndWindowTileData as u8 == 0;
-        let flags_addr = (map_start_addr + map_tile_index - 0x8000) as usize;
-
-        let raw_flags = self.gpu_vram[1][flags_addr];
-        let flags = BGMapFlags::from(raw_flags);
-
-        let tile_index =
-            self.get_adjusted_tile_index(map_start_addr + map_tile_index, signed_tile_addressing);
-
-        let tile_local_y =
-            match flags.vertical_flip && self.console_compatibility_mode.is_cgb_mode() {
-                true => Self::flip_tile_value(y & 7),
-                false => y & 7,
-            };
-        let tile_addr = (tile_index * 16) + (tile_local_y as u16 * 2);
-
-        let bank_index = match self.console_compatibility_mode {
-            CgbCompatibility::CgbOnly => flags.tile_bank,
-            _ => 0,
-        };
-
-        let b1 = self.gpu_vram[bank_index][tile_addr as usize];
-        let b2 = self.gpu_vram[bank_index][tile_addr as usize + 1];
-
-        let mut color_index_row: [u8; 8] = [0; 8];
-
-        if self.console_compatibility_mode.is_cgb_mode() && flags.horizontal_flip {
-            for (shift_i, col_idx) in color_index_row.iter_mut().enumerate() {
-                *col_idx =
-                    ((b1 & (1 << shift_i)) >> shift_i) | ((b2 & (1 << shift_i)) >> shift_i) << 1;
+    /// returns true if current fifo tick should end early
+    fn handle_sprite_fetch(&mut self) -> bool {
+        if self.fifo_state.scanned_sprites_peek.is_none() {
+            if let Some(sprite) = self.fifo_state.scanned_sprites.iter_mut().find(|sprite| {
+                !sprite.fetched
+                    // && sprite.x >= -8
+                    // && sprite.x < 160
+                    && sprite.x <= self.fifo_state.lx as i32
+            }) {
+                sprite.fetched = true;
+                self.fifo_state.scanned_sprites_peek = Some(*sprite);
+                self.set_fifo_fetch_mode(FetchMode::Sprite);
+                return true; // TODO: verify if we should return here or tick the fetcher once
             }
         } else {
-            for i in (0..8usize).rev() {
-                let shift_i = i as u8;
-                color_index_row[7 - i] =
-                    ((b1 & (1 << shift_i)) >> shift_i) | ((b2 & (1 << shift_i)) >> shift_i) << 1;
-            }
-        }
-
-        TileData {
-            color_index_row,
-            flags,
-        }
-    }
-
-    fn draw_background(&mut self, scan_line_row: &mut [ScanLinePxInfo; 160]) {
-        let bg_map_start_addr = self.get_bg_map_start_addr();
-
-        let y = self.ly.wrapping_add(self.scy);
-        let mut x = self.scx;
-        let mut tile_local_x = x & 7;
-
-        let mut tile_data = self.fetch_tile_data(x, y, bg_map_start_addr);
-        let mut frame_buffer_offset = self.ly as usize * 160;
-        let mut pixels_drawn_for_current_tile: u8 = 0;
-
-        for px in scan_line_row.iter_mut() {
-            let palette = match self.console_compatibility_mode {
-                CgbCompatibility::CgbOnly => {
-                    self.bg_color_palette[tile_data.flags.bg_palette_number]
-                }
-                _ => self.bg_color_palette[0],
-            };
-
-            let color_index = match self.console_compatibility_mode {
-                CgbCompatibility::CgbOnly => {
-                    tile_data.color_index_row[tile_local_x as usize] as usize
-                }
-                _ => {
-                    let color_bit = tile_data.color_index_row[tile_local_x as usize] as usize;
-                    self.bg_palette[color_bit]
-                }
-            };
-
-            let color = palette[color_index];
-
-            *px = ScanLinePxInfo::new(color_index, tile_data.flags.bg_oam_prio);
-            self.frame_buffer[frame_buffer_offset] = color;
-            frame_buffer_offset += 1;
-
-            tile_local_x += 1;
-            pixels_drawn_for_current_tile += 1;
-
-            if tile_local_x == 8 {
-                tile_local_x = 0;
-                x = x.wrapping_add(pixels_drawn_for_current_tile);
-                pixels_drawn_for_current_tile = 0;
-
-                tile_data = self.fetch_tile_data(x, y, bg_map_start_addr);
-            }
-        }
-    }
-
-    fn draw_window(&mut self, scan_line_row: &mut [ScanLinePxInfo; 160]) {
-        let wd_map_start_addr = self.get_window_map_start_addr();
-        self.window_internal_line_counter += 1;
-
-        let y = self.window_internal_line_counter - 1; //scan_line - window_y;
-        let x = self.wx.wrapping_sub(7);
-        let mut tile_local_x = x & 7;
-        let mut fetch_x = 0;
-
-        let mut tile_data = self.fetch_tile_data(fetch_x, y, wd_map_start_addr);
-        let mut frame_buffer_offset = (self.ly as usize * 160) + x as usize;
-
-        let start = x;
-        for i in start..160 {
-            let palette = match self.console_compatibility_mode {
-                CgbCompatibility::CgbOnly => {
-                    self.bg_color_palette[tile_data.flags.bg_palette_number]
-                }
-                _ => self.bg_color_palette[0],
-            };
-
-            let color_index = match self.console_compatibility_mode {
-                CgbCompatibility::CgbOnly => {
-                    tile_data.color_index_row[tile_local_x as usize] as usize
-                }
-                _ => self.bg_palette[tile_data.color_index_row[tile_local_x as usize] as usize],
-            };
-
-            let color = palette[color_index];
-
-            scan_line_row[i as usize] =
-                ScanLinePxInfo::new(color_index, tile_data.flags.bg_oam_prio); // TODO: Do we set the flag?
-            self.frame_buffer[frame_buffer_offset] = color;
-            frame_buffer_offset += 1;
-
-            tile_local_x += 1;
-
-            if tile_local_x == 8 {
-                tile_local_x = 0;
-                fetch_x += 8;
-
-                tile_data = self.fetch_tile_data(fetch_x, y, wd_map_start_addr);
-            }
-        }
-    }
-
-    fn draw_sprites(&mut self, scan_line_row: &mut [ScanLinePxInfo; 160]) {
-        #[derive(Clone, Copy, Default)]
-        struct SpriteData {
-            y: i32,
-            x: i32,
-            tile_num: u16,
-            flags: u8,
-        }
-
-        fn fetch_sprites(ppu: &Ppu, sprite_size: i32) -> [SpriteData; 40] {
-            let mut sprites = [SpriteData::default(); 40];
-
-            for (i, sprite) in sprites.iter_mut().enumerate() {
-                let sprite_addr = (i as usize) * 4;
-                *sprite = SpriteData {
-                    y: ppu.sprite_table[sprite_addr] as u16 as i32 - 16,
-                    x: ppu.sprite_table[sprite_addr + 1] as u16 as i32 - 8,
-                    tile_num: (ppu.sprite_table[sprite_addr + 2]
-                        & (if sprite_size == 16 { 0xFE } else { 0xFF }))
-                        as u16,
-                    flags: ppu.sprite_table[sprite_addr + 3],
+            self.tick_fetcher();
+            // Note: we could write this code at the last step of the of the obj slice fetch code
+            // too if we wanted
+            if self.fifo_pushed_px() {
+                // go back to bg fetch mode
+                let bg_mode = match self.fifo_state.drawing_window {
+                    true => BackgroundFetchMode::Window,
+                    false => BackgroundFetchMode::Background,
                 };
-            }
-
-            sprites
-        }
-
-        let sprite_size: i32 = if self.lcdc & LcdControlFlag::OBJSize as u8 != 0 {
-            16
-        } else {
-            8
-        };
-
-        let mut total_objects_drawn = 0;
-        let mut obj_prio_arr = [i32::MAX; 160];
-
-        let sprites = fetch_sprites(self, sprite_size);
-
-        for (i, sprite) in sprites.iter().enumerate() {
-            let tile_vram_bank = ((sprite.flags & 0b0000_1000) >> 3) as usize;
-            let xflip: bool = sprite.flags & (1 << 5) != 0;
-            let yflip: bool = sprite.flags & (1 << 6) != 0;
-            let bg_wd_prio: bool = sprite.flags & (1 << 7) != 0;
-
-            let scan_line = self.ly as i32;
-
-            // exit early if sprite is off screen
-            if scan_line < sprite.y || scan_line >= sprite.y + sprite_size {
-                continue;
-            }
-            if sprite.x < -7 || sprite.x >= 160 {
-                continue;
-            }
-
-            total_objects_drawn += 1;
-            if total_objects_drawn > 10 {
-                break;
-            }
-
-            // fetch sprite tile
-            let tile_y: u16 = if yflip {
-                (sprite_size - 1 - (scan_line - sprite.y)) as u16
+                self.set_fifo_fetch_mode(FetchMode::Background(bg_mode));
+                self.fifo_state.scanned_sprites_peek = None;
+                // TODO: Do we return here or continue on?
             } else {
-                (scan_line - sprite.y) as u16
-            };
-
-            let tile_address = sprite.tile_num * 16 + tile_y * 2;
-
-            let (b1, b2) = match self.console_compatibility_mode {
-                CgbCompatibility::CgbAndDmg | CgbCompatibility::None => (
-                    self.gpu_vram[0][tile_address as usize],
-                    self.gpu_vram[0][tile_address as usize + 1],
-                ),
-                CgbCompatibility::CgbOnly => (
-                    self.gpu_vram[tile_vram_bank][tile_address as usize],
-                    self.gpu_vram[tile_vram_bank][tile_address as usize + 1],
-                ),
-            };
-
-            // draw each pixel of the sprite tile
-            'inner: for x in 0..8 {
-                if sprite.x + x < 0 || sprite.x + x >= 160 {
-                    continue;
-                }
-
-                let cgb_sprite_alawys_display = if self.console_compatibility_mode.is_cgb_mode() {
-                    let always_display_sprite = self.lcdc & LcdControlFlag::BGEnable as u8 == 0;
-                    if !always_display_sprite
-                        && scan_line_row[(sprite.x + x) as usize].bg_prio_set
-                        && scan_line_row[(sprite.x + x) as usize].color_index != 0
-                    {
-                        continue 'inner;
-                    }
-
-                    always_display_sprite
-                } else {
-                    false
-                };
-
-                if !cgb_sprite_alawys_display
-                    && bg_wd_prio
-                    && scan_line_row[(sprite.x + x) as usize].color_index != 0
-                {
-                    continue 'inner;
-                }
-
-                // has another sprite already been drawn on this pixel
-                // that has a lower or eq sprite_x val?
-
-                // handle obj prio
-                match self.obj_prio_mode {
-                    ObjectPriorityMode::OamOrder => {
-                        if obj_prio_arr[(sprite.x + x) as usize] <= i as i32 {
-                            continue 'inner;
-                        }
-                    }
-                    ObjectPriorityMode::CoordinateOrder => {
-                        if obj_prio_arr[(sprite.x + x) as usize] <= sprite.x {
-                            continue 'inner;
-                        }
-                    }
-                }
-
-                let xbit = 1 << (if xflip { x } else { 7 - x } as u32);
-                let colnr = usize::from(b1 & xbit != 0) | (if b2 & xbit != 0 { 2 } else { 0 });
-
-                // LCDControl Mater Priority cleared still means we skip sprites if they are the bit 0 ("transparent")
-                if colnr == 0 {
-                    continue;
-                }
-
-                let cgb_sprite_palette_idx = (sprite.flags & 0b0000_0111) as usize;
-                let sprite_palette_idx: usize = usize::from(sprite.flags & (1 << 4) != 0);
-
-                let color = match self.console_compatibility_mode {
-                    CgbCompatibility::None | CgbCompatibility::CgbAndDmg => {
-                        let color_bit = self.sprite_palette[sprite_palette_idx][colnr];
-                        self.sprite_color_palette[sprite_palette_idx][color_bit]
-                    }
-                    CgbCompatibility::CgbOnly => {
-                        self.sprite_color_palette[cgb_sprite_palette_idx][colnr]
-                    }
-                };
-
-                let pixel_offset = ((scan_line * 160) + sprite.x + x) as usize;
-
-                self.frame_buffer[pixel_offset] = color;
-                match self.obj_prio_mode {
-                    ObjectPriorityMode::OamOrder => {
-                        obj_prio_arr[(sprite.x + x) as usize] = i as i32
-                    }
-                    ObjectPriorityMode::CoordinateOrder => {
-                        obj_prio_arr[(sprite.x + x) as usize] = sprite.x
-                    }
-                }
+                return true;
             }
         }
+
+        false
+    }
+
+    /// Returns `true` if the last pixel is pushed to the scan line
+    /// and therefore mode 3 can be ended
+    fn tick_fifo(&mut self) -> bool {
+        // TODO: work around for timing issues in fifo
+        if self.mode_clock_cycles < 8 {
+            return false;
+        }
+
+        // check sprite
+
+        // Note: according to the ISSOtm fifo PR for pandocs, OBJEnable does not affect
+        // the obj_fetcher in cgb models. This means if "sprite draws are disabled", we
+        // should still go and fetch them anyway. I guess this means we only check this flag
+        // in the pixel mixing step.
+        let sprite_draw_enabled = self.lcdc & LcdControlFlag::OBJEnable as u8 != 0;
+
+        // handle sprite fetching, stop handling sprites on the
+        if self.handle_sprite_fetch() {
+            return false;
+        }
+
+        // check if we have reached the window
+        // once the window is reached we won't go back to background fetching (on this scan line)
+        let window_enabled = self.lcdc & LcdControlFlag::WindowEnable as u8 != 0;
+        let window_x = self.wx.saturating_sub(7);
+        let start_drawing_window = self.wy_ly_equality_latch && window_x <= self.fifo_state.lx;
+
+        if !self.fifo_state.drawing_window && window_enabled && start_drawing_window {
+            self.fifo_state.drawing_window = true;
+            self.window_internal_line_counter += 1;
+            self.set_bg_fifo_to_window();
+            self.fifo_state.bg_fifo.clear();
+        }
+
+        // TODO: does the fetcher tick before, or after, the window and sprite "checks"?
+        //       or does it happen both before and after?
+        self.tick_fetcher();
+
+        // Pop fifo, is its empty then return
+        let Some(mut bg_px) = self.fifo_state.bg_fifo.pop_front() else {
+            return false;
+        };
+
+        if self.fifo_state.scx_skipped_px < self.scx & 7 {
+            self.fifo_state.scx_skipped_px += 1;
+            return false;
+        }
+
+        // TODO: if bg isnt enabled, do we draw a white px, or what ever is in palette index 0?
+        // TODO: "On CGB when palette access is blocked a black pixel is pushed to the LCD."
+        if !self.is_bg_enabled() && !self.console_compatibility_mode.is_cgb_mode() {
+            bg_px.color_index = 0;
+        }
+
+        let color_index = match self.console_compatibility_mode {
+            CgbCompatibility::CgbOnly => bg_px.color_index,
+            _ => self.bg_palette[bg_px.color_index as usize] as u8,
+        };
+        let mut color = self.bg_color_palette[bg_px.palette_index as usize][color_index as usize];
+
+        // Check/handle sprite fifo
+        if let Some(sprite_px) = self.fifo_state.sprite_fifo.pop_front() {
+            let use_sprite_px = self.should_draw_sprite(bg_px, sprite_px) && sprite_draw_enabled;
+
+            if use_sprite_px {
+                let color_index = match self.console_compatibility_mode {
+                    CgbCompatibility::CgbOnly => sprite_px.color_index as usize,
+                    _ => {
+                        self.sprite_palette[sprite_px.palette_index as usize]
+                            [sprite_px.color_index as usize]
+                    }
+                };
+
+                color = self.sprite_color_palette[sprite_px.palette_index as usize][color_index];
+            }
+        }
+
+        let frame_buffer_px_index = (self.ly as usize * 160) + self.fifo_state.lx as usize;
+        self.frame_buffer[frame_buffer_px_index as usize] = color;
+
+        self.fifo_state.lx += 1;
+        self.fifo_state.lx == 160
     }
 }

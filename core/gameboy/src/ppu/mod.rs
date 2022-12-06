@@ -739,17 +739,35 @@ impl Ppu {
         self.update_stat_irq_conditions(interrupts);
     }
 
-    /// Returns `true` if the last pixel is pushed to the scan line
-    /// and therefore mode 3 can be ended
-    fn tick_fifo(&mut self) -> bool {
-        // check sprite
+    // Copied from scan line code as the rules are quite complicated
+    fn should_draw_sprite(&self, bg_px: FifoPixel, sprite_px: FifoPixel) -> bool {
+        let cgb_sprite_alawys_display = if self.console_compatibility_mode.is_cgb_mode() {
+            let always_display_sprite = self.lcdc & LcdControlFlag::BGEnable as u8 == 0;
+            if !always_display_sprite && bg_px.priority.unwrap() != 0 && bg_px.color_index != 0 {
+                return false;
+            }
 
-        // Note: according to the ISSOtm fifo PR for pandocs, OBJEnable does not affect
-        // the obj_fetcher in cgb models. This means if "sprite draws are disabled", we
-        // should still go and fetch them anyway. I guess this means we only check this flag
-        // in the pixel mixing step.
-        let sprite_draw_enabled = self.lcdc & LcdControlFlag::OBJEnable as u8 != 0;
+            always_display_sprite
+        } else {
+            false
+        };
 
+        if !cgb_sprite_alawys_display
+            && sprite_px.sprite_info.unwrap().bg_wd_prio()
+            && bg_px.color_index != 0
+        {
+            return false;
+        }
+
+        if sprite_px.color_index == 0 {
+            return false;
+        }
+
+        true
+    }
+
+    /// returns true if current fifo tick should end early
+    fn handle_sprite_fetch(&mut self) -> bool {
         if self.fifo_state.scanned_sprites_peek.is_none() {
             if let Some(sprite) = self.fifo_state.scanned_sprites.iter_mut().find(|sprite| {
                 !sprite.fetched
@@ -760,7 +778,7 @@ impl Ppu {
                 sprite.fetched = true;
                 self.fifo_state.scanned_sprites_peek = Some(*sprite);
                 self.set_fifo_fetch_mode(FetchMode::Sprite);
-                return false; // TODO: verify if we should return here or tick the fetcher once
+                return true; // TODO: verify if we should return here or tick the fetcher once
             }
         } else {
             self.tick_fetcher();
@@ -776,8 +794,27 @@ impl Ppu {
                 self.fifo_state.scanned_sprites_peek = None;
                 // TODO: Do we return here or continue on?
             } else {
-                return false;
+                return true;
             }
+        }
+
+        false
+    }
+
+    /// Returns `true` if the last pixel is pushed to the scan line
+    /// and therefore mode 3 can be ended
+    fn tick_fifo(&mut self) -> bool {
+        // check sprite
+
+        // Note: according to the ISSOtm fifo PR for pandocs, OBJEnable does not affect
+        // the obj_fetcher in cgb models. This means if "sprite draws are disabled", we
+        // should still go and fetch them anyway. I guess this means we only check this flag
+        // in the pixel mixing step.
+        let sprite_draw_enabled = self.lcdc & LcdControlFlag::OBJEnable as u8 != 0;
+
+        // handle sprite fetching, stop handling sprites on the
+        if self.handle_sprite_fetch() {
+            return false;
         }
 
         // check if we have reached the window
@@ -821,29 +858,7 @@ impl Ppu {
 
         // Check/handle sprite fifo
         if let Some(sprite_px) = self.fifo_state.sprite_fifo.pop_front() {
-            let mut use_sprite_px = false;
-
-            #[allow(clippy::if_same_then_else)]
-            // TODO: This is not perfect...
-            if self.console_compatibility_mode.is_cgb_mode() && self.lcdc & 0b0000_0001 == 0 {
-                //use_sprite_px = sprite_px.color_index != 0;
-            } else if !self.console_compatibility_mode.is_cgb_mode() && self.lcdc & 0b0000_0001 == 0
-            {
-                use_sprite_px = true;
-            } else if !sprite_draw_enabled {
-                // use bg px
-            } else if self.console_compatibility_mode.is_cgb_mode()
-                && bg_px.priority.unwrap() != 0
-                && bg_px.color_index != 0
-            {
-                // use bg px
-            } else if sprite_px.sprite_info.unwrap().bg_wd_prio() && bg_px.color_index != 0 {
-                // use bg px
-            } else if sprite_px.color_index == 0 {
-                // use bg px
-            } else {
-                use_sprite_px = true;
-            }
+            let use_sprite_px = self.should_draw_sprite(bg_px, sprite_px) && sprite_draw_enabled;
 
             if use_sprite_px {
                 let color_index = match self.console_compatibility_mode {

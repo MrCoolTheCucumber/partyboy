@@ -1,9 +1,7 @@
-use std::collections::VecDeque;
-
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-use super::{BGMapFlags, FifoPixel, LcdControlFlag, Ppu};
+use super::{BGMapFlags, FifoPixel, LcdControlFlag, ObjectPriorityMode, Ppu};
 
 use crate::bus::CgbCompatibility;
 
@@ -154,19 +152,13 @@ impl Ppu {
 
     fn attempt_px_push_to_sprite_fifo(&mut self) {
         let sprite = self.fifo_state.scanned_sprites_peek.as_ref().unwrap();
-        let mut fifo_buffer = self
-            .fifo_state
-            .sprite_fifo
-            .iter()
-            .copied()
-            .collect::<Vec<_>>();
-
-        while fifo_buffer.len() < 8 {
-            fifo_buffer.push(FifoPixel::transparent_px());
+        let mut fifo_buffer = Vec::new();
+        for _ in 0..self.fifo_state.sprite_fifo.len() {
+            fifo_buffer.push(self.fifo_state.sprite_fifo.pop_front().unwrap());
         }
 
         for x in 0..8 {
-            if sprite.x + x < 0 {
+            if sprite.x + x < 0 || sprite.x + x >= 160 {
                 continue;
             }
 
@@ -176,22 +168,43 @@ impl Ppu {
             let xbit = 1 << (7 - x as u32);
             let color_index = u8::from(b1 & xbit != 0) | (if b2 & xbit != 0 { 2 } else { 0 });
 
-            if fifo_buffer[x as usize].color_index == 0 {
+            let existing_px = fifo_buffer.get(x as usize);
+            let overwrite_px = match existing_px {
+                Some(px) => match self.obj_prio_mode {
+                    ObjectPriorityMode::OamOrder => {
+                        px.sprite_info.unwrap().id > sprite.id && color_index != 0
+                    }
+                    ObjectPriorityMode::CoordinateOrder => fifo_buffer[x as usize].color_index == 0,
+                },
+                None => true,
+            };
+
+            if overwrite_px {
                 let palette_index = match self.console_compatibility_mode {
                     CgbCompatibility::CgbOnly => sprite.flags & 0b0000_0111,
                     _ => u8::from(sprite.flags & (1 << 4) != 0),
                 };
 
-                fifo_buffer[x as usize] = FifoPixel {
+                let px = FifoPixel {
                     color_index,
                     palette_index,
                     sprite_info: Some(*sprite),
                     priority: Some((sprite.flags & 0b1000_0000) >> 7),
+                };
+
+                if (x as usize) < fifo_buffer.len() {
+                    fifo_buffer[x as usize] = px;
+                } else {
+                    fifo_buffer.push(px);
                 }
             }
         }
 
-        self.fifo_state.sprite_fifo = VecDeque::from(fifo_buffer);
+        self.fifo_state.sprite_fifo.clear();
+        for px in fifo_buffer {
+            self.fifo_state.sprite_fifo.push_back(px);
+        }
+
         self.fifo_state.fetcher.cycle = 0;
     }
 

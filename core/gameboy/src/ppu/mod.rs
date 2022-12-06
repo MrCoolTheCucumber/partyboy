@@ -181,16 +181,18 @@ struct SpriteInfo {
     tile_num: u16,
     flags: u8,
     fetched: bool,
+    id: usize,
 }
 
-impl From<(&[u8], i32)> for SpriteInfo {
-    fn from((data, sprite_size): (&[u8], i32)) -> Self {
+impl From<(&[u8], i32, usize)> for SpriteInfo {
+    fn from((data, sprite_size, id): (&[u8], i32, usize)) -> Self {
         Self {
             y: data[0] as u16 as i32 - 16,
             x: data[1] as u16 as i32 - 8,
             tile_num: (data[2] & (if sprite_size == 16 { 0xFE } else { 0xFF })) as u16,
             flags: data[3],
             fetched: false,
+            id,
         }
     }
 }
@@ -241,23 +243,6 @@ struct FifoPixel {
     palette_index: u8,
     sprite_info: Option<SpriteInfo>,
     priority: Option<u8>,
-}
-
-impl FifoPixel {
-    fn transparent_px() -> Self {
-        Self {
-            color_index: 0,
-            palette_index: 0,
-            sprite_info: Some(SpriteInfo {
-                y: 0,
-                x: 0,
-                tile_num: 0,
-                flags: 0,
-                fetched: false,
-            }),
-            priority: Some(0),
-        }
-    }
 }
 
 impl Ppu {
@@ -666,8 +651,9 @@ impl Ppu {
             let mut sprites: Vec<SpriteInfo> = self
                 .sprite_table
                 .chunks(4)
-                .filter_map(|raw_obj_data| {
-                    let sprite_info = SpriteInfo::from((raw_obj_data, sprite_size));
+                .enumerate()
+                .filter_map(|(id, raw_obj_data)| {
+                    let sprite_info = SpriteInfo::from((raw_obj_data, sprite_size, id));
                     if (self.ly as i32) >= sprite_info.y
                         && (self.ly as i32) < sprite_info.y + sprite_size
                     {
@@ -767,9 +753,9 @@ impl Ppu {
         if self.fifo_state.scanned_sprites_peek.is_none() {
             if let Some(sprite) = self.fifo_state.scanned_sprites.iter_mut().find(|sprite| {
                 !sprite.fetched
-                    && sprite.x > -8
-                    && sprite.x < 160
-                    && sprite.x == self.fifo_state.lx as i32
+                    // && sprite.x >= -8
+                    // && sprite.x < 160
+                    && sprite.x <= self.fifo_state.lx as i32
             }) {
                 sprite.fetched = true;
                 self.fifo_state.scanned_sprites_peek = Some(*sprite);
@@ -838,9 +824,9 @@ impl Ppu {
             let mut use_sprite_px = false;
 
             #[allow(clippy::if_same_then_else)]
-            // For now, lets be verbose
+            // TODO: This is not perfect...
             if self.console_compatibility_mode.is_cgb_mode() && self.lcdc & 0b0000_0001 == 0 {
-                // use bg px - do nothing
+                //use_sprite_px = sprite_px.color_index != 0;
             } else if !self.console_compatibility_mode.is_cgb_mode() && self.lcdc & 0b0000_0001 == 0
             {
                 use_sprite_px = true;

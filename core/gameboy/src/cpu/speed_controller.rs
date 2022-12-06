@@ -3,7 +3,7 @@ use crate::bus::CgbCompatibility;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 enum CpuSpeedMode {
     Single = 0,
@@ -11,6 +11,7 @@ enum CpuSpeedMode {
 }
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Debug)]
 pub struct CpuSpeedController {
     cpu_speed_mode: CpuSpeedMode,
     prepare_speed_switch: bool,
@@ -36,7 +37,7 @@ impl CpuSpeedController {
 
     pub fn set_prepare_speed_switch(&mut self, set: bool) {
         if set {
-            log::debug!("CPU SPEED SWITCH PREPARED!!");
+            log::debug!("Cpu speed switch prepared");
         }
         self.prepare_speed_switch = set;
     }
@@ -52,11 +53,9 @@ impl CpuSpeedController {
             CpuSpeedMode::Single => CpuSpeedMode::Double,
             CpuSpeedMode::Double => CpuSpeedMode::Single,
         };
-
-        log::debug!("CPU SPEED SWITCHED");
     }
 
     pub fn read_key1(&self) -> u8 {
-        ((self.cpu_speed_mode as u8) << 7) & (self.prepare_speed_switch as u8) | 0b0111_1110
+        ((self.cpu_speed_mode as u8) << 7) | (self.prepare_speed_switch as u8) | 0b0111_1110
     }
 }

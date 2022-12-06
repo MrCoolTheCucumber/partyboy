@@ -14,7 +14,7 @@ use {
     serde_big_array::BigArray,
 };
 
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy, Default, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum CgbCompatibility {
     None,
@@ -226,6 +226,20 @@ impl Bus {
             }
 
             // 0xFF00 and above
+            0xFF00 => self.input.set_column_line(val),
+            0xFF01 => (self.serial_write_handler)(val),
+            0xFF03..=0xFF07 => self.timer.write(addr, val),
+            0xFF0F => self.interrupts.flags = val,
+            0xFF50 => {
+                log::info!("Disabling BIOS");
+                self.bios_enabled = false; // accept any val for now
+            }
+            0xFFFF => self.interrupts.enable = val,
+
+            0xFF46 => self.oam_dma.write_u8(val),
+            0xFF51..=0xFF55 => self.ppu.hdma.write_u8(addr, val),
+
+            0xFF40..=0xFF4B => self.ppu.write_u8(addr, val, &mut self.interrupts),
             0xFF4C => {
                 let val = CgbCompatibility::from(val);
                 let val = match val {
@@ -243,21 +257,6 @@ impl Bus {
                     self.console_compatibility_mode
                 );
             }
-
-            0xFF00 => self.input.set_column_line(val),
-            0xFF01 => (self.serial_write_handler)(val),
-            0xFF03..=0xFF07 => self.timer.write(addr, val),
-            0xFF0F => self.interrupts.flags = val,
-            0xFF50 => {
-                log::info!("Disabling BIOS");
-                self.bios_enabled = false; // accept any val for now
-            }
-            0xFFFF => self.interrupts.enable = val,
-
-            0xFF46 => self.oam_dma.write_u8(val),
-            0xFF51..=0xFF55 => self.ppu.hdma.write_u8(addr, val),
-
-            0xFF40..=0xFF4B => self.ppu.write_u8(addr, val, &mut self.interrupts),
             0xFF4D => {
                 // Key1 (speed switching)
                 let prepare = (val & 0b0000_0001) == 1;

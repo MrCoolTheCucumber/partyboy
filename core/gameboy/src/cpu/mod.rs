@@ -22,7 +22,7 @@ pub(crate) struct Cpu {
     de: Register,
     hl: Register,
 
-    pc: u16,
+    pub(crate) pc: u16,
     sp: u16,
 
     // unnoficial temp values used to help store state
@@ -39,6 +39,7 @@ pub(crate) struct Cpu {
 
     stopped: bool,
     halted: bool,
+    switching_speed: bool,
     halted_waiting_for_interrupt_pending: bool,
     halt_bug_triggered: bool,
     ei_delay: bool,
@@ -48,12 +49,12 @@ pub(crate) struct Cpu {
 impl Debug for Cpu {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Cpu")
-            .field("af", &self.af)
-            .field("bc", &self.bc)
-            .field("de", &self.de)
-            .field("hl", &self.hl)
-            .field("pc", &self.pc)
-            .field("sp", &self.sp)
+            .field("af", &format!("{:#06X}", u16::from(self.af)))
+            .field("bc", &format!("{:#06X}", u16::from(self.bc)))
+            .field("de", &format!("{:#06X}", u16::from(self.de)))
+            .field("hl", &format!("{:#06X}", u16::from(self.hl)))
+            .field("pc", &format!("{:#06X}", self.pc))
+            .field("sp", &format!("{:#06X}", self.sp))
             .field("operand8", &self.operand8)
             .field("operand16", &self.operand16)
             .field("temp8", &self.temp8)
@@ -88,6 +89,7 @@ impl Cpu {
 
             stopped: false,
             halted: false,
+            switching_speed: false,
             halted_waiting_for_interrupt_pending: false,
             halt_bug_triggered: false,
             ei_delay: false,

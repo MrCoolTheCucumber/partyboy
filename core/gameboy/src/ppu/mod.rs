@@ -720,15 +720,10 @@ impl Ppu {
         // TODO:
 
         // check if we have reached the window
-        // once the window is reached it we won't go back to background
+        // once the window is reached we won't go back to background fetching (on this scan line)
         let window_enabled = self.lcdc & LcdControlFlag::WindowEnable as u8 != 0;
-        // TODO: can't I just do self.wx.saturating_sub(7) ?
-        let window_x = if self.wx >= 7 {
-            (self.wx - 7) as i16
-        } else {
-            (self.wx as i8 - 7) as i16
-        };
-        let start_drawing_window = self.wy <= self.ly && window_x <= self.fifo_state.lx as i16;
+        let window_x = self.wx.saturating_sub(7);
+        let start_drawing_window = self.wy <= self.ly && window_x <= self.fifo_state.lx;
 
         if !self.fifo_state.drawing_window && window_enabled && start_drawing_window {
             self.fifo_state.drawing_window = true;

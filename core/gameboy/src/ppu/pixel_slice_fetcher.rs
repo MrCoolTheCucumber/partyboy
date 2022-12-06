@@ -55,11 +55,17 @@ pub(super) struct PixelSliceFetcherState {
 }
 
 impl Ppu {
-    pub fn reset_fetcher(&mut self) {
+    fn reset_fetcher(&mut self) {
         self.fifo_state.fetcher = PixelSliceFetcherState::default();
     }
 
-    pub fn tick_fetcher(&mut self) {
+    /// Change the fetch mode, this will reset the whole fetcher state
+    pub(super) fn set_fifo_fetch_mode(&mut self, fetch_mode: FetchMode) {
+        self.reset_fetcher();
+        self.fifo_state.fetcher.fetch_mode = fetch_mode;
+    }
+
+    pub(super) fn tick_fetcher(&mut self) {
         match self.fifo_state.fetcher.fetch_mode {
             FetchMode::Background(mode) => self.tick_bg(mode),
             FetchMode::Sprite => self.tick_sprite(),
@@ -111,7 +117,13 @@ impl Ppu {
 
                         bg_map_start_addr + tile_map_id_y_offset + tile_map_id_x_offset
                     }
-                    BackgroundFetchMode::Window => todo!(),
+                    BackgroundFetchMode::Window => {
+                        let window_tile_offset =
+                            ((self.window_internal_line_counter - 1) / 8) as u16 * 32;
+                        let wd_map_start_addr = self.get_window_map_start_addr();
+
+                        wd_map_start_addr + window_tile_offset + tile_counter
+                    }
                 };
 
                 self.fifo_state.fetcher.bg_state.tile_id =
@@ -130,15 +142,15 @@ impl Ppu {
                 };
 
                 let mut offset = match bg_fetch_mode {
-                    BackgroundFetchMode::Background => self.ly.wrapping_add(self.scy) & 0b000_0111,
-                    BackgroundFetchMode::Window => self.fifo_state.window_line_counter & 0b000_0111,
-                };
+                    BackgroundFetchMode::Background => self.ly.wrapping_add(self.scy),
+                    BackgroundFetchMode::Window => self.window_internal_line_counter - 1,
+                } & 0b000_0111;
 
                 if self.console_compatibility_mode.is_cgb_mode() && tile_attr.vertical_flip {
                     offset = Self::flip_tile_value(offset);
                 }
 
-                offset *= 2;
+                offset <<= 1;
 
                 let tile_data_addr = (tile_id * 16) + (offset as u16);
                 let mut tile_byte_lo = self.gpu_vram[bank_index][tile_data_addr as usize];

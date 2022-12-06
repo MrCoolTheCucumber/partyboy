@@ -4,7 +4,10 @@ pub mod rgb;
 
 use std::{collections::VecDeque, hint::unreachable_unchecked};
 
-use self::{pixel_slice_fetcher::PixelSliceFetcherState, rgb::Rgb};
+use self::{
+    pixel_slice_fetcher::{BackgroundFetchMode, FetchMode, PixelSliceFetcherState},
+    rgb::Rgb,
+};
 use super::interrupts::{InterruptFlag, Interrupts};
 use crate::{bus::CgbCompatibility, common::D2Array, dma::hdma::Hdma};
 
@@ -75,6 +78,10 @@ pub(crate) struct Ppu {
     mode_clock_cycles: u64,
 
     fifo_state: FifoState,
+
+    /// Is wy == ly? Comparison is checked at the beginning of mode 2
+    /// and stored in this variable
+    wy_ly_equality_latch: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -190,8 +197,8 @@ impl From<(&[u8], i32)> for SpriteInfo {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct FifoState {
     lx: u8,
-    window_line_counter: u8,
     scx_skipped_px: u8,
+    drawing_window: bool,
 
     scanned_sprites: VecDeque<SpriteInfo>,
     scanned_sprites_peek: Option<SpriteInfo>,
@@ -276,6 +283,8 @@ impl Ppu {
 
             // fifo
             fifo_state: FifoState::default(),
+
+            wy_ly_equality_latch: false,
         }
     }
 
@@ -601,6 +610,8 @@ impl Ppu {
     }
 
     fn oam(&mut self) {
+        // TODO: wy == ly equality is latched at this point
+
         if self.mode_clock_cycles == 80 {
             self.mode_clock_cycles = 0;
             self.mode = PpuMode::VRAM;
@@ -705,8 +716,32 @@ impl Ppu {
     /// Returns `true` if the last pixel is pushed to the scan line
     /// and therefore mode 3 can be ended
     fn tick_fifo(&mut self) -> bool {
+        // check sprite
+        // TODO:
+
+        // check if we have reached the window
+        // once the window is reached it we won't go back to background
+        let window_enabled = self.lcdc & LcdControlFlag::WindowEnable as u8 != 0;
+        // TODO: can't I just do self.wx.saturating_sub(7) ?
+        let window_x = if self.wx >= 7 {
+            (self.wx - 7) as i16
+        } else {
+            (self.wx as i8 - 7) as i16
+        };
+        let start_drawing_window = self.wy <= self.ly && window_x <= self.fifo_state.lx as i16;
+
+        if !self.fifo_state.drawing_window && window_enabled && start_drawing_window {
+            self.fifo_state.drawing_window = true;
+            self.window_internal_line_counter += 1;
+            self.set_fifo_fetch_mode(FetchMode::Background(BackgroundFetchMode::Window));
+            self.fifo_state.bg_fifo.clear();
+        }
+
+        // TODO: does the fetcher tick before, or after, the window and sprite "checks"?
+        //       or does it happen both before and after?
         self.tick_fetcher();
 
+        // Pop fifo, is its empty then return
         let Some(mut px) = self.fifo_state.bg_fifo.pop_front() else {
             return false;
         };

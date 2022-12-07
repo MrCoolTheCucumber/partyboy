@@ -17,7 +17,6 @@ impl Mbc2 {
         num_rom_banks: usize,
         num_ram_banks: usize,
     ) -> Self {
-        println!("RAM BANKS: {}", num_ram_banks);
         let rom_bank_mask = match num_rom_banks - 1 {
             0..=1 => 0b0000_0001,
             2..=3 => 0b0000_0011,

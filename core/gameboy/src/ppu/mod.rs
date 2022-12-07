@@ -844,7 +844,7 @@ impl Ppu {
             return false;
         };
 
-        if self.fifo_state.scx_skipped_px < self.scx & 7 {
+        if self.fifo_state.scx_skipped_px < self.scx & 7 && !self.fifo_state.drawing_window {
             self.fifo_state.scx_skipped_px += 1;
             return false;
         }

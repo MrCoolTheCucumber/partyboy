@@ -1,14 +1,19 @@
-# ![Partyboy](https://user-images.githubusercontent.com/16002713/176773858-80ffaed3-a88a-42bf-a821-1189da071900.png)
+<div align="center">
+    <img src="https://user-images.githubusercontent.com/16002713/176773858-80ffaed3-a88a-42bf-a821-1189da071900.png" alt="Logo">
+    <br/>
+    <img alt="GitHub Workflow Status (branch)" src="https://img.shields.io/github/workflow/status/MrCoolTheCucumber/partyboy/Build%20and%20Test/master?style=flat-square">
+    <img alt="GitHub last commit" src="https://img.shields.io/github/last-commit/MrCoolTheCucumber/partyboy?style=flat-square">
+    <img alt="GitHub issues" src="https://img.shields.io/github/issues/MrCoolTheCucumber/partyboy?style=flat-square">
+    <br/>
+    A Game Boy Color emulator.
+</div>
 
-![GitHub Workflow Status](https://img.shields.io/github/workflow/status/MrCoolTheCucumber/partyboy/Build%20and%20Test?style=flat-square)
-![GitHub last commit](https://img.shields.io/github/last-commit/MrCoolTheCucumber/partyboy)
-![GitHub issues](https://img.shields.io/github/issues/MrCoolTheCucumber/partyboy)
+---------------------
 
-A Game Boy Color emulator.
-
-![cgb-boot](https://user-images.githubusercontent.com/16002713/206076824-d8f6bd3b-e383-4d2c-9bad-494303dd5d22.gif)
-![zelda](https://user-images.githubusercontent.com/16002713/206078363-c5231156-bea5-48c9-8f83-283d35bda2a7.gif)
-
+<div align="center">
+    <img alt="cgb boot" src="https://user-images.githubusercontent.com/16002713/206076824-d8f6bd3b-e383-4d2c-9bad-494303dd5d22.gif">
+    <img alt="zelda intro" src="https://user-images.githubusercontent.com/16002713/206078363-c5231156-bea5-48c9-8f83-283d35bda2a7.gif">
+</div>
 
 ## Features
 

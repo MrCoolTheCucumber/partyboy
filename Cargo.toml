@@ -5,7 +5,8 @@ members = [
     "frontends/frontend_debug",
     "frontends/frontend_web",
     "core/gameboy",
-    "test/junit_to_md"
+    "test/junit_to_md",
+    "util/gen_bios_skip_snapshot"
 ]
 default-members = [
     "frontends/frontend",

@@ -81,6 +81,11 @@ impl GameBoy {
             return;
         }
 
+        #[cfg(feature = "gen_bios_snapshot")]
+        if self.cpu.pc == 0x100 && !self.bus.bios_enabled {
+            return;
+        }
+
         // check the controller state first before handling!
         if !self.hdma_controller.currently_copying(&self.bus) {
             self.tick_cpu_related();

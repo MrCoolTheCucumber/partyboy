@@ -184,12 +184,12 @@ struct SpriteInfo {
     id: usize,
 }
 
-impl From<(&[u8], i32, usize)> for SpriteInfo {
-    fn from((data, sprite_size, id): (&[u8], i32, usize)) -> Self {
+impl From<(&[u8], usize)> for SpriteInfo {
+    fn from((data, id): (&[u8], usize)) -> Self {
         Self {
             y: data[0] as u16 as i32 - 16,
             x: data[1] as u16 as i32 - 8,
-            tile_num: (data[2] & (if sprite_size == 16 { 0xFE } else { 0xFF })) as u16,
+            tile_num: data[2] as u16,
             flags: data[3],
             fetched: false,
             id,
@@ -210,7 +210,9 @@ impl SpriteInfo {
         ((self.flags & 0b0000_1000) >> 3) as usize
     }
 
-    fn bg_wd_prio(&self) -> bool {
+    /// If true, bg and window color index 1-3 should be displayed
+    /// over the sprite
+    fn bg_wd_over_sprite(&self) -> bool {
         self.flags & (1 << 7) != 0
     }
 }
@@ -243,6 +245,24 @@ struct FifoPixel {
     palette_index: u8,
     sprite_info: Option<SpriteInfo>,
     priority: Option<u8>,
+}
+
+impl Default for FifoPixel {
+    fn default() -> Self {
+        Self {
+            color_index: 0,
+            palette_index: 0,
+            sprite_info: Some(SpriteInfo {
+                y: 0,
+                x: 0,
+                tile_num: 0,
+                flags: 0,
+                fetched: false,
+                id: usize::MAX,
+            }),
+            priority: Some(0),
+        }
+    }
 }
 
 impl Ppu {
@@ -653,7 +673,7 @@ impl Ppu {
                 .chunks(4)
                 .enumerate()
                 .filter_map(|(id, raw_obj_data)| {
-                    let sprite_info = SpriteInfo::from((raw_obj_data, sprite_size, id));
+                    let sprite_info = SpriteInfo::from((raw_obj_data, id));
                     if (self.ly as i32) >= sprite_info.y
                         && (self.ly as i32) < sprite_info.y + sprite_size
                     {
@@ -739,31 +759,33 @@ impl Ppu {
         self.update_stat_irq_conditions(interrupts);
     }
 
-    // Copied from scan line code as the rules are quite complicated
-    fn should_draw_sprite(&self, bg_px: FifoPixel, sprite_px: FifoPixel) -> bool {
-        let cgb_sprite_alawys_display = if self.console_compatibility_mode.is_cgb_mode() {
-            let always_display_sprite = self.lcdc & LcdControlFlag::BGEnable as u8 == 0;
-            if !always_display_sprite && bg_px.priority.unwrap() != 0 && bg_px.color_index != 0 {
-                return false;
+    /// Given a bg/wd px and a sprite px, determine which one should be drawn
+    ///
+    /// If true, draw the sprite, if false then draw the bg/wd
+    fn handle_pixel_mixing(&self, bg_px: FifoPixel, sprite_px: FifoPixel) -> bool {
+        let sprite_drawing_enabled = self.lcdc & LcdControlFlag::OBJEnable as u8 != 0;
+        match self.console_compatibility_mode {
+            CgbCompatibility::CgbOnly => {
+                // https://gbdev.io/pandocs/Tile_Maps.html#bg-to-obj-priority-in-cgb-mode
+                let sprite_or_bg_prio_set = sprite_px.sprite_info.unwrap().bg_wd_over_sprite()
+                    || bg_px.priority.unwrap() != 0;
+                let lcdc_bit_0_set = self.lcdc & LcdControlFlag::BGEnable as u8 != 0;
+                let sprite_transparent = sprite_px.color_index == 0;
+
+                let should_draw_bg =
+                    lcdc_bit_0_set && sprite_or_bg_prio_set && bg_px.color_index != 0;
+
+                !should_draw_bg && sprite_drawing_enabled && !sprite_transparent
             }
+            _ => {
+                let sprite_drawing_enabled = self.lcdc & LcdControlFlag::OBJEnable as u8 != 0;
+                let should_draw_sprite = !((sprite_px.sprite_info.unwrap().bg_wd_over_sprite()
+                    && bg_px.color_index != 0)
+                    || sprite_px.color_index == 0);
 
-            always_display_sprite
-        } else {
-            false
-        };
-
-        if !cgb_sprite_alawys_display
-            && sprite_px.sprite_info.unwrap().bg_wd_prio()
-            && bg_px.color_index != 0
-        {
-            return false;
+                should_draw_sprite && sprite_drawing_enabled
+            }
         }
-
-        if sprite_px.color_index == 0 {
-            return false;
-        }
-
-        true
     }
 
     /// returns true if current fifo tick should end early
@@ -793,6 +815,9 @@ impl Ppu {
                 self.set_fifo_fetch_mode(FetchMode::Background(bg_mode));
                 self.fifo_state.scanned_sprites_peek = None;
                 // TODO: Do we return here or continue on?
+
+                // immediatelly check for another sprite on the same
+                return true;
             } else {
                 return true;
             }
@@ -815,7 +840,7 @@ impl Ppu {
         // the obj_fetcher in cgb models. This means if "sprite draws are disabled", we
         // should still go and fetch them anyway. I guess this means we only check this flag
         // in the pixel mixing step.
-        let sprite_draw_enabled = self.lcdc & LcdControlFlag::OBJEnable as u8 != 0;
+        let _sprite_draw_enabled = self.lcdc & LcdControlFlag::OBJEnable as u8 != 0;
 
         // handle sprite fetching, stop handling sprites on the
         if self.handle_sprite_fetch() {
@@ -851,7 +876,10 @@ impl Ppu {
 
         // TODO: if bg isnt enabled, do we draw a white px, or what ever is in palette index 0?
         // TODO: "On CGB when palette access is blocked a black pixel is pushed to the LCD."
-        if !self.is_bg_enabled() && !self.console_compatibility_mode.is_cgb_mode() {
+        if !self.is_bg_enabled()
+            && !self.console_compatibility_mode.is_cgb_mode()
+            && !self.fifo_state.drawing_window
+        {
             bg_px.color_index = 0;
         }
 
@@ -863,7 +891,7 @@ impl Ppu {
 
         // Check/handle sprite fifo
         if let Some(sprite_px) = self.fifo_state.sprite_fifo.pop_front() {
-            let use_sprite_px = self.should_draw_sprite(bg_px, sprite_px) && sprite_draw_enabled;
+            let use_sprite_px = self.handle_pixel_mixing(bg_px, sprite_px);
 
             if use_sprite_px {
                 let color_index = match self.console_compatibility_mode {

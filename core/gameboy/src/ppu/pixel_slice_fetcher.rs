@@ -168,15 +168,18 @@ impl Ppu {
             let xbit = 1 << (7 - x as u32);
             let color_index = u8::from(b1 & xbit != 0) | (if b2 & xbit != 0 { 2 } else { 0 });
 
-            let existing_px = fifo_buffer.get(x as usize);
-            let overwrite_px = match existing_px {
-                Some(px) => match self.obj_prio_mode {
-                    ObjectPriorityMode::OamOrder => {
-                        px.sprite_info.unwrap().id > sprite.id && color_index != 0
-                    }
-                    ObjectPriorityMode::CoordinateOrder => fifo_buffer[x as usize].color_index == 0,
-                },
-                None => true,
+            let existing_px = fifo_buffer.get(x as usize).copied().unwrap_or_default();
+            let candidate_px_has_prio = match self.obj_prio_mode {
+                ObjectPriorityMode::OamOrder => existing_px.sprite_info.unwrap().id > sprite.id,
+                // later fetched sprites are always lower prio (in our implementation)
+                ObjectPriorityMode::CoordinateOrder => false,
+            };
+
+            let overwrite_px = match self.console_compatibility_mode {
+                CgbCompatibility::CgbOnly => {
+                    existing_px.color_index == 0 || (candidate_px_has_prio && color_index != 0)
+                }
+                _ => existing_px.color_index == 0,
             };
 
             if overwrite_px {
@@ -314,14 +317,32 @@ impl Ppu {
                 // as we are in an invalid state
                 let sprite = self.fifo_state.scanned_sprites_peek.as_ref().unwrap();
                 let sprite_size = self.get_sprite_size();
-                let ly = self.ly as i32;
+                let lo_mask = if sprite_size == 16 { 0xFE } else { 0xFF };
+                let mut tile_id = sprite.tile_num & lo_mask;
 
-                let tile_y = match sprite.yflip() {
-                    true => sprite_size - 1 - (ly - sprite.y),
-                    false => ly - sprite.y,
-                } as u16;
+                if sprite_size == 16 {
+                    // work out if we are in the top or bottom part of the 8x16 sprite
+                    let obj_y = (sprite.y + 16) as u8;
+                    let bottom_half = (obj_y - self.ly) <= 8;
 
-                let tile_addr = sprite.tile_num * 16 + tile_y * 2;
+                    if bottom_half {
+                        tile_id |= 1;
+                    }
+                }
+
+                let mut tile_y = (self.ly - (sprite.y + 16) as u8) % 8;
+
+                if sprite.yflip() {
+                    if sprite_size == 16 {
+                        tile_id ^= 1;
+                    }
+
+                    tile_y = !tile_y;
+                }
+
+                let tile_y = (tile_y & 0b0000_0111) as u16;
+
+                let tile_addr = tile_id * 16 + (tile_y << 1);
                 let tile_bank = match self.console_compatibility_mode {
                     CgbCompatibility::CgbOnly => sprite.tile_vram_bank(),
                     _ => 0,

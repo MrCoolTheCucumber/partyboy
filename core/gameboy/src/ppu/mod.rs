@@ -674,13 +674,9 @@ impl Ppu {
                 .enumerate()
                 .filter_map(|(id, raw_obj_data)| {
                     let sprite_info = SpriteInfo::from((raw_obj_data, id));
-                    if (self.ly as i32) >= sprite_info.y
-                        && (self.ly as i32) < sprite_info.y + sprite_size
-                    {
-                        return Some(sprite_info);
-                    }
-
-                    None
+                    ((self.ly as i32) >= sprite_info.y
+                        && (self.ly as i32) < sprite_info.y + sprite_size)
+                        .then_some(sprite_info)
                 })
                 .take(10)
                 .collect();
@@ -829,8 +825,8 @@ impl Ppu {
     /// Returns `true` if the last pixel is pushed to the scan line
     /// and therefore mode 3 can be ended
     fn tick_fifo(&mut self) -> bool {
-        // TODO: work around for timing issues in fifo
-        if self.mode_clock_cycles < 8 {
+        // 6t delay
+        if self.mode_clock_cycles < 7 {
             return false;
         }
 
@@ -860,14 +856,13 @@ impl Ppu {
             self.fifo_state.bg_fifo.clear();
         }
 
-        // TODO: does the fetcher tick before, or after, the window and sprite "checks"?
-        //       or does it happen both before and after?
-        self.tick_fetcher();
-
         // Pop fifo, is its empty then return
         let Some(mut bg_px) = self.fifo_state.bg_fifo.pop_front() else {
+            self.tick_fetcher();
             return false;
         };
+
+        self.tick_fetcher();
 
         if self.fifo_state.scx_skipped_px < self.scx & 7 && !self.fifo_state.drawing_window {
             self.fifo_state.scx_skipped_px += 1;

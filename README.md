@@ -6,6 +6,8 @@
     <img alt="GitHub issues" src="https://img.shields.io/github/issues/MrCoolTheCucumber/partyboy?style=flat-square">
     <br/>
     A Game Boy Color emulator.
+    <br/>
+    <a href="https://mrcoolthecucumber.com/partyboy">Try it out in the browser</a>
 </div>
 
 ---------------------
@@ -17,10 +19,12 @@
 
 ## Features
 
-- Ability to play Game Boy Color games as well as Game Boy games in "compatibility mode"
-- Cycle accurate CPU
+- Ability to play Game Boy Color games as well as Game Boy games in the game boy colors DMG mode
+- Fairly high accuracy
 - Support for most cartridge types
-- Uses the boot rom from sameboy which is MIT lisenced
+- Biosless mode
+- Save states
+- Web support
 
 ## Tests
 
@@ -48,7 +52,7 @@ partyboy 1.0
 A Gameboy color emulator
 
 USAGE:
-    partyboy [FLAGS] --rom <rom_path>
+    partyboy.exe [FLAGS] [OPTIONS]
 
 FLAGS:
     -l, --log        Enables file logging.
@@ -56,17 +60,16 @@ FLAGS:
     -V, --version    Prints version information
 
 OPTIONS:
-    -r, --rom <rom_path>    The path to the rom to load.
+    -b, --bios <bios_path>    The path to the bios to use.
+    -r, --rom <rom_path>      The path to the rom to load.
 ```
 
 ## TODO
 
-- Audio support
-- Cycle accurate FIFO PPU
-- Dissasembler for debug frontend?
-- Make `frontend_debug` work for web without separate crate
-- Make gbc double speed mode work properly
-- Implement some sort of mass rom test suite similar to [sameboy](https://sameboy.github.io/automation/)?
+- [ ] Audio support
+- [ ] Dissasembler for debug frontend
+- [ ] Make `frontend_debug` work for web
+- [ ] Implement some sort of mass rom test suite similar to [sameboy](https://sameboy.github.io/automation/)?
 
 ## Build Instructions
 

@@ -27,6 +27,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
+name = "common"
+version = "0.1.0"
+dependencies = [
+ "wasm-bindgen",
+]
+
+[[package]]
 name = "console_error_panic_hook"
 version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -52,8 +59,9 @@ dependencies = [
 
 [[package]]
 name = "gameboy_web"
-version = "0.2.0"
+version = "0.4.0"
 dependencies = [
+ "common",
  "gameboy",
  "js-sys",
  "rmp-serde",

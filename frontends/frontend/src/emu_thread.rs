@@ -1,7 +1,8 @@
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
+use common::loop_helper::LoopHelper;
 use crossbeam::channel::{Receiver, Sender};
-use gameboy::GameBoy;
+use gameboy::{GameBoy, SPEED};
 use ringbuffer::{ConstGenericRingBuffer, RingBuffer, RingBufferExt, RingBufferWrite};
 
 use crate::msgs::{MsgFromGb, MsgToGb};
@@ -31,11 +32,7 @@ pub fn new(rom: Option<Vec<u8>>, bios: Option<Vec<u8>>) -> (Sender<MsgToGb>, Rec
         let mut turbo = false;
         let mut snapshot: Option<Vec<u8>> = None;
 
-        let start = Instant::now();
-        let mut last_loop = start;
-
-        let mut last_fps_report = start;
-        let mut frames_drawn = 0;
+        let mut loop_helper = LoopHelper::new(FPS_REPORT_RATE_MS, SPEED);
 
         let mut last_8_frames = ConstGenericRingBuffer::<_, 8>::new();
 
@@ -69,35 +66,23 @@ pub fn new(rom: Option<Vec<u8>>, bios: Option<Vec<u8>>) -> (Sender<MsgToGb>, Rec
             }
 
             // calculate how many ticks have elapsed
-            let now = Instant::now();
-            let elapsed = now - last_loop;
-            let ticks = if turbo {
-                gameboy::SPEED
-            } else {
-                (elapsed.as_secs_f64() * (gameboy::SPEED as f64)) as u64
-            };
-
-            last_loop = now;
+            let now = common::time::now();
+            let ticks = loop_helper.calculate_ticks_to_run(now);
 
             for _ in 0..ticks {
                 gb.tick();
                 if gb.consume_draw_flag() {
                     let frame_msg = MsgFromGb::Frame(gb.get_frame_buffer().into());
                     let _ = s.try_send(frame_msg);
-                    frames_drawn += 1;
+                    loop_helper.record_frame_draw()
                 }
             }
 
             // check if we should report fps
-            let elapsed_since_last_fps_report = now - last_fps_report;
-            if elapsed_since_last_fps_report.as_millis() as u64 > FPS_REPORT_RATE_MS {
-                last_fps_report = now;
-                let fps = frames_drawn as f64 / elapsed_since_last_fps_report.as_secs_f64();
+            if let Some(fps) = loop_helper.report_fps(now) {
                 last_8_frames.push(fps);
-
                 let fps = last_8_frames.iter().sum::<f64>() / last_8_frames.len() as f64;
                 let _ = s.try_send(MsgFromGb::Fps(fps));
-                frames_drawn = 0;
             }
 
             if !turbo {

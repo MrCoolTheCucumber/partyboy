@@ -679,6 +679,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "common"
+version = "0.1.0"
+dependencies = [
+ "log",
+ "wasm-bindgen",
+]
+
+[[package]]
 name = "concurrent-queue"
 version = "1.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2933,6 +2941,7 @@ name = "partyboy"
 version = "0.1.0"
 dependencies = [
  "clap 2.34.0",
+ "common",
  "crossbeam",
  "env_logger",
  "gameboy",

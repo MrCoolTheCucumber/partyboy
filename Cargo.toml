@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "benches",
+    "common",
     "frontends/frontend",
     "frontends/frontend_debug",
     "frontends/frontend_web",

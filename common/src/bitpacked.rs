@@ -9,17 +9,15 @@ pub struct BitPackedState {
 
 #[cfg_attr(feature = "web", wasm_bindgen)]
 impl BitPackedState {
-    const CHUNK_SIZE: usize = 8;
-
     pub fn pack(state: Vec<u8>) -> Self {
         let bytes = state.len();
 
-        let chunks = state.chunks_exact(Self::CHUNK_SIZE);
+        let chunks = state.chunks_exact(8);
         let remainder = chunks.remainder();
 
         let mut data = chunks
             .map(|chunk| {
-                let as_array_ref: &[u8; Self::CHUNK_SIZE] = chunk.try_into().unwrap();
+                let as_array_ref: &[u8; 8] = chunk.try_into().unwrap();
                 u64::from_ne_bytes(*as_array_ref)
             })
             .collect::<Vec<u64>>();
@@ -37,7 +35,7 @@ impl BitPackedState {
     }
 
     pub fn unpack(&self) -> Vec<u8> {
-        let remainder = self.bytes % Self::CHUNK_SIZE;
+        let remainder = self.bytes % 8;
         let remainding = remainder != 0;
         let take = self.data.len() - usize::from(remainding);
 

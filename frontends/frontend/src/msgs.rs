@@ -11,6 +11,7 @@ pub enum MsgToGb {
     KeyDown(Vec<Keycode>),
     KeyUp(Vec<Keycode>),
     Turbo(bool),
+    Rewind(bool),
 
     SaveSnapshot,
     LoadSnapshot,

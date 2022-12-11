@@ -143,6 +143,10 @@ impl GameBoy {
         self.bus.input.key_up(key);
     }
 
+    pub fn release_all_keys(&mut self) {
+        self.bus.input.release_all_keys();
+    }
+
     #[cfg(feature = "debug_info")]
     pub(crate) fn bus(&self) -> &Bus {
         &self.bus

@@ -166,6 +166,13 @@ fn main() {
             if input.key_released(VirtualKeyCode::V) {
                 s.send(MsgToGb::LoadSnapshot).unwrap();
             }
+
+            if input.key_pressed(VirtualKeyCode::Q) {
+                s.send(MsgToGb::Rewind(true)).unwrap();
+            }
+            if input.key_released(VirtualKeyCode::Q) {
+                s.send(MsgToGb::Rewind(false)).unwrap();
+            }
         }
 
         window.request_redraw();

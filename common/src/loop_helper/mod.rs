@@ -30,9 +30,12 @@ impl LoopHelper {
         self.frames_drawn = 0;
     }
 
-    pub fn calculate_ticks_to_run(&mut self, now: u64) -> u64 {
+    pub fn calculate_ticks_to_run(&mut self, now: u64, turbo: bool) -> u64 {
         let elapsed = now - self.last_loop;
-        let ticks = (elapsed * self.ticks_per_second) / 1000;
+        let ticks = match turbo {
+            true => 4_000_000,
+            false => (elapsed * self.ticks_per_second) / 1000,
+        };
         self.last_loop = now;
         ticks
     }

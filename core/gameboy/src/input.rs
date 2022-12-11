@@ -109,6 +109,17 @@ impl Input {
             Keycode::Start => self.start = 1,
         }
     }
+
+    pub fn release_all_keys(&mut self) {
+        self.up = 1;
+        self.left = 1;
+        self.down = 1;
+        self.right = 1;
+        self.a = 1;
+        self.b = 1;
+        self.select = 1;
+        self.start = 1;
+    }
 }
 
 #[derive(Debug, Clone, Copy)]

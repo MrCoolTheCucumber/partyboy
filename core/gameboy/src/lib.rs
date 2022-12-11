@@ -11,6 +11,8 @@ mod interrupts;
 pub mod ppu;
 mod timer;
 
+#[cfg(not(feature = "web"))]
+use ppu::rgb::Rgb;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "web")]
@@ -27,7 +29,6 @@ use self::{
     },
     input::Keycode,
     interrupts::Interrupts,
-    ppu::rgb::Rgb,
 };
 
 /// Number of cycles per second the gameboy does in single speed mode.
@@ -141,6 +142,10 @@ impl GameBoy {
 
     pub fn key_up(&mut self, key: Keycode) {
         self.bus.input.key_up(key);
+    }
+
+    pub fn release_all_keys(&mut self) {
+        self.bus.input.release_all_keys();
     }
 
     #[cfg(feature = "debug_info")]

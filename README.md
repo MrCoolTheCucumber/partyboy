@@ -44,7 +44,7 @@ See [this file](TestReport.md) for a report on all implemented tests
 | LEFT   | <kbd>A</kbd> |
 | RIGHT  | <kbd>D</kbd> |
 
-You can also hold <kbd>SPACE</kbd> to enable turbo, which will disable the frame limiter.
+You can also hold <kbd>SPACE</kbd> to enable turbo, which will disable the frame limiter. And hold <kbd>Q</kbd> to rewind!
 
 ## Usage (CLI)
 

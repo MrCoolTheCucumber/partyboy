@@ -10,7 +10,7 @@
     <a href="https://mrcoolthecucumber.com/partyboy">Try it out in the browser</a>
 </div>
 
----------------------
+---
 
 <div align="center">
     <img alt="cgb boot" src="https://user-images.githubusercontent.com/16002713/206076824-d8f6bd3b-e383-4d2c-9bad-494303dd5d22.gif">
@@ -24,6 +24,7 @@
 - Support for most cartridge types
 - Biosless mode
 - Save states
+- Rewinding (experimental)
 - Web support
 
 ## Tests

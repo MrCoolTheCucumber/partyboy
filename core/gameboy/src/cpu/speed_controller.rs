@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Copy, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-enum CpuSpeedMode {
+pub enum CpuSpeedMode {
     Single = 0,
     Double = 1,
 }

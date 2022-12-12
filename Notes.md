@@ -108,3 +108,9 @@ Spawn web worker, use multiple shared arrays to handle communication. E.g. one f
 ### Fifo
 
 - https://github.com/gbdev/pandocs/pull/379
+
+### Sound
+
+- https://gbdev.gg8.se/wiki/articles/Gameboy_sound_hardware
+- https://nightshade256.github.io/2021/03/27/gb-sound-emulation.html
+- https://www.reddit.com/r/EmuDev/comments/5gkwi5/comment/dat3zni/

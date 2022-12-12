@@ -1,3 +1,4 @@
+mod apu;
 pub mod builder;
 mod bus;
 mod cartridge;

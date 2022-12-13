@@ -2,6 +2,7 @@ use crate::cpu::speed_controller::CpuSpeedMode;
 
 use self::{
     frame_sequencer::FrameSequencer,
+    sample_channel::SampleChannel,
     square_channel::{Channel1IO, Channel2IO, SquareChannel},
 };
 
@@ -11,6 +12,7 @@ use serde::{Deserialize, Serialize};
 mod envelope;
 mod frame_sequencer;
 mod length;
+mod sample_channel;
 mod square_channel;
 mod sweep;
 
@@ -22,6 +24,7 @@ pub type Sample = f32;
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Apu {
     powered_on: bool,
+    capacitor: f32,
 
     sample_buffer: Vec<f64>,
     sample_counter: u32,
@@ -29,9 +32,9 @@ pub struct Apu {
     frame_sequencer: FrameSequencer,
     channel_1: SquareChannel,
     channel_2: SquareChannel,
+    channel_3: SampleChannel,
 
     nr50: u8,
-
     /// Channel panning/mixing
     nr51: u8,
 }
@@ -40,11 +43,13 @@ impl Apu {
     pub fn new() -> Self {
         Self {
             powered_on: false,
+            capacitor: 0.0,
             sample_buffer: Vec::with_capacity(SAMPLE_BUFFER_LEN),
             sample_counter: TICKS_PER_SAMPLE,
             frame_sequencer: FrameSequencer::new(),
             channel_1: SquareChannel::new(),
             channel_2: SquareChannel::new(),
+            channel_3: SampleChannel::new(),
             nr50: 0xFF,
             nr51: 0xFF,
         }
@@ -54,6 +59,7 @@ impl Apu {
         match addr {
             0xFF10..=0xFF14 => self.channel_1.read_u8::<Channel1IO>(addr),
             0xFF16..=0xFF19 => self.channel_2.read_u8::<Channel2IO>(addr),
+            0xFF1A..=0xFF1E => self.channel_3.read_u8(addr),
 
             0xFF24 => self.nr50,
             0xFF25 => self.nr51,
@@ -61,23 +67,29 @@ impl Apu {
                 let bit_7 = (self.powered_on as u8) << 7;
                 let bit_0 = self.channel_1.enabled() as u8;
                 let bit_1 = (self.channel_2.enabled() as u8) << 1;
-                bit_7 | bit_0 | bit_1
+                let bit_2 = (self.channel_3.enabled() as u8) << 2;
+                bit_7 | bit_0 | bit_1 | bit_2
             }
+
+            0xFF30..=0xFF3F => self.channel_3.read_u8(addr),
             _ => unreachable!("Apu doesn't handle reading from address: {:#06X}", addr),
         }
     }
     pub fn write_u8(&mut self, addr: u16, val: u8) {
-        if !self.powered_on && addr != 0xFF26 {
+        if !self.powered_on && addr != 0xFF26 && addr < 0xFF30 {
             return;
         }
 
         match addr {
             0xFF10..=0xFF14 => self.channel_1.write_u8::<Channel1IO>(addr, val),
             0xFF16..=0xFF19 => self.channel_2.write_u8::<Channel2IO>(addr, val),
+            0xFF1A..=0xFF1E => self.channel_3.write_u8(addr, val),
 
             0xFF24 => self.nr50 = val,
             0xFF25 => self.nr51 = val,
             0xFF26 => self.powered_on = (val & 0b1000_0000) != 0,
+
+            0xFF30..=0xFF3F => self.channel_3.write_u8(addr, val),
             _ => unreachable!("Apu doesn't handle writing to address: {:#06X}", addr),
         };
     }
@@ -97,6 +109,7 @@ impl Apu {
         let stepped_components = self.frame_sequencer.tick(div, speed);
         self.channel_1.tick(&stepped_components);
         self.channel_2.tick(&stepped_components);
+        self.channel_3.tick(&stepped_components);
 
         sample_this_tick.then_some(self.sample())
     }
@@ -113,14 +126,25 @@ impl Apu {
     }
 
     fn apply_vol_to_raw_sample(sample: Sample, vol: u8) -> Sample {
-        let vol = 9.0 - (vol as f32);
+        let vol = 8.0 - (vol as f32);
         (sample * vol) / 8.0
     }
 
-    fn sample(&self) -> (Sample, Sample) {
+    fn apply_high_pass(&mut self, sample: Sample) -> Sample {
+        let dacs_enabled = self.read_u8(0xFF26) & 0b0000_1111 != 0;
+        let mut out = 0.0;
+        if dacs_enabled {
+            out = sample - self.capacitor;
+            self.capacitor = sample - out * 0.998943;
+        }
+        out
+    }
+
+    fn sample(&mut self) -> (Sample, Sample) {
         // TODO: call sample on each channel once, then use those samples for each pan
         let ch1_sample = self.channel_1.sample();
         let ch2_sample = self.channel_2.sample();
+        let ch3_sample = self.channel_3.sample();
 
         let mut left_sample = 0.0;
         let mut right_sample = 0.0;
@@ -134,6 +158,10 @@ impl Apu {
             left_sample += ch2_sample;
         }
 
+        if self.nr51 & 0b0100_0000 != 0 {
+            left_sample += ch3_sample;
+        }
+
         // Right samples
         if self.nr51 & 0b0000_0001 != 0 {
             right_sample += ch1_sample;
@@ -143,13 +171,23 @@ impl Apu {
             right_sample += ch2_sample;
         }
 
+        if self.nr51 & 0b0000_0100 != 0 {
+            right_sample += ch3_sample;
+        }
+
         let left_vol = (self.nr50 & 0b0111_0000) >> 4;
         let right_vol = self.nr50 & 0b0000_0111;
 
-        left_sample = Self::apply_vol_to_raw_sample(left_sample, left_vol);
-        right_sample = Self::apply_vol_to_raw_sample(right_sample, right_vol);
+        left_sample /= 3.0;
+        right_sample /= 3.0;
+
+        left_sample = Self::apply_vol_to_raw_sample(left_sample, left_vol) + 1.0;
+        right_sample = Self::apply_vol_to_raw_sample(right_sample, right_vol) + 1.0;
+
+        left_sample = self.apply_high_pass(left_sample);
+        right_sample = self.apply_high_pass(right_sample);
 
         // mult by 0.3 to simulate physical volume slider only being slightly on
-        (left_sample * 0.3, right_sample * 0.3)
+        (left_sample, right_sample)
     }
 }

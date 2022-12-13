@@ -175,6 +175,7 @@ impl SquareChannelIO for Channel1IO {
                     channel.enabled = true;
                     channel.envelope.init(channel.nrx2);
                     channel.sweep = Sweep::new(channel.nr10, channel.frequency);
+                    channel.frequency_timer = (2048 - channel.frequency) * 4;
                 }
             }
 
@@ -225,6 +226,7 @@ impl SquareChannelIO for Channel2IO {
                 if channel_triggered {
                     channel.enabled = true;
                     channel.envelope.init(channel.nrx2);
+                    channel.frequency_timer = (2048 - channel.frequency) * 4;
                 }
             }
 

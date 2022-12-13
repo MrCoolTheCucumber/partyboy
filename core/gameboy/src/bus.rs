@@ -189,7 +189,9 @@ impl Bus {
 
             0xFF10..=0xFF14 => self.apu.read_u8(addr),
             0xFF16..=0xFF19 => self.apu.read_u8(addr),
+            0xFF1A..=0xFF1E => self.apu.read_u8(addr),
             0xFF24..=0xFF26 => self.apu.read_u8(addr),
+            0xFF30..=0xFF3F => self.apu.read_u8(addr),
 
             0xFF00..=0xFF7F => self.io[(addr - 0xFF00) as usize],
             0xFF80..=0xFFFE => self.zero_page[(addr - 0xFF80) as usize],
@@ -233,7 +235,9 @@ impl Bus {
 
             0xFF10..=0xFF14 => self.apu.write_u8(addr, val),
             0xFF16..=0xFF19 => self.apu.write_u8(addr, val),
+            0xFF1A..=0xFF1E => self.apu.write_u8(addr, val),
             0xFF24..=0xFF26 => self.apu.write_u8(addr, val),
+            0xFF30..=0xFF3F => self.apu.write_u8(addr, val),
 
             // 0xFF00 and above
             0xFF00 => self.input.set_column_line(val),

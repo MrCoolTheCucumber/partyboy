@@ -79,7 +79,7 @@ impl GameBoy {
         }
     }
 
-    pub fn tick(&mut self) -> Option<Sample> {
+    pub fn tick(&mut self) -> Option<(Sample, Sample)> {
         if self.cpu.stopped() {
             return self.bus.apu.tick_sample_only();
         }

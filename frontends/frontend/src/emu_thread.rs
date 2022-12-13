@@ -50,7 +50,7 @@ pub fn new(rom: Option<Vec<u8>>, bios: Option<Vec<u8>>) -> (Sender<MsgToGb>, Rec
             buffer_size: cpal::BufferSize::Fixed(512),
         };
 
-        let (audio_s, audio_r) = crossbeam::channel::bounded::<f32>(512 * 16);
+        let (audio_s, audio_r) = crossbeam::channel::bounded::<(f32, f32)>(512 * 16);
 
         let audio_stream = device
             .build_output_stream(
@@ -60,10 +60,10 @@ pub fn new(rom: Option<Vec<u8>>, bios: Option<Vec<u8>>) -> (Sender<MsgToGb>, Rec
 
                     let mut index = 0;
                     while index < data.len() {
-                        let sample = rx.try_recv().ok().unwrap_or(0.0);
+                        let sample = rx.try_recv().ok().unwrap_or((0.0, 0.0));
 
-                        data[index] = sample;
-                        data[index + 1] = sample;
+                        data[index] = sample.0;
+                        data[index + 1] = sample.1;
                         index += 2;
                     }
                 },

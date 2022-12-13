@@ -119,7 +119,7 @@ impl SquareChannel {
         }
     }
 
-    pub fn sample(&mut self) -> Sample {
+    pub fn sample(&self) -> Sample {
         let dac_input = (self.get_amplitude() * self.envelope.current_vol()) as Sample;
         (dac_input / 7.5) - 1.0
     }

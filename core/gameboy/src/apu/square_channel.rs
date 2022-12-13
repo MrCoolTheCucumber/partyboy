@@ -167,7 +167,7 @@ impl SquareChannelIO for Channel1IO {
                 let length_enabled = val & 0b0100_0000 != 0;
                 channel.length_mode = (length_enabled as u8).into();
                 if length_enabled {
-                    channel.length.init(channel.nrx1 & val & 0b0011_1111)
+                    channel.length.init(channel.nrx1 & 0b0011_1111)
                 }
 
                 let channel_triggered = val & 0b1000_0000 != 0;
@@ -219,7 +219,7 @@ impl SquareChannelIO for Channel2IO {
                 let length_enabled = val & 0b0100_0000 != 0;
                 channel.length_mode = (length_enabled as u8).into();
                 if length_enabled {
-                    channel.length.init(channel.nrx1 & val & 0b0011_1111)
+                    channel.length.init(channel.nrx1 & 0b0011_1111)
                 }
 
                 let channel_triggered = val & 0b1000_0000 != 0;

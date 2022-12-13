@@ -74,12 +74,6 @@ impl SquareChannel {
         ((self.nrx1 & 0b1100_0000) >> 6) as usize
     }
 
-    fn get_frequency(&self) -> u16 {
-        let lo = self.nrx3;
-        let hi = self.nrx4 & 0b0000_0111;
-        ((hi as u16) << 8) | (lo as u16)
-    }
-
     fn get_amplitude(&self) -> u8 {
         DUTY_LUT[self.get_duty()][self.duty_index]
     }
@@ -162,10 +156,13 @@ impl SquareChannelIO for Channel1IO {
             0xFF12 => channel.nrx2 = val,
             0xFF13 => {
                 channel.nrx3 = val;
-                channel.frequency = channel.get_frequency(); // TODO: might be wrong, need to & and | onto self.freq
+                channel.frequency = (channel.frequency & 0b1111_1111_0000_0000) | (val as u16);
             }
             0xFF14 => {
                 channel.nrx4 = val;
+                let freq_high_3_bits = val & 0b0000_0111;
+                channel.frequency =
+                    (channel.frequency & 0b0000_0000_1111_1111) | ((freq_high_3_bits as u16) << 8);
 
                 let length_enabled = val & 0b0100_0000 != 0;
                 channel.length_mode = (length_enabled as u8).into();
@@ -177,7 +174,6 @@ impl SquareChannelIO for Channel1IO {
                 if channel_triggered {
                     channel.enabled = true;
                     channel.envelope.init(channel.nrx2);
-                    channel.frequency = channel.get_frequency();
                     channel.sweep = Sweep::new(channel.nr10, channel.frequency);
                 }
             }
@@ -211,10 +207,13 @@ impl SquareChannelIO for Channel2IO {
             0xFF17 => channel.nrx2 = val,
             0xFF18 => {
                 channel.nrx3 = val;
-                channel.frequency = channel.get_frequency(); // TODO: might be wrong, need to & and | onto self.freq
+                channel.frequency = (channel.frequency & 0b1111_1111_0000_0000) | (val as u16);
             }
             0xFF19 => {
                 channel.nrx4 = val;
+                let freq_high_3_bits = val & 0b0000_0111;
+                channel.frequency =
+                    (channel.frequency & 0b0000_0000_1111_1111) | ((freq_high_3_bits as u16) << 8);
 
                 let length_enabled = val & 0b0100_0000 != 0;
                 channel.length_mode = (length_enabled as u8).into();
@@ -226,7 +225,6 @@ impl SquareChannelIO for Channel2IO {
                 if channel_triggered {
                     channel.enabled = true;
                     channel.envelope.init(channel.nrx2);
-                    channel.frequency = channel.get_frequency();
                 }
             }
 

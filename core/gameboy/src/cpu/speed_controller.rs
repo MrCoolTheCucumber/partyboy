@@ -27,6 +27,10 @@ impl CpuSpeedController {
         }
     }
 
+    pub fn speed_mode(&self) -> CpuSpeedMode {
+        self.cpu_speed_mode
+    }
+
     pub fn is_double_speed(&self) -> bool {
         matches!(self.cpu_speed_mode, CpuSpeedMode::Double)
     }

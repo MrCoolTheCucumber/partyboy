@@ -9,6 +9,7 @@ resolver="2"
 [dependencies]
 env_logger = "0.9"
 clap = "2"
+cpal = { version = "0.14.2", features = ["jack"] }
 common = { path = "../../common" }
 crossbeam = "0.8"
 gameboy = { path = "../../core/gameboy" }

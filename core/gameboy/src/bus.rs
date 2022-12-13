@@ -4,8 +4,8 @@ use std::fmt::Display;
 
 use super::{cartridge::Cartridge, input::Input, interrupts::Interrupts, ppu::Ppu, timer::Timer};
 use crate::{
-    builder::SerialWriteHandler, common::D2Array, cpu::speed_controller::CpuSpeedController,
-    dma::oam::OamDma,
+    apu::Apu, builder::SerialWriteHandler, common::D2Array,
+    cpu::speed_controller::CpuSpeedController, dma::oam::OamDma,
 };
 
 #[cfg(feature = "serde")]
@@ -80,6 +80,7 @@ pub(crate) struct Bus {
     pub timer: Timer,
     pub input: Input,
     pub cpu_speed_controller: CpuSpeedController,
+    pub apu: Apu,
 }
 
 impl Bus {
@@ -110,6 +111,7 @@ impl Bus {
             timer: Timer::new(),
             input: Input::new(),
             cpu_speed_controller: CpuSpeedController::new(CgbCompatibility::CgbOnly),
+            apu: Apu::new(),
         }
     }
 
@@ -185,6 +187,10 @@ impl Bus {
 
             0xFF70 => self.working_ram_bank as u8,
 
+            0xFF10..=0xFF14 => self.apu.read_u8(addr),
+            0xFF16..=0xFF19 => self.apu.read_u8(addr),
+            0xFF24..=0xFF26 => self.apu.read_u8(addr),
+
             0xFF00..=0xFF7F => self.io[(addr - 0xFF00) as usize],
             0xFF80..=0xFFFE => self.zero_page[(addr - 0xFF80) as usize],
         }
@@ -224,6 +230,10 @@ impl Bus {
                     self.ppu.sprite_table[(addr - 0xFE00) as usize] = val;
                 }
             }
+
+            0xFF10..=0xFF14 => self.apu.write_u8(addr, val),
+            0xFF16..=0xFF19 => self.apu.write_u8(addr, val),
+            0xFF24..=0xFF26 => self.apu.write_u8(addr, val),
 
             // 0xFF00 and above
             0xFF00 => self.input.set_column_line(val),

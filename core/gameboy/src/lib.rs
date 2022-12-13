@@ -12,6 +12,7 @@ mod interrupts;
 pub mod ppu;
 mod timer;
 
+use apu::Sample;
 #[cfg(not(feature = "web"))]
 use ppu::rgb::Rgb;
 #[cfg(feature = "serde")]
@@ -78,14 +79,14 @@ impl GameBoy {
         }
     }
 
-    pub fn tick(&mut self) {
+    pub fn tick(&mut self) -> Option<Sample> {
         if self.cpu.stopped() {
-            return;
+            return self.bus.apu.tick_sample_only();
         }
 
         #[cfg(feature = "gen_bios_snapshot")]
         if self.cpu.pc == 0x100 && !self.bus.bios_enabled {
-            return;
+            return None;
         }
 
         // check the controller state first before handling!
@@ -110,6 +111,11 @@ impl GameBoy {
             OamDma::dma_tick(&mut self.bus);
             self.bus.timer.tick(&mut self.bus.interrupts);
         }
+
+        self.bus.apu.tick(
+            self.bus.timer.div(),
+            self.bus.cpu_speed_controller.speed_mode(),
+        )
     }
 
     #[cfg(not(feature = "web"))]

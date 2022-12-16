@@ -1,7 +1,7 @@
 <div align="center">
     <img src="https://user-images.githubusercontent.com/16002713/176773858-80ffaed3-a88a-42bf-a821-1189da071900.png" alt="Logo">
     <br/>
-    <img alt="GitHub Workflow Status (branch)" src="https://img.shields.io/github/workflow/status/MrCoolTheCucumber/partyboy/Build%20and%20Test/master?style=flat-square">
+    <img alt="GitHub Workflow Status (branch)" src="https://img.shields.io/github/actions/workflow/status/MrCoolTheCucumber/partyboy/build.yml?branch=master&style=flat-square">
     <img alt="GitHub last commit" src="https://img.shields.io/github/last-commit/MrCoolTheCucumber/partyboy?style=flat-square">
     <img alt="GitHub issues" src="https://img.shields.io/github/issues/MrCoolTheCucumber/partyboy?style=flat-square">
     <br/>

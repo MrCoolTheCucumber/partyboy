@@ -105,7 +105,7 @@ impl SampleChannel {
                 let sample_lo = val & 0b0000_1111;
 
                 self.samples[index] = sample_hi;
-                self.samples[index] = sample_lo;
+                self.samples[index + 1] = sample_lo;
             }
             _ => unreachable!(
                 "Channel 3 doesn't support writing to address: {:#06X}",
@@ -157,8 +157,8 @@ impl SampleChannel {
         let output = match output_level {
             0 => 0,
             1 => current_sample,
-            2 => current_sample / 2,
-            3 => current_sample / 4,
+            2 => current_sample >> 1,
+            3 => current_sample >> 2,
             _ => unreachable!(),
         };
 

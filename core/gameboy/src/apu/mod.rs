@@ -134,10 +134,10 @@ impl Apu {
     }
 
     fn apply_vol_to_raw_sample(sample: Sample, vol: u8) -> Sample {
-        let vol = 8.0 - (vol as f32);
-        (sample * vol) / 8.0
+        sample * (vol as f32 / 7.0)
     }
 
+    #[allow(unused)]
     fn apply_high_pass(&mut self, sample: Sample) -> Sample {
         let dacs_enabled = self.read_u8(0xFF26) & 0b0000_1111 != 0;
         let mut out = 0.0;
@@ -195,16 +195,17 @@ impl Apu {
         let left_vol = (self.nr50 & 0b0111_0000) >> 4;
         let right_vol = self.nr50 & 0b0000_0111;
 
-        // left_sample /= 4.0;
-        // right_sample /= 4.0;
+        left_sample /= 4.0;
+        right_sample /= 4.0;
 
         left_sample = Self::apply_vol_to_raw_sample(left_sample, left_vol);
         right_sample = Self::apply_vol_to_raw_sample(right_sample, right_vol);
 
-        left_sample = self.apply_high_pass(left_sample);
-        right_sample = self.apply_high_pass(right_sample);
+        // Appply high pass filter, seems to muff out sound though :(
+        // left_sample = self.apply_high_pass(left_sample);
+        // right_sample = self.apply_high_pass(right_sample);
 
-        // mult by 0.3 to simulate physical volume slider only being slightly on
-        (left_sample, right_sample)
+        // mult by 0.3 to simulate physical volume slider only being slightly on ?
+        (left_sample * 0.3, right_sample * 0.3)
     }
 }

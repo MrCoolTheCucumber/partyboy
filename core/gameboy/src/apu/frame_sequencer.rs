@@ -24,8 +24,8 @@ impl From<u32> for SteppedComponents {
     fn from(val: u32) -> Self {
         Self {
             length_crtl: val % 2 != 0,
-            vol_envelope: val == 8,
-            sweep: val == 3 || val == 7,
+            vol_envelope: val == 7,
+            sweep: val == 2 || val == 6,
         }
     }
 }
@@ -52,8 +52,8 @@ impl FrameSequencer {
 
     pub fn step_cycle(&mut self) {
         self.cycle += 1;
-        if self.cycle == 9 {
-            self.cycle = 1;
+        if self.cycle == 8 {
+            self.cycle = 0;
         }
     }
 
@@ -69,12 +69,14 @@ impl FrameSequencer {
 
         match speed {
             CpuSpeedMode::Single if b5_falling_edge => {
+                let stepped = self.cycle.into();
                 self.step_cycle();
-                self.cycle.into()
+                stepped
             }
             CpuSpeedMode::Double if b6_falling_edge => {
+                let stepped = self.cycle.into();
                 self.step_cycle();
-                self.cycle.into()
+                stepped
             }
             _ => SteppedComponents::none(),
         }

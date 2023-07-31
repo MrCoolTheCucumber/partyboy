@@ -51,7 +51,12 @@ impl NoiseChannel {
         match addr {
             0xFF20 => self.nrx1 = val,
             0xFF21 => self.nrx2 = val,
-            0xFF22 => self.nr43 = val,
+            0xFF22 => {
+                self.nr43 = val;
+                if val & 0b1111_0000 == 0 {
+                    self.enabled = false;
+                }
+            }
             0xFF23 => {
                 self.nrx4 = val;
 

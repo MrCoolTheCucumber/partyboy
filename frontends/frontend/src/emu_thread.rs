@@ -136,14 +136,14 @@ pub fn new(rom: Option<Vec<u8>>, bios: Option<Vec<u8>>) -> (Sender<MsgToGb>, Rec
             let now = common::time::now();
 
             'tick_emulator: {
-                if rewind {
+                if rewind || turbo {
                     break 'tick_emulator;
                 }
 
-                while audio_s.len() < 512 * 4 {
+                while audio_s.len() < 512 * 8 {
                     let sample = gb.tick();
                     if let Some(sample) = sample {
-                        let _ = audio_s.try_send(sample);
+                        audio_s.try_send(sample).unwrap();
                     }
 
                     if gb.consume_draw_flag() {
@@ -158,6 +158,18 @@ pub fn new(rom: Option<Vec<u8>>, bios: Option<Vec<u8>>) -> (Sender<MsgToGb>, Rec
                                 history.pop_back();
                             }
                         }
+                    }
+                }
+            }
+
+            if turbo && !rewind {
+                loop {
+                    gb.tick();
+                    if gb.consume_draw_flag() {
+                        let frame_msg = MsgFromGb::Frame(gb.get_frame_buffer().into());
+                        let _ = s.try_send(frame_msg);
+                        loop_helper.record_frame_draw();
+                        break;
                     }
                 }
             }

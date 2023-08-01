@@ -98,11 +98,12 @@ impl NoiseChannel {
     }
 
     pub fn sample(&self) -> Sample {
-        let dac_input = match self.enabled && self.white_noise_generator.is_output_high() {
-            true => self.envelope.current_vol() as f32,
-            false => 0.0,
-        };
-        (dac_input / 7.5) - 1.0
+        if self.enabled {
+            let input = self.white_noise_generator.sample() * self.envelope.current_vol();
+            (input as f32 / 7.5) - 1.0
+        } else {
+            0.0
+        }
     }
 }
 
@@ -131,18 +132,12 @@ impl WhiteNoiseGenerator {
             false => CounterWidth::Width7,
         };
 
-        let lsfr = match width_mode {
-            CounterWidth::Width15 => (1 << 15) - 1,
-            CounterWidth::Width7 => (1 << 7) - 1,
-        };
-
         Self {
             divisor_code,
             shift_amount,
             width_mode,
             val,
-            lsfr,
-
+            lsfr: 0b0111_1111_1111_1111,
             freq_timer: Self::into_divisor(divisor_code) << shift_amount,
         }
     }
@@ -169,26 +164,9 @@ impl WhiteNoiseGenerator {
             self.lsfr &= !(1 << 6);
             self.lsfr |= xor_result << 6;
         }
-
-        // let tot_cycles = match self.divisor_code {
-        //     0 => 8 / 2,
-        //     x => 8 * (x as u32),
-        // } << (self.shift_amount + 1);
-
-        // self.freq_timer = (self.freq_timer + 1) % tot_cycles;
-
-        // if self.freq_timer == 0 {
-        //     let shift = self.lsfr >> 1;
-        //     let carry = (self.lsfr ^ shift) & 1;
-
-        //     self.lsfr = match self.width_mode {
-        //         CounterWidth::Width15 => shift | (carry << 14),
-        //         CounterWidth::Width7 => shift | (carry << 6),
-        //     };
-        // }
     }
 
-    pub fn is_output_high(&self) -> bool {
-        !self.lsfr & 1 == 1
+    pub fn sample(&self) -> u8 {
+        (!self.lsfr & 1) as u8
     }
 }

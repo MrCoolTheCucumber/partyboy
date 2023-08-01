@@ -82,12 +82,12 @@ impl NoiseChannel {
     }
 
     pub fn tick(&mut self, stepped_components: &SteppedComponents) {
-        if stepped_components.length_crtl && matches!(self.length_mode, LengthMode::Timed) {
-            self.enabled = !self.length.tick();
-        }
-
         if !self.enabled {
             return;
+        }
+
+        if stepped_components.length_crtl && matches!(self.length_mode, LengthMode::Timed) {
+            self.enabled = !self.length.tick();
         }
 
         if stepped_components.vol_envelope {
@@ -114,59 +114,81 @@ enum CounterWidth {
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 struct WhiteNoiseGenerator {
-    dividing_ratio: u8,
-    shift_clock: u8,
-    counter_width: CounterWidth,
+    divisor_code: u8,
+    shift_amount: u8,
+    width_mode: CounterWidth,
     val: u8,
-    noise: u16,
-    cycles: u32,
+    lsfr: u16,
+    freq_timer: u32,
 }
 
 impl WhiteNoiseGenerator {
     pub fn new(val: u8) -> Self {
-        let dividing_ratio = val & 0b0000_0111;
-        let shift_clock = (val & 0b1111_0000) >> 4;
-        let counter_width = match val & 0b0000_1000 == 0 {
+        let divisor_code = val & 0b0000_0111;
+        let shift_amount = (val & 0b1111_0000) >> 4;
+        let width_mode = match val & 0b0000_1000 == 0 {
             true => CounterWidth::Width15,
             false => CounterWidth::Width7,
         };
 
-        let noise = match counter_width {
+        let lsfr = match width_mode {
             CounterWidth::Width15 => (1 << 15) - 1,
             CounterWidth::Width7 => (1 << 7) - 1,
         };
 
         Self {
-            dividing_ratio,
-            shift_clock,
-            counter_width,
+            divisor_code,
+            shift_amount,
+            width_mode,
             val,
-            noise,
+            lsfr,
 
-            cycles: 0,
+            freq_timer: Self::into_divisor(divisor_code) << shift_amount,
+        }
+    }
+
+    fn into_divisor(divisor_code: u8) -> u32 {
+        match divisor_code {
+            0 => 8,
+            x => (x as u32) << 4,
         }
     }
 
     pub fn tick(&mut self) {
-        let tot_cycles = match self.dividing_ratio {
-            0 => 8 / 2,
-            x => 8 * (x as u32),
-        } << (self.shift_clock + 1);
-
-        self.cycles = (self.cycles + 1) % tot_cycles;
-
-        if self.cycles == 0 {
-            let shift = self.noise >> 1;
-            let carry = (self.noise ^ shift) & 1;
-
-            self.noise = match self.counter_width {
-                CounterWidth::Width15 => shift | (carry << 14),
-                CounterWidth::Width7 => shift | (carry << 6),
-            };
+        self.freq_timer -= 1;
+        if self.freq_timer != 0 {
+            return;
         }
+
+        self.freq_timer = Self::into_divisor(self.divisor_code) << self.shift_amount;
+
+        let xor_result = (self.lsfr & 0b01) ^ ((self.lsfr & 0b10) >> 1);
+        self.lsfr = (self.lsfr >> 1) | (xor_result << 14);
+
+        if matches!(self.width_mode, CounterWidth::Width7) {
+            self.lsfr &= !(1 << 6);
+            self.lsfr |= xor_result << 6;
+        }
+
+        // let tot_cycles = match self.divisor_code {
+        //     0 => 8 / 2,
+        //     x => 8 * (x as u32),
+        // } << (self.shift_amount + 1);
+
+        // self.freq_timer = (self.freq_timer + 1) % tot_cycles;
+
+        // if self.freq_timer == 0 {
+        //     let shift = self.lsfr >> 1;
+        //     let carry = (self.lsfr ^ shift) & 1;
+
+        //     self.lsfr = match self.width_mode {
+        //         CounterWidth::Width15 => shift | (carry << 14),
+        //         CounterWidth::Width7 => shift | (carry << 6),
+        //     };
+        // }
     }
 
     pub fn is_output_high(&self) -> bool {
-        !self.noise & 1 == 1
+        !self.lsfr & 1 == 1
     }
 }

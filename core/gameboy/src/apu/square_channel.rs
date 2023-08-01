@@ -93,13 +93,17 @@ impl SquareChannel {
     }
 
     pub fn tick(&mut self, stepped_components: &SteppedComponents) {
+        if !self.enabled {
+            return;
+        }
+
         // according to frosty, length is ticked even if channel is "disabled"?
         if stepped_components.length_crtl && matches!(self.length_mode, LengthMode::Timed) {
             self.enabled = !self.length.tick();
         }
 
-        if !self.enabled {
-            return;
+        if stepped_components.vol_envelope {
+            self.envelope.tick();
         }
 
         if self.sweep.is_enabled() && stepped_components.sweep {
@@ -113,10 +117,6 @@ impl SquareChannel {
         }
 
         self.tick_freq();
-
-        if stepped_components.vol_envelope {
-            self.envelope.tick();
-        }
     }
 
     pub fn sample(&self) -> Sample {

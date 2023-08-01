@@ -83,13 +83,13 @@ impl Envelope {
 
         if self.period_timer > 0 {
             self.period_timer -= 1;
-        }
 
-        if self.period_timer == 0 {
-            self.period_timer = self.period;
+            if self.period_timer == 0 {
+                self.period_timer = self.period;
 
-            if self.is_current_vol_not_at_boundary() {
-                self.step_volume();
+                if self.is_current_vol_not_at_boundary() {
+                    self.step_volume();
+                }
             }
         }
     }

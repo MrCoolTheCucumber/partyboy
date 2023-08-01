@@ -134,7 +134,7 @@ impl Apu {
     }
 
     fn apply_vol_to_raw_sample(sample: Sample, vol: u8) -> Sample {
-        sample * (vol as f32 / 7.0)
+        (sample * vol as f32) / 7.0
     }
 
     #[allow(unused)]

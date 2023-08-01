@@ -99,6 +99,9 @@ pub fn new(rom: Option<Vec<u8>>, bios: Option<Vec<u8>>) -> (Sender<MsgToGb>, Rec
         let mut last_8_frames = ConstGenericRingBuffer::<_, 8>::new();
 
         loop {
+            // calculate how many ticks have elapsed
+            let now = common::time::now();
+
             let msgs: Vec<MsgToGb> = r.try_iter().collect();
             for msg in msgs {
                 match msg {
@@ -132,15 +135,12 @@ pub fn new(rom: Option<Vec<u8>>, bios: Option<Vec<u8>>) -> (Sender<MsgToGb>, Rec
                 }
             }
 
-            // calculate how many ticks have elapsed
-            let now = common::time::now();
-
             'tick_emulator: {
                 if rewind || turbo {
                     break 'tick_emulator;
                 }
 
-                while audio_s.len() < 512 * 8 {
+                while audio_s.len() < 512 * 4 {
                     let sample = gb.tick();
                     if let Some(sample) = sample {
                         audio_s.try_send(sample).unwrap();

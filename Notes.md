@@ -116,4 +116,5 @@ Spawn web worker, use multiple shared arrays to handle communication. E.g. one f
 - https://www.reddit.com/r/EmuDev/comments/5gkwi5/comment/dat3zni/
 
 - TODO: Volume/envelope registeres need to turn the channel off if the initial volume is set to 0
+- TODO: Something wrong with white noise generator, see lightning in tlozla
 - use https://gyng.github.io/synthrs/synthrs/filter/index.html ? for highpass filter or others?

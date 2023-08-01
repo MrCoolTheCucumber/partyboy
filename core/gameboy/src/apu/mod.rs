@@ -192,6 +192,7 @@ impl Apu {
             right_sample += ch4_sample;
         }
 
+        // TODO: master vol should never mute the sound if 0
         let left_vol = (self.nr50 & 0b0111_0000) >> 4;
         let right_vol = self.nr50 & 0b0000_0111;
 

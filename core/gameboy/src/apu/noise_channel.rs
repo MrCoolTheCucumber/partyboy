@@ -53,9 +53,7 @@ impl NoiseChannel {
             0xFF21 => self.nrx2 = val,
             0xFF22 => {
                 self.nr43 = val;
-                if val & 0b1111_0000 == 0 {
-                    self.enabled = false;
-                }
+                self.white_noise_generator = WhiteNoiseGenerator::new(self.nr43);
             }
             0xFF23 => {
                 self.nrx4 = val;
@@ -86,7 +84,7 @@ impl NoiseChannel {
             return;
         }
 
-        if stepped_components.length_crtl && matches!(self.length_mode, LengthMode::Timed) {
+        if matches!(self.length_mode, LengthMode::Timed) && stepped_components.length_crtl {
             self.enabled = !self.length.tick();
         }
 
@@ -157,12 +155,10 @@ impl WhiteNoiseGenerator {
 
         self.freq_timer = Self::into_divisor(self.divisor_code) << self.shift_amount;
 
-        let xor_result = (self.lsfr & 0b01) ^ ((self.lsfr & 0b10) >> 1);
-        self.lsfr = (self.lsfr >> 1) | (xor_result << 14);
-
-        if matches!(self.width_mode, CounterWidth::Width7) {
-            self.lsfr &= !(1 << 6);
-            self.lsfr |= xor_result << 6;
+        let bit = (self.lsfr & 0b01) ^ ((self.lsfr & 0b10) >> 1);
+        match self.width_mode {
+            CounterWidth::Width7 => self.lsfr = ((self.lsfr >> 1) & !0x40) | (bit << 6),
+            CounterWidth::Width15 => self.lsfr = ((self.lsfr >> 1) & !0x4000) | (bit << 14),
         }
     }
 

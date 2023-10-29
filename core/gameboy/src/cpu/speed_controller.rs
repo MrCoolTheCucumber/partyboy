@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Copy, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-enum CpuSpeedMode {
+pub enum CpuSpeedMode {
     Single = 0,
     Double = 1,
 }
@@ -25,6 +25,10 @@ impl CpuSpeedController {
             prepare_speed_switch: false,
             cgb_compatibility,
         }
+    }
+
+    pub fn speed_mode(&self) -> CpuSpeedMode {
+        self.cpu_speed_mode
     }
 
     pub fn is_double_speed(&self) -> bool {

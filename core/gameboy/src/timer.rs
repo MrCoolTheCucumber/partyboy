@@ -29,6 +29,10 @@ impl Timer {
         }
     }
 
+    pub fn div(&self) -> u8 {
+        (self.div >> 8) as u8
+    }
+
     #[inline(always)]
     fn is_timer_enabled(&self) -> bool {
         self.tac & 0b0000_0100 != 0

@@ -1,6 +1,10 @@
 use std::{collections::VecDeque, time::Duration};
 
 use common::{bitpacked::BitPackedState, loop_helper::LoopHelper};
+use cpal::{
+    traits::{DeviceTrait, HostTrait, StreamTrait},
+    SampleRate, StreamConfig,
+};
 use crossbeam::channel::{Receiver, Sender};
 use gameboy::{GameBoy, SPEED};
 use lz4_flex::{compress_prepend_size, decompress_size_prepended};
@@ -29,6 +33,46 @@ pub fn new(rom: Option<Vec<u8>>, bios: Option<Vec<u8>>) -> (Sender<MsgToGb>, Rec
     let (s_to_ui, r_from_gb) = crossbeam::channel::bounded::<MsgFromGb>(128);
 
     std::thread::spawn(move || {
+        // set up audio
+        let hosts = cpal::available_hosts().len();
+        log::debug!("{}", hosts);
+
+        let host = cpal::default_host();
+        let device = host
+            .default_output_device()
+            .expect("no output device found");
+
+        log::info!("Using audio device: {}", device.name().unwrap());
+
+        let config = StreamConfig {
+            channels: 2,
+            sample_rate: SampleRate(48000),
+            buffer_size: cpal::BufferSize::Fixed(512),
+        };
+
+        let (audio_s, audio_r) = crossbeam::channel::bounded::<(f32, f32)>(512 * 16);
+
+        let audio_stream = device
+            .build_output_stream(
+                &config,
+                move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
+                    let rx = audio_r.clone();
+
+                    let mut index = 0;
+                    while index < data.len() {
+                        let sample = rx.try_recv().ok().unwrap_or((0.0, 0.0));
+
+                        data[index] = sample.0;
+                        data[index + 1] = sample.1;
+                        index += 2;
+                    }
+                },
+                move |_| {},
+            )
+            .unwrap();
+
+        audio_stream.play().unwrap();
+
         let (s, r) = (s_to_ui, r_from_ui);
 
         // TODO: make this an option and be able to set rom via msg
@@ -55,6 +99,9 @@ pub fn new(rom: Option<Vec<u8>>, bios: Option<Vec<u8>>) -> (Sender<MsgToGb>, Rec
         let mut last_8_frames = ConstGenericRingBuffer::<_, 8>::new();
 
         loop {
+            // calculate how many ticks have elapsed
+            let now = common::time::now();
+
             let msgs: Vec<MsgToGb> = r.try_iter().collect();
             for msg in msgs {
                 match msg {
@@ -88,17 +135,17 @@ pub fn new(rom: Option<Vec<u8>>, bios: Option<Vec<u8>>) -> (Sender<MsgToGb>, Rec
                 }
             }
 
-            // calculate how many ticks have elapsed
-            let now = common::time::now();
-            let ticks = loop_helper.calculate_ticks_to_run(now, turbo);
-
             'tick_emulator: {
-                if rewind {
+                if rewind || turbo {
                     break 'tick_emulator;
                 }
 
-                for _ in 0..ticks {
-                    gb.tick();
+                while audio_s.len() < 512 * 4 {
+                    let sample = gb.tick();
+                    if let Some(sample) = sample {
+                        audio_s.try_send(sample).unwrap();
+                    }
+
                     if gb.consume_draw_flag() {
                         let frame_msg = MsgFromGb::Frame(gb.get_frame_buffer().into());
                         let _ = s.try_send(frame_msg);
@@ -111,6 +158,18 @@ pub fn new(rom: Option<Vec<u8>>, bios: Option<Vec<u8>>) -> (Sender<MsgToGb>, Rec
                                 history.pop_back();
                             }
                         }
+                    }
+                }
+            }
+
+            if turbo && !rewind {
+                loop {
+                    gb.tick();
+                    if gb.consume_draw_flag() {
+                        let frame_msg = MsgFromGb::Frame(gb.get_frame_buffer().into());
+                        let _ = s.try_send(frame_msg);
+                        loop_helper.record_frame_draw();
+                        break;
                     }
                 }
             }

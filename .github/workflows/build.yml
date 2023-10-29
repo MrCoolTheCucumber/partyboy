@@ -36,10 +36,7 @@ jobs:
           python-version: 3.8
 
       - name: Install packages
-        uses: awalsh128/cache-apt-pkgs-action@latest
-        with:
-          packages: alsa
-          version: 1.0
+        run: sudo apt-get install alsa alsa-tools
 
       - name: Run download_test_roms script
         run: python ./scripts/download_test_roms.py

@@ -36,7 +36,7 @@ jobs:
           python-version: 3.8
 
       - name: Install packages
-        run: sudo apt-get install alsa alsa-tools
+        run: sudo apt-get install alsa alsa-tools libasound2-dev
 
       - name: Run download_test_roms script
         run: python ./scripts/download_test_roms.py

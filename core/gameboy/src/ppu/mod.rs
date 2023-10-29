@@ -902,7 +902,7 @@ impl Ppu {
         }
 
         let frame_buffer_px_index = (self.ly as usize * 160) + self.fifo_state.lx as usize;
-        self.frame_buffer[frame_buffer_px_index as usize] = color;
+        self.frame_buffer[frame_buffer_px_index] = color;
 
         self.fifo_state.lx += 1;
         self.fifo_state.lx == 160

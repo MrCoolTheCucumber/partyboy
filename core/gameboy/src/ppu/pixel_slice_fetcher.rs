@@ -107,7 +107,7 @@ impl Ppu {
             if tile >= 0 {
                 tile as u16 + 256
             } else {
-                256 - (tile.unsigned_abs() as u16)
+                256 - tile.unsigned_abs()
             }
         } else {
             self.gpu_vram[0][addr] as u16

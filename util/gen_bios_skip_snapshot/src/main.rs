@@ -30,5 +30,5 @@ fn main() {
     }
 
     let snapshot = rmp_serde::to_vec(&gb).expect("Unable to generate snapshot");
-    std::fs::write(args.output, &snapshot).expect("Unable to write snapshot to output path");
+    std::fs::write(args.output, snapshot).expect("Unable to write snapshot to output path");
 }

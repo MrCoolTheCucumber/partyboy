@@ -116,7 +116,7 @@ pub fn create(rom: Vec<u8>, ram: Option<Vec<u8>>) -> Box<dyn Cartridge> {
     match cartridge_type_code {
         0x00 => Box::new(Rom::new(rom)),
 
-        0x01 | 0x02 | 0x03 => {
+        0x01..=0x03 => {
             log::info!("MBC1 cart detected!");
             Box::new(Mbc1::new(rom, ram, num_rom_banks, num_ram_banks))
         }

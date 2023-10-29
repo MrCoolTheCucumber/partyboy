@@ -75,7 +75,7 @@ impl DebuggerApp {
         Self {
             gb_frame_buffer: None,
             logs: Vec::new(),
-            gb_debug_info: Box::new(GBDebugInfo::default()),
+            gb_debug_info: Box::<GBDebugInfo>::default(),
             fps: 0.0,
             toggle_state: ToggleState::default(),
             log_rx,

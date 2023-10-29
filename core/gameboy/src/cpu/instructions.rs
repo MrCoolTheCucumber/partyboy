@@ -700,7 +700,7 @@ macro_rules! __sbc {
 macro_rules! __and {
     ($location:ident) => {
         InstructionStep::Instant(|cpu, _| {
-            r8!(cpu, a) = r8!(cpu, a) & r8!(cpu, $location);
+            r8!(cpu, a) &= r8!(cpu, $location);
 
             cpu.handle_z_flag(r8!(cpu, a));
             cpu.clear_flag(Flag::C);
@@ -714,7 +714,7 @@ macro_rules! __and {
 macro_rules! __xor {
     ($location:ident) => {
         InstructionStep::Instant(|cpu, _| {
-            r8!(cpu, a) = r8!(cpu, a) ^ r8!(cpu, $location);
+            r8!(cpu, a) ^= r8!(cpu, $location);
 
             cpu.handle_z_flag(r8!(cpu, a));
             cpu.clear_flag(Flag::C);
@@ -728,7 +728,7 @@ macro_rules! __xor {
 macro_rules! __or {
     ($location:ident) => {
         InstructionStep::Instant(|cpu, _| {
-            r8!(cpu, a) = r8!(cpu, a) | r8!(cpu, $location);
+            r8!(cpu, a) |= r8!(cpu, $location);
 
             cpu.handle_z_flag(r8!(cpu, a));
             cpu.clear_flag(Flag::C);
@@ -921,8 +921,8 @@ fn rrca() -> Instruction {
     instruction! {
         InstructionStep::Instant(|cpu, _| {
             let carry = r8!(cpu, a) & 0b00000001 > 0;
-            r8!(cpu, a) = r8!(cpu, a) >> 1;
-            if carry { r8!(cpu, a) = r8!(cpu, a) | 0b10000000; }
+            r8!(cpu, a) >>= 1;
+            if carry { r8!(cpu, a) |= 0b10000000; }
 
             cpu.set_flag_if_cond_else_clear(carry, Flag::C);
             cpu.clear_flag(Flag::Z);
@@ -939,7 +939,7 @@ fn rla() -> Instruction {
             let is_carry_set = cpu.is_flag_set(Flag::C);
             cpu.set_flag_if_cond_else_clear(r8!(cpu, a) & 0x80 > 0, Flag::C);
 
-            r8!(cpu, a) = r8!(cpu, a) << 1;
+            r8!(cpu, a) <<= 1;
             if is_carry_set { r8!(cpu, a) += 1 };
 
             cpu.clear_flag(Flag::N);
@@ -1286,7 +1286,7 @@ macro_rules! res {
         instruction! {
             BLANK_PROGRESS_EXEC_NEXT_INSTANT,
             InstructionStep::Instant(|cpu, _| {
-                r8!(cpu, $reg) = r8!(cpu, $reg) & !(1 << $bit);
+                r8!(cpu, $reg) &= !(1 << $bit);
                 InstructionState::Finished
             })
         }
@@ -1313,7 +1313,7 @@ macro_rules! set {
         instruction! {
             BLANK_PROGRESS_EXEC_NEXT_INSTANT,
             InstructionStep::Instant(|cpu, _| {
-                r8!(cpu, $reg) = r8!(cpu, $reg) | (1 << $bit);
+                r8!(cpu, $reg) |= (1 << $bit);
                 InstructionState::Finished
             })
         }

@@ -58,9 +58,9 @@ impl Rgb {
 
     #[allow(dead_code)]
     pub(super) fn byuu_correction(mut self) -> Self {
-        self.r = cmp::min(240, ((26 * self.r + 4 * self.g + 2 * self.b) >> 2) as u8);
-        self.g = cmp::min(240, ((24 * self.g + 8 * self.b) >> 2) as u8);
-        self.b = cmp::min(240, ((6 * self.r + 4 * self.g + 22 * self.b) >> 2) as u8);
+        self.r = cmp::min(240, (26 * self.r + 4 * self.g + 2 * self.b) >> 2);
+        self.g = cmp::min(240, (24 * self.g + 8 * self.b) >> 2);
+        self.b = cmp::min(240, (6 * self.r + 4 * self.g + 22 * self.b) >> 2);
 
         self
     }

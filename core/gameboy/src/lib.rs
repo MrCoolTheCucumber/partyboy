@@ -18,7 +18,7 @@ use ppu::rgb::Rgb;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "web")]
-use wasm_bindgen::prelude::wasm_bindgen;
+use wasm_bindgen::prelude::*;
 
 use self::builder::GameBoyBuilder;
 use self::{
@@ -79,6 +79,7 @@ impl GameBoy {
         }
     }
 
+    #[cfg(not(feature = "web"))]
     pub fn tick(&mut self) -> Option<(Sample, Sample)> {
         if self.cpu.stopped() {
             return self.bus.apu.tick_sample_only();
@@ -116,6 +117,54 @@ impl GameBoy {
             self.bus.timer.div(),
             self.bus.cpu_speed_controller.speed_mode(),
         )
+    }
+
+    // FIXME: Avoid having two different tick functions if possible
+    #[cfg(feature = "web")]
+    pub fn tick(&mut self) -> Option<Box<[f32]>> {
+        if self.cpu.stopped() {
+            return self
+                .bus
+                .apu
+                .tick_sample_only()
+                .map(|(l, r): (Sample, Sample)| vec![l, r].into_boxed_slice());
+        }
+
+        #[cfg(feature = "gen_bios_snapshot")]
+        if self.cpu.pc == 0x100 && !self.bus.bios_enabled {
+            return None;
+        }
+
+        // check the controller state first before handling!
+        if !self.hdma_controller.currently_copying(&self.bus) {
+            self.tick_cpu_related();
+        }
+
+        self.hdma_controller
+            .handle_hdma(&mut self.bus, &mut self.cpu);
+
+        // TODO: move into handle_hdma
+        if matches!(self.bus.ppu.hdma.current_dma, Some(DmaType::Gdma)) {
+            Hdma::tick_gdma(&mut self.bus);
+        }
+
+        self.bus.tick_ppu();
+
+        OamDma::dma_tick(&mut self.bus);
+        self.bus.timer.tick(&mut self.bus.interrupts);
+
+        if self.bus.cpu_speed_controller.is_double_speed() {
+            OamDma::dma_tick(&mut self.bus);
+            self.bus.timer.tick(&mut self.bus.interrupts);
+        }
+
+        self.bus
+            .apu
+            .tick(
+                self.bus.timer.div(),
+                self.bus.cpu_speed_controller.speed_mode(),
+            )
+            .map(|(l, r): (Sample, Sample)| vec![l, r].into_boxed_slice())
     }
 
     #[cfg(not(feature = "web"))]
@@ -158,13 +207,6 @@ impl GameBoy {
     #[cfg(feature = "debug_info")]
     pub(crate) fn bus(&self) -> &Bus {
         &self.bus
-    }
-
-    #[cfg(feature = "web")]
-    pub fn tick_to_frame(&mut self) {
-        while !self.consume_draw_flag() {
-            self.tick();
-        }
     }
 
     pub fn load_snapshot(&mut self, snapshot: GameBoy) {

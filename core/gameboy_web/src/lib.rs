@@ -1,12 +1,17 @@
 use common::bitpacked::BitPackedState;
 use lz4_flex::{compress_prepend_size, decompress_size_prepended};
-use wasm_bindgen::prelude::wasm_bindgen;
+use wasm_bindgen::prelude::*;
 
 pub use gameboy::input::Input;
 pub use gameboy::ppu::rgb::Rgb;
 pub use gameboy::GameBoy;
 
 pub use common;
+
+#[wasm_bindgen]
+pub fn init_panic_hook() {
+    console_error_panic_hook::set_once();
+}
 
 /// Run the tick loop in wasm. If draw flag is consumed then
 /// it returns
@@ -22,6 +27,20 @@ pub fn batch_ticks(gb: &mut GameBoy, ticks: u64) -> u64 {
     }
 
     0
+}
+
+#[wasm_bindgen]
+pub fn handle_ticks(gb: &mut GameBoy) -> Vec<f32> {
+    let mut samples = Vec::new();
+
+    while samples.len() < 512 {
+        if let Some(frame) = gb.tick() {
+            samples.push(frame[0]);
+            samples.push(frame[1]);
+        }
+    }
+
+    samples
 }
 
 #[wasm_bindgen]

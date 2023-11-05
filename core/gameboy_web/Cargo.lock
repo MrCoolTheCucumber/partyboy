@@ -59,9 +59,10 @@ dependencies = [
 
 [[package]]
 name = "gameboy_web"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "common",
+ "console_error_panic_hook",
  "gameboy",
  "js-sys",
  "lz4_flex",

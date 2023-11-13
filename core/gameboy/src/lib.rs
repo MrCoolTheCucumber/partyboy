@@ -13,6 +13,7 @@ pub mod ppu;
 mod timer;
 
 use apu::Sample;
+use cartridge::Cartridge;
 #[cfg(not(feature = "web"))]
 use ppu::rgb::Rgb;
 #[cfg(feature = "serde")]
@@ -56,7 +57,7 @@ impl GameBoy {
         bios: [u8; 2304],
         serial_write_handler: SerialWriteHandler,
     ) -> Self {
-        let cartridge = rom.map(|rom| cartridge::create(rom, ram));
+        let cartridge = rom.map(|rom| Cartridge::new(rom, ram));
 
         Self {
             instruction_cache: InstructionCache::new(),
@@ -210,8 +211,6 @@ impl GameBoy {
     }
 
     pub fn load_snapshot(&mut self, snapshot: GameBoy) {
-        let cartridge = self.bus.cartridge.take();
         *self = snapshot;
-        self.bus.cartridge = cartridge;
     }
 }

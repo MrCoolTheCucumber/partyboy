@@ -1,6 +1,6 @@
 use crate::{
     bus::{Bus, CgbCompatibility},
-    cartridge,
+    cartridge::Cartridge,
     ppu::{cgb_palette, rgb::Rgb, ObjectPriorityMode},
     GameBoy,
 };
@@ -78,7 +78,7 @@ impl GameBoyBuilder {
         let bios_skip_snapshot = include_bytes!("../../../bin/bios_skip_snapshot.bin");
         let mut gb: GameBoy = rmp_serde::from_slice(bios_skip_snapshot)
             .map_err(|_| GameBoyBuilderError::UnableToLoadBiosSkipSnapshot)?;
-        let cartridge = self.rom.map(|rom| cartridge::create(rom, self.ram));
+        let cartridge = self.rom.map(|rom| Cartridge::new(rom, self.ram));
 
         gb.bus.ppu.gpu_vram[0].iter_mut().for_each(|x| *x = 0);
         gb.bus.ppu.gpu_vram[1].iter_mut().for_each(|x| *x = 0);
@@ -105,7 +105,7 @@ impl GameBoyBuilder {
         ) {
             if let Some(cartridge) = &cartridge {
                 // unwrap: get_color_palettes(..) returns an array of 12 too
-                let palettes: [Rgb; 12] = cgb_palette::get_color_palettes(cartridge.as_ref())
+                let palettes: [Rgb; 12] = cgb_palette::get_color_palettes(cartridge)
                     .into_iter()
                     .map(Rgb::from_rgb32)
                     .collect::<Vec<_>>()

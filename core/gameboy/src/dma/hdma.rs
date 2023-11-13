@@ -208,7 +208,7 @@ impl Hdma {
 
     pub fn tick_hdma(
         &mut self,
-        cartridge: &dyn Cartridge,
+        cartridge: &Cartridge,
         working_ram: &[[u8; 4096]; 8],
         working_ram_bank: usize,
         gpu_vram: &mut [[u8; 8192]; 2],
@@ -404,31 +404,21 @@ enum HBlankRisingEdge {
 }
 
 mod read {
-    pub(super) type ReaderFn = fn(u16, &dyn Cartridge, &[[u8; 4096]; 8], usize) -> u8;
+    pub(super) type ReaderFn = fn(u16, &Cartridge, &[[u8; 4096]; 8], usize) -> u8;
 
     use crate::cartridge::Cartridge;
 
-    pub(super) fn read_rom(
-        addr: u16,
-        cartridge: &dyn Cartridge,
-        _: &[[u8; 4096]; 8],
-        _: usize,
-    ) -> u8 {
+    pub(super) fn read_rom(addr: u16, cartridge: &Cartridge, _: &[[u8; 4096]; 8], _: usize) -> u8 {
         cartridge.read_rom(addr)
     }
 
-    pub(super) fn read_ram(
-        addr: u16,
-        cartridge: &dyn Cartridge,
-        _: &[[u8; 4096]; 8],
-        _: usize,
-    ) -> u8 {
+    pub(super) fn read_ram(addr: u16, cartridge: &Cartridge, _: &[[u8; 4096]; 8], _: usize) -> u8 {
         cartridge.read_ram(addr - 0xA000)
     }
 
     pub(super) fn read_wram(
         addr: u16,
-        _: &dyn Cartridge,
+        _: &Cartridge,
         working_ram: &[[u8; 4096]; 8],
         _: usize,
     ) -> u8 {
@@ -437,7 +427,7 @@ mod read {
 
     pub(super) fn read_wram_bank(
         addr: u16,
-        _: &dyn Cartridge,
+        _: &Cartridge,
         working_ram: &[[u8; 4096]; 8],
         working_ram_bank: usize,
     ) -> u8 {

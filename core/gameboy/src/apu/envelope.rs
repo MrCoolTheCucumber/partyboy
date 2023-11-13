@@ -2,7 +2,7 @@
 use serde::{Deserialize, Serialize};
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 enum EnvelopeDirection {
     Increase,
     Decrease,
@@ -19,7 +19,7 @@ impl From<u8> for EnvelopeDirection {
 }
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Envelope {
     initial_vol: u8,
     direction: EnvelopeDirection,

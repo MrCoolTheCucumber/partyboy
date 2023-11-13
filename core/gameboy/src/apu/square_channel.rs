@@ -17,6 +17,7 @@ static DUTY_LUT: [[u8; 8]; 4] = [
 ];
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(PartialEq, Eq)]
 pub struct SquareChannel {
     enabled: bool,
 

@@ -14,7 +14,7 @@ use {
     serde_big_array::BigArray,
 };
 
-#[derive(Clone, Copy, Default, Debug)]
+#[derive(Clone, Copy, Default, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum CgbCompatibility {
     None,
@@ -145,13 +145,13 @@ impl Bus {
                 .cartridge
                 .as_ref()
                 .map(|cart| cart.read_rom(addr))
-                .unwrap_or(0xFF),
+                .unwrap(),
             0x8000..=0x9FFF => self.ppu.read_vram(addr - 0x8000),
             0xA000..=0xBFFF => self
                 .cartridge
                 .as_ref()
                 .map(|cart| cart.read_ram(addr - 0xA000))
-                .unwrap_or(0xFF),
+                .unwrap(),
 
             0xC000..=0xCFFF => self.working_ram[0][(addr - 0xC000) as usize],
             0xD000..=0xDFFF => self.working_ram[self.working_ram_bank][(addr - 0xD000) as usize],
@@ -320,5 +320,69 @@ impl Bus {
             &mut self.ppu.gpu_vram,
             (self.ppu.gpu_vram_bank & 1) as usize,
         )
+    }
+}
+
+impl PartialEq for Bus {
+    fn eq(&self, other: &Self) -> bool {
+        // self.serial_write_handler == other.serial_write_handler
+        // &&self.cartridge == other.cartridge
+        self.ppu == other.ppu
+            && self.working_ram == other.working_ram
+            && self.working_ram_bank == other.working_ram_bank
+            && self.io == other.io
+            && self.zero_page == other.zero_page
+            && self.oam_dma == other.oam_dma
+            && self.bios_enabled == other.bios_enabled
+            && self.bios == other.bios
+            && self.console_compatibility_mode == other.console_compatibility_mode
+            && self.interrupts == other.interrupts
+            && self.timer == other.timer
+            && self.input == other.input
+            && self.cpu_speed_controller == other.cpu_speed_controller
+            && self.apu == other.apu
+    }
+}
+
+impl Eq for Bus {}
+
+#[cfg(test)]
+mod tests {
+    use common::bitpacked::BitPackedState;
+    use lz4_flex::{compress_prepend_size, decompress_size_prepended};
+    use rand::{rngs::ThreadRng, Fill};
+
+    use super::Bus;
+
+    fn serde(rng: &mut ThreadRng) {
+        let mut bus = Bus::new(None, Box::new(|_| {}), [0; 2304]);
+        bus.zero_page.try_fill(rng).unwrap();
+        bus.io.try_fill(rng).unwrap();
+
+        let mut working_ram = [[0; 0x1000]; 8];
+        for inner in &mut working_ram {
+            inner.try_fill(rng).unwrap();
+        }
+        bus.working_ram = working_ram.into();
+
+        let encoded = bincode::serialize(&bus).unwrap();
+        let compressed = compress_prepend_size(&encoded);
+        let bitpacked = BitPackedState::pack(compressed);
+
+        // unpack and compare
+        let unpacked = bitpacked.unpack();
+        let decompressed = decompress_size_prepended(&unpacked).unwrap();
+        let bus_deser: Bus = bincode::deserialize(&decompressed).unwrap();
+
+        assert!(bus == bus_deser);
+    }
+
+    #[test]
+    fn fuzz_bus_serde() {
+        let mut rng = rand::thread_rng();
+
+        for _ in 0..10_000 {
+            serde(&mut rng);
+        }
     }
 }

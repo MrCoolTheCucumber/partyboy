@@ -24,12 +24,13 @@ pub enum InstructionState {
     Branch(bool),
 }
 
+#[derive(PartialEq, Eq)]
 pub(crate) enum InstructionStep {
     Standard(InstructionFn),
     Instant(InstructionFn),
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum InstructionOpcode {
     InterruptServiceRoutine,
@@ -47,6 +48,7 @@ impl Debug for InstructionOpcode {
     }
 }
 
+#[derive(PartialEq, Eq)]
 pub(super) struct Instruction {
     pub index: usize,
     pub steps: Vec<InstructionStep>,
@@ -826,10 +828,10 @@ macro_rules! rst_yy {
 
 macro_rules! unused_opcode {
     ($opcode:tt) => {
-        instruction!(InstructionStep::Instant(|_, _| unimplemented!(
-            "Unused Opcode: {}",
-            $opcode
-        )))
+        instruction!(InstructionStep::Instant(|cpu, _| {
+            log::error!("unused opcode: {}, cycle: {}", $opcode, cpu.total_cycles);
+            panic!()
+        }))
     };
 }
 
@@ -1501,6 +1503,7 @@ impl Cpu {
     }
 }
 
+#[derive(PartialEq, Eq)]
 pub struct InstructionCache {
     interrupt_service_routine: Instruction,
     instructions: [Instruction; 256],
@@ -2067,11 +2070,11 @@ impl InstructionCache {
         ]
     }
 
-    pub(super) fn get(&mut self, opcode: InstructionOpcode) -> &mut Instruction {
+    pub(super) fn get(&self, opcode: InstructionOpcode) -> &Instruction {
         match opcode {
-            InstructionOpcode::Unprefixed(opcode) => &mut self.instructions[opcode as usize],
-            InstructionOpcode::Prefixed(opcode) => &mut self.cb_instructions[opcode as usize],
-            InstructionOpcode::InterruptServiceRoutine => &mut self.interrupt_service_routine,
+            InstructionOpcode::Unprefixed(opcode) => &self.instructions[opcode as usize],
+            InstructionOpcode::Prefixed(opcode) => &self.cb_instructions[opcode as usize],
+            InstructionOpcode::InterruptServiceRoutine => &self.interrupt_service_routine,
         }
     }
 }

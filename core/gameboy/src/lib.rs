@@ -40,6 +40,7 @@ pub const SPEED: u64 = 4_194_304;
 
 #[cfg_attr(feature = "web", wasm_bindgen)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(PartialEq, Eq)]
 pub struct GameBoy {
     #[cfg_attr(feature = "serde", serde(skip))]
     instruction_cache: InstructionCache,
@@ -72,15 +73,16 @@ impl GameBoy {
 
     fn tick_cpu_related(&mut self) {
         Interrupts::tick(&mut self.bus.interrupts, &mut self.cpu);
-        self.cpu.tick(&mut self.bus, &mut self.instruction_cache);
+        self.cpu.tick(&mut self.bus, &self.instruction_cache);
 
         if self.bus.cpu_speed_controller.is_double_speed() {
-            self.cpu.tick(&mut self.bus, &mut self.instruction_cache);
+            self.cpu.tick(&mut self.bus, &self.instruction_cache);
         }
     }
 
     #[cfg(not(feature = "web"))]
     pub fn tick(&mut self) -> Option<(Sample, Sample)> {
+        //log::debug!("{:?}", self);
         if self.cpu.stopped() {
             return self.bus.apu.tick_sample_only();
         }
@@ -213,5 +215,38 @@ impl GameBoy {
         let cartridge = self.bus.cartridge.take();
         *self = snapshot;
         self.bus.cartridge = cartridge;
+
+        // TODO: its possible that the snapshot can be taken mid instruction
+        // when it is reloaded, the whole instruction starts from the beginning
+        // possibly leading to repeated mutation
+        //
+        // I "fixed" this but it still fails
+        // so enable logging to file to try to work out what's happening
+        //
+        // [DEBUG gameboy] Snapshot applied
+        // [DEBUG gameboy] current cpu oppcode: None:[0]
+        // [ERROR panic] thread '<unnamed>' panicked at 'not implemented: Unused Opcode: 0xFD': core\gameboy\src\cpu\instructions.rs:1803
+        // ^ How?
+        // maybe pc was wrong somehow
+        // OR wrong cart ram bank is loaded??
+        //
+        // TODO: write a fuzzer, generate gb with random data, serialize, then deserialize, then compare (derive eq/partial eq?)
+        //
+        // or there is a problem with the serialization itself
+        // somehow write unit tests?
+
+        log::debug!(
+            "[snapshot] current cpu oppcode: {:?}:[{}] | cycle: {} | cart? {}",
+            self.cpu.instruction_opcode,
+            self.cpu.instruction_index,
+            self.cpu.total_cycles,
+            self.bus.cartridge.is_some()
+        );
+    }
+}
+
+impl std::fmt::Debug for GameBoy {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self.cpu)
     }
 }

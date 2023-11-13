@@ -1,4 +1,9 @@
-use std::{collections::VecDeque, time::Duration};
+use std::{
+    collections::VecDeque,
+    fs::File,
+    io::{Read, Write},
+    time::Duration,
+};
 
 use common::{bitpacked::BitPackedState, loop_helper::LoopHelper};
 use cpal::{
@@ -8,22 +13,37 @@ use cpal::{
 use crossbeam::channel::{Receiver, Sender};
 use gameboy::{GameBoy, SPEED};
 use lz4_flex::{compress_prepend_size, decompress_size_prepended};
-use ringbuffer::{ConstGenericRingBuffer, RingBuffer, RingBufferExt, RingBufferWrite};
+use ringbuffer::{ConstGenericRingBuffer, RingBuffer};
 
 use crate::msgs::{MsgFromGb, MsgToGb};
 
 const FPS_REPORT_RATE_MS: u64 = 500;
 
 fn take_snapshot(gb: &GameBoy) -> BitPackedState {
-    let encoded = rmp_serde::to_vec(&gb).unwrap();
+    let encoded = bincode::serialize(gb).unwrap();
     let compressed = compress_prepend_size(&encoded);
-    BitPackedState::pack(compressed)
+    let return_val = BitPackedState::pack(compressed);
+
+    // check if snapshot was stable
+    {
+        let unpacked = return_val.unpack();
+        let decompressed = decompress_size_prepended(&unpacked).unwrap();
+        let gb_deser: GameBoy = bincode::deserialize(&decompressed).unwrap();
+        assert!(*gb == gb_deser);
+    }
+
+    return_val
 }
 
 fn apply_snapshot(gb: &mut GameBoy, snapshot: &BitPackedState) {
+    let mut file = File::create("log/last_snapshot_applied.bin")
+        .expect("to be able to open the last snapshot file");
+    file.write_all(&snapshot.unpack())
+        .expect("to be able to write the last snapshot");
+
     let unpacked = snapshot.unpack();
     let decompressed = decompress_size_prepended(&unpacked).unwrap();
-    let state: GameBoy = rmp_serde::from_slice(&decompressed).unwrap();
+    let state: GameBoy = bincode::deserialize(&decompressed).unwrap();
     gb.load_snapshot(state);
     gb.release_all_keys();
 }
@@ -68,6 +88,7 @@ pub fn new(rom: Option<Vec<u8>>, bios: Option<Vec<u8>>) -> (Sender<MsgToGb>, Rec
                     }
                 },
                 move |_| {},
+                None,
             )
             .unwrap();
 
@@ -97,6 +118,18 @@ pub fn new(rom: Option<Vec<u8>>, bios: Option<Vec<u8>>) -> (Sender<MsgToGb>, Rec
         let mut loop_helper = LoopHelper::new(FPS_REPORT_RATE_MS, SPEED);
 
         let mut last_8_frames = ConstGenericRingBuffer::<_, 8>::new();
+
+        // DEBUG
+        // {
+        //     let mut bad_snapshot_file = File::open("log/known_bad_snapshot.bin").unwrap();
+        //     let mut snapshot = Vec::new();
+        //     let _ = bad_snapshot_file.read_to_end(&mut snapshot).unwrap();
+
+        //     let decompressed = decompress_size_prepended(&snapshot).unwrap();
+        //     let state: GameBoy = bincode::deserialize(&decompressed).unwrap();
+        //     gb.load_snapshot(state);
+        //     gb.release_all_keys();
+        // }
 
         loop {
             // calculate how many ticks have elapsed
@@ -152,11 +185,10 @@ pub fn new(rom: Option<Vec<u8>>, bios: Option<Vec<u8>>) -> (Sender<MsgToGb>, Rec
                         loop_helper.record_frame_draw();
 
                         // record state
-                        if !turbo {
-                            history.push_front(take_snapshot(&gb));
-                            if history.len() > 60 * 12 {
-                                history.pop_back();
-                            }
+
+                        history.push_front(take_snapshot(&gb));
+                        if history.len() > 60 * 12 {
+                            history.pop_back();
                         }
                     }
                 }

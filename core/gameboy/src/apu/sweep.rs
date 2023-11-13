@@ -2,6 +2,7 @@
 use serde::{Deserialize, Serialize};
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(PartialEq, Eq)]
 enum SweepDirection {
     Increase,
     Decrease,
@@ -18,6 +19,7 @@ impl From<u8> for SweepDirection {
 }
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(PartialEq, Eq)]
 pub struct Sweep {
     enabled: bool,
     shadow_freq: u16,

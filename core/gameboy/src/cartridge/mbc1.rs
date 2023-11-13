@@ -110,6 +110,7 @@ impl Cartridge for Mbc1 {
                 let value = (value & self.rom_bank_mask_lo) as usize;
 
                 self.current_rom_bank = (self.current_rom_bank & 0b0110_0000) | value;
+                log::debug!("Switching bank");
             }
 
             0x4000..=0x5FFF => match self.mode {
@@ -118,6 +119,7 @@ impl Cartridge for Mbc1 {
 
                     let higher_bits = ((value << 5) & self.rom_bank_mask_hi) as usize;
                     self.current_rom_bank = (self.current_rom_bank & 0b0001_1111) | higher_bits;
+                    log::debug!("Switching bank");
                 }
                 BankingMode::Mode1 => {
                     if self.ram_banks.len() == 4 {
@@ -136,6 +138,7 @@ impl Cartridge for Mbc1 {
                         }
                         _ => self.current_rom_bank = selected_rom_bank,
                     }
+                    log::debug!("Switching bank");
                 }
             },
 

@@ -16,6 +16,7 @@ use super::bus::Bus;
 use crate::cpu::instructions::InstructionStep;
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(PartialEq, Eq)]
 pub(crate) struct Cpu {
     af: Register,
     bc: Register,
@@ -33,9 +34,11 @@ pub(crate) struct Cpu {
     temp16: u16,
 
     cycle: u64,
+    pub(super) total_cycles: u64,
 
     is_fetching: bool,
-    instruction_opcode: Option<InstructionOpcode>,
+    pub(super) instruction_opcode: Option<InstructionOpcode>,
+    pub(super) instruction_index: usize,
 
     stopped: bool,
     halted: bool,
@@ -83,9 +86,11 @@ impl Cpu {
             temp16: 0x0,
 
             cycle: 0,
+            total_cycles: 0,
 
             is_fetching: false,
             instruction_opcode: None,
+            instruction_index: 0,
 
             stopped: false,
             halted: false,
@@ -138,7 +143,7 @@ impl Cpu {
         op
     }
 
-    pub fn tick(&mut self, bus: &mut Bus, instruction_cache: &mut InstructionCache) {
+    pub fn tick(&mut self, bus: &mut Bus, instruction_cache: &InstructionCache) {
         if self.ei_delay {
             self.ei_delay_cycles -= 1;
 
@@ -188,10 +193,12 @@ impl Cpu {
             }
 
             self.cycle += 1;
+            self.total_cycles += 1;
             return;
         }
 
         self.cycle += 1;
+        self.total_cycles += 1;
         if self.cycle < 4 {
             return;
         }
@@ -203,8 +210,8 @@ impl Cpu {
         self.exec(instruction, bus);
     }
 
-    fn exec(&mut self, instruction: &mut Instruction, bus: &mut Bus) {
-        let instruction_step = &instruction.steps[instruction.index];
+    fn exec(&mut self, instruction: &Instruction, bus: &mut Bus) {
+        let instruction_step = &instruction.steps[self.instruction_index];
         let result = match instruction_step {
             InstructionStep::Standard(instr_step_func) => {
                 if self.is_fetching {
@@ -226,25 +233,25 @@ impl Cpu {
             }
         };
 
-        instruction.index += 1;
+        self.instruction_index += 1;
 
         match result {
             InstructionState::InProgress => {}
             InstructionState::ExecNextInstantly => self.exec(instruction, bus),
             InstructionState::Finished => {
-                self.handle_instruction_finish(instruction);
+                self.handle_instruction_finish();
             }
             InstructionState::Branch(continue_exec) => {
                 if !continue_exec {
-                    self.handle_instruction_finish(instruction);
+                    self.handle_instruction_finish();
                 }
             }
         }
     }
 
     #[inline(always)]
-    fn handle_instruction_finish(&mut self, instruction: &mut Instruction) {
+    fn handle_instruction_finish(&mut self) {
         self.instruction_opcode = None;
-        instruction.index = 0;
+        self.instruction_index = 0;
     }
 }

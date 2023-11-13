@@ -35,6 +35,7 @@ fn is_falling_edge(prev: bool, current: bool) -> bool {
 }
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(PartialEq, Eq)]
 pub struct FrameSequencer {
     cycle: u32,
     last_bit_5_hi: bool,

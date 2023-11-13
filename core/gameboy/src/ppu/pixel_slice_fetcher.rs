@@ -5,14 +5,14 @@ use super::{BGMapFlags, FifoPixel, LcdControlFlag, ObjectPriorityMode, Ppu};
 
 use crate::bus::CgbCompatibility;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub(super) enum FetchMode {
     Background(BackgroundFetchMode),
     Sprite,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub(super) enum BackgroundFetchMode {
     Background,
@@ -25,7 +25,7 @@ impl Default for FetchMode {
     }
 }
 
-#[derive(Default, Clone)]
+#[derive(Default, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 struct BgFetcherState {
     tile_data_addr: u16,
@@ -37,7 +37,7 @@ struct BgFetcherState {
     data_hi: u8,
 }
 
-#[derive(Default, Clone)]
+#[derive(Default, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 struct SpriteFetcherState {
     tile_addr: u16,
@@ -45,7 +45,7 @@ struct SpriteFetcherState {
     data_high: u8,
 }
 
-#[derive(Default, Clone)]
+#[derive(Default, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub(super) struct PixelSliceFetcherState {
     cycle: u8,

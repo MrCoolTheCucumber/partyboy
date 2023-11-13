@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 /// A type to wrap 2d arrays so we can serialize and deserialize them more easily
 /// by converting it into/from a 1d vector.
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(
     feature = "serde",

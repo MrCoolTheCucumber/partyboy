@@ -9,6 +9,7 @@ use super::{
 use serde::{Deserialize, Serialize};
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(PartialEq, Eq)]
 pub struct NoiseChannel {
     enabled: bool,
     white_noise_generator: WhiteNoiseGenerator,
@@ -106,12 +107,14 @@ impl NoiseChannel {
 }
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(PartialEq, Eq)]
 enum CounterWidth {
     Width15 = 0,
     Width7 = 1,
 }
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(PartialEq, Eq)]
 struct WhiteNoiseGenerator {
     divisor_code: u8,
     shift_amount: u8,

@@ -4,6 +4,7 @@ use crate::bus::Bus;
 use serde::{Deserialize, Serialize};
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(PartialEq, Eq)]
 pub(crate) struct OamDma {
     io_reg: u8,
 

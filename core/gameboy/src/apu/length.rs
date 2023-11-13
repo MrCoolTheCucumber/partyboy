@@ -2,6 +2,7 @@
 use serde::{Deserialize, Serialize};
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(PartialEq, Eq)]
 pub struct Length {
     enabled: bool,
     base_length: u16,
@@ -35,6 +36,7 @@ impl Length {
 }
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(PartialEq, Eq)]
 pub enum LengthMode {
     Infinite = 0,
     Timed = 1,

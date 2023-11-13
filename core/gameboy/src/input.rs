@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::wasm_bindgen;
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(PartialEq, Eq)]
 pub struct Input {
     pub up: u8,
     pub down: u8,

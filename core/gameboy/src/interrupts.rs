@@ -4,6 +4,7 @@ use super::cpu::Cpu;
 use serde::{Deserialize, Serialize};
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(PartialEq, Eq)]
 pub(crate) struct Interrupts {
     pub master: u8,
     pub enable: u8,

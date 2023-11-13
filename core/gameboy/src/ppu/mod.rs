@@ -18,6 +18,7 @@ use {
 };
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(PartialEq, Eq)]
 pub(crate) struct Ppu {
     pub gpu_vram: D2Array<u8, 0x2000, 2>,
     pub gpu_vram_bank: u8,
@@ -121,7 +122,7 @@ pub enum LcdControlFlag {
     LCDDisplayEnable = 0b1000_0000,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[allow(clippy::upper_case_acronyms)]
 pub enum PpuMode {
@@ -144,14 +145,14 @@ impl From<u8> for PpuMode {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum ObjectPriorityMode {
     OamOrder,
     CoordinateOrder,
 }
 
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy, Default, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 struct BGMapFlags {
     bg_oam_prio: bool, // true=use bg bit, false=use oam bit
@@ -173,7 +174,7 @@ impl From<u8> for BGMapFlags {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 struct SpriteInfo {
     y: i32,
@@ -217,7 +218,7 @@ impl SpriteInfo {
     }
 }
 
-#[derive(Default, Clone)]
+#[derive(Default, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct FifoState {
     lx: u8,
@@ -238,7 +239,7 @@ impl FifoState {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 struct FifoPixel {
     color_index: u8,

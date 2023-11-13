@@ -4,6 +4,7 @@ use crate::interrupts::{InterruptFlag, Interrupts};
 use serde::{Deserialize, Serialize};
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(PartialEq, Eq)]
 pub(crate) struct Timer {
     div: u16,
     tima: u8,

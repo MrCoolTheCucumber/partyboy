@@ -42,6 +42,24 @@ pub struct Apu {
     nr51: u8,
 }
 
+impl PartialEq for Apu {
+    fn eq(&self, other: &Self) -> bool {
+        self.powered_on == other.powered_on
+            // && self.capacitor == other.capacitor
+            // && self.sample_buffer == other.sample_buffer
+            && self.sample_counter == other.sample_counter
+            && self.frame_sequencer == other.frame_sequencer
+            && self.channel_1 == other.channel_1
+            && self.channel_2 == other.channel_2
+            && self.channel_3 == other.channel_3
+            && self.channel_4 == other.channel_4
+            && self.nr50 == other.nr50
+            && self.nr51 == other.nr51
+    }
+}
+
+impl Eq for Apu {}
+
 impl Apu {
     pub fn new() -> Self {
         Self {

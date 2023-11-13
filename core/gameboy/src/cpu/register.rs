@@ -11,7 +11,7 @@ pub enum Flag {
     C = 0b00010000,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Register {
     pub hi: u8,

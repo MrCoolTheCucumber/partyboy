@@ -8,7 +8,7 @@
 
 use crate::cartridge::Cartridge;
 
-pub fn get_color_palettes(cartridge: &dyn Cartridge) -> [u32; 12] {
+pub fn get_color_palettes(cartridge: &Cartridge) -> [u32; 12] {
     let hash = (0..16)
         .map(|i| cartridge.read_rom(0x134 + i) as u64)
         .sum::<u64>();

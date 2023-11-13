@@ -1,14 +1,38 @@
-use super::{init_rom_and_ram, Cartridge, RamIter};
+#[cfg(feature = "serde")]
+use {
+    super::serialize::{
+        ram_bank_deserialize, ram_bank_serialize, rom_bank_deserialize, rom_bank_serialize,
+    },
+    serde::{Deserialize, Serialize},
+};
+
+use super::{init_rom_and_ram, CartridgeInterface};
 
 // TODO: RTC impl is broken?
 
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Mbc3 {
     is_ram_rtc_enabled: bool,
     current_rom_bank: usize,
     current_ram_bank: usize,
     rom_bank_mask: u8,
 
+    #[cfg_attr(
+        feature = "serde",
+        serde(
+            serialize_with = "rom_bank_serialize",
+            deserialize_with = "rom_bank_deserialize"
+        )
+    )]
     rom_banks: Vec<[u8; 0x4000]>,
+
+    #[cfg_attr(
+        feature = "serde",
+        serde(
+            serialize_with = "ram_bank_serialize",
+            deserialize_with = "ram_bank_deserialize"
+        )
+    )]
     ram_banks: Vec<[u8; 0x2000]>,
 
     rtc_regs: [u8; 5],
@@ -53,7 +77,7 @@ impl Mbc3 {
     }
 }
 
-impl Cartridge for Mbc3 {
+impl CartridgeInterface for Mbc3 {
     fn read_rom(&self, addr: u16) -> u8 {
         match addr {
             0x0000..=0x3FFF => self.rom_banks[0][addr as usize],
@@ -134,14 +158,8 @@ impl Cartridge for Mbc3 {
         !self.ram_banks.is_empty()
     }
 
-    fn iter_ram(&self) -> RamIter {
-        let iter = self
-            .ram_banks
-            .iter()
-            .flat_map(|slice| slice.iter())
-            .copied()
-            .collect::<Vec<u8>>();
-        iter.into()
+    fn ram_banks(&self) -> &Vec<[u8; 0x2000]> {
+        &self.ram_banks
     }
 }
 

@@ -2,9 +2,9 @@
 
 use std::fmt::Display;
 
-use super::{cartridge::Cartridge, input::Input, interrupts::Interrupts, ppu::Ppu, timer::Timer};
+use super::{input::Input, interrupts::Interrupts, ppu::Ppu, timer::Timer};
 use crate::{
-    apu::Apu, builder::SerialWriteHandler, common::D2Array,
+    apu::Apu, builder::SerialWriteHandler, cartridge::Cartridge, common::D2Array,
     cpu::speed_controller::CpuSpeedController, dma::oam::OamDma,
 };
 
@@ -57,8 +57,7 @@ pub(crate) struct Bus {
     )]
     serial_write_handler: SerialWriteHandler,
 
-    #[cfg_attr(feature = "serde", serde(skip))]
-    pub cartridge: Option<Box<dyn Cartridge>>,
+    pub cartridge: Option<Cartridge>,
     pub ppu: Ppu,
 
     pub working_ram: D2Array<u8, 0x1000, 8>,
@@ -85,7 +84,7 @@ pub(crate) struct Bus {
 
 impl Bus {
     pub fn new(
-        cartridge: Option<Box<dyn Cartridge>>,
+        cartridge: Option<Cartridge>,
         serial_write_handler: SerialWriteHandler,
         bios: [u8; 2304],
     ) -> Self {
@@ -314,7 +313,7 @@ impl Bus {
         self.ppu.hdma.tick_hdma(
             // unwrap: if we have no cart by the time we need to run hdma
             // then something is horribly wrong
-            self.cartridge.as_ref().unwrap().as_ref(),
+            self.cartridge.as_ref().unwrap(),
             &self.working_ram,
             self.working_ram_bank,
             &mut self.ppu.gpu_vram,

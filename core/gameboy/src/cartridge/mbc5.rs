@@ -1,5 +1,14 @@
-use super::{init_rom_and_ram, Cartridge, RamIter};
+#[cfg(feature = "serde")]
+use {
+    super::serialize::{
+        ram_bank_deserialize, ram_bank_serialize, rom_bank_deserialize, rom_bank_serialize,
+    },
+    serde::{Deserialize, Serialize},
+};
 
+use super::{init_rom_and_ram, CartridgeInterface};
+
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Mbc5 {
     is_ram_enabled: bool,
 
@@ -7,7 +16,22 @@ pub struct Mbc5 {
     current_rom_bank: usize,
     current_ram_bank: usize,
 
+    #[cfg_attr(
+        feature = "serde",
+        serde(
+            serialize_with = "rom_bank_serialize",
+            deserialize_with = "rom_bank_deserialize"
+        )
+    )]
     rom_banks: Vec<[u8; 0x4000]>,
+
+    #[cfg_attr(
+        feature = "serde",
+        serde(
+            serialize_with = "ram_bank_serialize",
+            deserialize_with = "ram_bank_deserialize"
+        )
+    )]
     ram_banks: Vec<[u8; 0x2000]>,
 }
 
@@ -44,7 +68,7 @@ impl Mbc5 {
     }
 }
 
-impl Cartridge for Mbc5 {
+impl CartridgeInterface for Mbc5 {
     fn read_rom(&self, addr: u16) -> u8 {
         match addr {
             0x0000..=0x3FFF => self.rom_banks[0][addr as usize],
@@ -107,13 +131,7 @@ impl Cartridge for Mbc5 {
         !self.ram_banks.is_empty()
     }
 
-    fn iter_ram(&self) -> RamIter {
-        let iter = self
-            .ram_banks
-            .iter()
-            .flat_map(|slice| slice.iter())
-            .copied()
-            .collect::<Vec<u8>>();
-        iter.into()
+    fn ram_banks(&self) -> &Vec<[u8; 0x2000]> {
+        &self.ram_banks
     }
 }

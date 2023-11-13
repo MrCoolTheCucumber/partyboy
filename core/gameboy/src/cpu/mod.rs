@@ -36,6 +36,7 @@ pub(crate) struct Cpu {
 
     is_fetching: bool,
     instruction_opcode: Option<InstructionOpcode>,
+    instruction_index: usize,
 
     stopped: bool,
     halted: bool,
@@ -86,6 +87,7 @@ impl Cpu {
 
             is_fetching: false,
             instruction_opcode: None,
+            instruction_index: 0,
 
             stopped: false,
             halted: false,
@@ -188,6 +190,8 @@ impl Cpu {
             }
 
             self.cycle += 1;
+            // sanity
+            self.instruction_index = 0;
             return;
         }
 
@@ -204,7 +208,7 @@ impl Cpu {
     }
 
     fn exec(&mut self, instruction: &mut Instruction, bus: &mut Bus) {
-        let instruction_step = &instruction.steps[instruction.index];
+        let instruction_step = &instruction.steps[self.instruction_index];
         let result = match instruction_step {
             InstructionStep::Standard(instr_step_func) => {
                 if self.is_fetching {
@@ -226,25 +230,25 @@ impl Cpu {
             }
         };
 
-        instruction.index += 1;
+        self.instruction_index += 1;
 
         match result {
             InstructionState::InProgress => {}
             InstructionState::ExecNextInstantly => self.exec(instruction, bus),
             InstructionState::Finished => {
-                self.handle_instruction_finish(instruction);
+                self.handle_instruction_finish();
             }
             InstructionState::Branch(continue_exec) => {
                 if !continue_exec {
-                    self.handle_instruction_finish(instruction);
+                    self.handle_instruction_finish();
                 }
             }
         }
     }
 
     #[inline(always)]
-    fn handle_instruction_finish(&mut self, instruction: &mut Instruction) {
+    fn handle_instruction_finish(&mut self) {
         self.instruction_opcode = None;
-        instruction.index = 0;
+        self.instruction_index = 0;
     }
 }

@@ -48,7 +48,6 @@ impl Debug for InstructionOpcode {
 }
 
 pub(super) struct Instruction {
-    pub index: usize,
     pub steps: Vec<InstructionStep>,
 }
 
@@ -97,7 +96,6 @@ macro_rules! instruction {
             ];
 
             Instruction {
-                index: 0,
                 steps
             }
         }
@@ -114,7 +112,6 @@ macro_rules! instruction {
             ];
 
             Instruction {
-                index: 0,
                 steps
             }
         }
@@ -129,7 +126,6 @@ macro_rules! instruction {
             ];
 
             Instruction {
-                index: 0,
                 steps
             }
         }
@@ -1123,7 +1119,7 @@ fn stop() -> Instruction {
         InstructionState::Finished
     }));
 
-    Instruction { index: 0, steps }
+    Instruction { steps }
 }
 
 fn ld_sp_hl() -> Instruction {

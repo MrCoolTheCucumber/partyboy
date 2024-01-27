@@ -115,9 +115,7 @@ fn main() {
                         .iter()
                         .flat_map(|px| [px.r, px.g, px.b, 0xFF])
                         .collect::<Vec<_>>();
-                    pixels
-                        .get_frame_mut()
-                        .copy_from_slice(flat_frame.as_slice());
+                    pixels.frame_mut().copy_from_slice(flat_frame.as_slice());
                 }
 
                 if let Err(e) = pixels.render() {

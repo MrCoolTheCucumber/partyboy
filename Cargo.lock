@@ -1736,6 +1736,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "frontend"
+version = "0.1.0"
+dependencies = [
+ "clap 2.34.0",
+ "common",
+ "cpal",
+ "crossbeam",
+ "env_logger",
+ "gameboy",
+ "log",
+ "log-panics",
+ "log4rs",
+ "lz4_flex",
+ "pixels",
+ "ringbuffer",
+ "rmp-serde",
+ "serde",
+ "winit 0.27.5",
+ "winit_input_helper",
+]
+
+[[package]]
 name = "frontend_debug"
 version = "0.1.0"
 dependencies = [
@@ -3134,28 +3156,6 @@ dependencies = [
  "redox_syscall",
  "smallvec",
  "windows-sys 0.42.0",
-]
-
-[[package]]
-name = "partyboy"
-version = "0.1.0"
-dependencies = [
- "clap 2.34.0",
- "common",
- "cpal",
- "crossbeam",
- "env_logger",
- "gameboy",
- "log",
- "log-panics",
- "log4rs",
- "lz4_flex",
- "pixels",
- "ringbuffer",
- "rmp-serde",
- "serde",
- "winit 0.27.5",
- "winit_input_helper",
 ]
 
 [[package]]

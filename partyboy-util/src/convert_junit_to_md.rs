@@ -6,13 +6,41 @@ use quick_xml::de::from_str;
 use serde::Deserialize;
 
 #[derive(Parser)]
-struct Args {
+pub struct Args {
     #[clap(short, long)]
     path: String,
 }
 
-fn main() {
-    let args: Args = Args::parse();
+#[derive(Deserialize, Debug)]
+#[serde(rename = "testsuites")]
+struct TestSuites {
+    #[serde(rename = "testsuite")]
+    test_suites: Vec<TestSuite>,
+    tests: i32,
+    failures: i32,
+    errors: i32,
+}
+
+#[derive(Deserialize, Debug)]
+struct TestSuite {
+    #[serde(rename = "testcase")]
+    testcases: Vec<TestCase>,
+    name: String,
+    tests: i32,
+    failures: i32,
+    errors: i32,
+}
+
+#[derive(Deserialize, Debug)]
+struct TestCase {
+    name: String,
+    failure: Option<Failure>,
+}
+
+#[derive(Deserialize, Debug)]
+struct Failure {}
+
+pub fn execute(args: Args) {
     let junit = fs::read_to_string(args.path).unwrap();
     let test_suites: TestSuites = from_str(&junit).expect("Unable to deserialize xml");
 
@@ -56,32 +84,3 @@ fn write_test_suite(markdown: &mut String, test_suite: &TestSuite) {
 
     writeln!(markdown).unwrap();
 }
-
-#[derive(Deserialize, Debug)]
-#[serde(rename = "testsuites")]
-struct TestSuites {
-    #[serde(rename = "testsuite")]
-    test_suites: Vec<TestSuite>,
-    tests: i32,
-    failures: i32,
-    errors: i32,
-}
-
-#[derive(Deserialize, Debug)]
-struct TestSuite {
-    #[serde(rename = "testcase")]
-    testcases: Vec<TestCase>,
-    name: String,
-    tests: i32,
-    failures: i32,
-    errors: i32,
-}
-
-#[derive(Deserialize, Debug)]
-struct TestCase {
-    name: String,
-    failure: Option<Failure>,
-}
-
-#[derive(Deserialize, Debug)]
-struct Failure {}

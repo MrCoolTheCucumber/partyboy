@@ -1954,15 +1954,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "gen_bios_skip_snapshot"
-version = "0.1.0"
-dependencies = [
- "clap 4.4.18",
- "gameboy",
- "rmp-serde",
-]
-
-[[package]]
 name = "generic-array"
 version = "0.14.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2471,15 +2462,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9a1d36f1235bc969acba30b7f5990b864423a6068a10f7c90ae8f0112e3a59d1"
 dependencies = [
  "wasm-bindgen",
-]
-
-[[package]]
-name = "junit_to_md"
-version = "0.1.0"
-dependencies = [
- "clap 3.2.25",
- "quick-xml",
- "serde",
 ]
 
 [[package]]
@@ -3239,6 +3221,17 @@ dependencies = [
  "redox_syscall 0.4.1",
  "smallvec",
  "windows-targets 0.48.5",
+]
+
+[[package]]
+name = "partyboy-util"
+version = "0.1.0"
+dependencies = [
+ "clap 4.4.18",
+ "gameboy",
+ "quick-xml",
+ "rmp-serde",
+ "serde",
 ]
 
 [[package]]

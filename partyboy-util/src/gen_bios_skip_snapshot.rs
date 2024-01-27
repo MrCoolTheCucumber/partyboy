@@ -2,8 +2,8 @@ use clap::Parser;
 use gameboy::builder::GameBoyBuilder;
 
 #[derive(Parser, Debug)]
-#[command(author, version, about, long_about = None)]
-struct Args {
+#[command(version, about, long_about = None)]
+pub struct Args {
     #[arg(short, long)]
     bios: String,
     #[arg(short, long)]
@@ -12,9 +12,7 @@ struct Args {
     output: String,
 }
 
-fn main() {
-    let args = Args::parse();
-
+pub fn execute(args: Args) {
     let bios = std::fs::read(&args.bios).expect("Unable to read bios file");
     let rom = std::fs::read(&args.rom).expect("Unable to read rom file");
 

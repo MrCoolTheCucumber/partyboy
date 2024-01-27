@@ -13,17 +13,18 @@ while path.name != "partyboy":
         sys.exit();
     path = path.parent
 
-path = path.joinpath("util/gen_bios_skip_snapshot")
+path = path.joinpath("partyboy-util")
 os.chdir(path)
 
 subprocess.call([
     'cargo',
     'r',
     '--',
+    'generate-bios-skip-snapshot'
     '-b',
-    '..\\..\\bin\\_cgb_boot.bin',
+    '..\\bin\\_cgb_boot.bin',
     '-r',
-    '..\\..\\test_roms\\smbd.gbc',
+    '..\\test_roms\\smbd.gbc',
     '-o',
-    '..\\..\\bin\\bios_skip_snapshot.bin'
+    '..\\bin\\bios_skip_snapshot.bin'
 ])

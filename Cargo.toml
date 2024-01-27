@@ -4,8 +4,7 @@ members = [
     "partyboy-frontend",
     "partyboy-frontend-debug",
     "partyboy-core",
-    "test/junit_to_md",
-    "util/gen_bios_skip_snapshot"
+    "partyboy-util"
 ]
 default-members = [
     "partyboy-frontend",

@@ -77,6 +77,7 @@ OPTIONS:
 First, make sure you have the following dependentcies:
 
 - [Rust](https://www.rust-lang.org/tools/install)
+- On linux you might need the following packages: `build-essentials, cmake, libfontconfig1-dev, alsa, libasound2-dev`
 
 Then just run `cargo b` in the root directory of the repo.
 

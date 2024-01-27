@@ -75,7 +75,7 @@ impl GameBoyBuilder {
 
     fn create_gameboy_from_snapshot(self) -> Result<GameBoy, GameBoyBuilderError> {
         log::info!("SKIPPING BIOS VIA SNAPSHOT");
-        let bios_skip_snapshot = include_bytes!("../../../bin/bios_skip_snapshot.bin");
+        let bios_skip_snapshot = include_bytes!("../../bin/bios_skip_snapshot.bin");
         let mut gb: GameBoy = rmp_serde::from_slice(bios_skip_snapshot)
             .map_err(|_| GameBoyBuilderError::UnableToLoadBiosSkipSnapshot)?;
         let cartridge = self.rom.map(|rom| Cartridge::new(rom, self.ram));

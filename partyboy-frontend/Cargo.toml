@@ -14,9 +14,9 @@ path = "src/main.rs"
 env_logger = "0.9"
 clap = "2"
 cpal = "0.14.2"
-common = { path = "../../common" }
+common = { path = "../partyboy-common" }
 crossbeam = "0.8"
-gameboy = { path = "../../core/gameboy" }
+gameboy = { path = "../partyboy-core" }
 log = "0.4"
 log-panics = "2"
 log4rs = "1"

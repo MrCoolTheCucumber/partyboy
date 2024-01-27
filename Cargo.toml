@@ -1,7 +1,7 @@
 [workspace]
 members = [
     "benches",
-    "common",
+    "partyboy-common",
     "partyboy-frontend",
     "partyboy-frontend-debug",
     "partyboy-core",

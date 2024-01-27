@@ -5,4 +5,4 @@ edition = "2021"
 
 [dependencies]
 criterion = "0.4"
-gameboy = { path = "../core/gameboy" }
+gameboy = { path = "../partyboy-core" }

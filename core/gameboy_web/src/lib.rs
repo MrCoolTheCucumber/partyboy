@@ -44,16 +44,14 @@ pub fn handle_ticks(gb: &mut GameBoy) -> Vec<f32> {
 }
 
 #[wasm_bindgen]
-pub fn take_snapshot(gb: &mut GameBoy) -> BitPackedState {
+pub fn take_snapshot(gb: &mut GameBoy) -> Vec<u8> {
     let encoded = rmp_serde::to_vec(&gb).unwrap();
-    let compressed = compress_prepend_size(&encoded);
-    BitPackedState::pack(compressed)
+    compress_prepend_size(&encoded)
 }
 
 #[wasm_bindgen]
-pub fn load_snapshot(gb: &mut GameBoy, snapshot: &BitPackedState) {
-    let unpacked = snapshot.unpack();
-    let decompressed = decompress_size_prepended(&unpacked).unwrap();
+pub fn load_snapshot(gb: &mut GameBoy, snapshot: &[u8]) {
+    let decompressed = decompress_size_prepended(snapshot).unwrap();
     let state: GameBoy = rmp_serde::from_slice(&decompressed).unwrap();
     gb.load_snapshot(state);
     gb.release_all_keys();

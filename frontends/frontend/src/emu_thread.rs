@@ -1,6 +1,6 @@
 use std::{collections::VecDeque, time::Duration};
 
-use common::{bitpacked::BitPackedState, loop_helper::LoopHelper};
+use common::loop_helper::LoopHelper;
 use cpal::{
     traits::{DeviceTrait, HostTrait, StreamTrait},
     SampleRate, StreamConfig,
@@ -14,15 +14,13 @@ use crate::msgs::{MsgFromGb, MsgToGb};
 
 const FPS_REPORT_RATE_MS: u64 = 500;
 
-fn take_snapshot(gb: &GameBoy) -> BitPackedState {
+fn take_snapshot(gb: &GameBoy) -> Vec<u8> {
     let encoded = rmp_serde::to_vec(&gb).unwrap();
-    let compressed = compress_prepend_size(&encoded);
-    BitPackedState::pack(compressed)
+    compress_prepend_size(&encoded)
 }
 
-fn apply_snapshot(gb: &mut GameBoy, snapshot: &BitPackedState) {
-    let unpacked = snapshot.unpack();
-    let decompressed = decompress_size_prepended(&unpacked).unwrap();
+fn apply_snapshot(gb: &mut GameBoy, snapshot: &[u8]) {
+    let decompressed = decompress_size_prepended(snapshot).unwrap();
     let state: GameBoy = rmp_serde::from_slice(&decompressed).unwrap();
     gb.load_snapshot(state);
     gb.release_all_keys();
@@ -89,7 +87,7 @@ pub fn new(rom: Option<Vec<u8>>, bios: Option<Vec<u8>>) -> (Sender<MsgToGb>, Rec
             .expect("Internal error: unable to construct emulator instance");
 
         let mut turbo = false;
-        let mut snapshot: Option<BitPackedState> = None;
+        let mut snapshot: Option<Vec<u8>> = None;
 
         let mut history = VecDeque::new();
         let mut rewind = false;

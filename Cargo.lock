@@ -467,14 +467,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4cbbc9d0964165b47557570cce6c952866c2678457aca742aafc9fb771d30270"
 
 [[package]]
-name = "benches"
-version = "0.1.0"
-dependencies = [
- "criterion",
- "gameboy",
-]
-
-[[package]]
 name = "bindgen"
 version = "0.69.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"

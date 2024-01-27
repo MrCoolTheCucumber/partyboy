@@ -22,9 +22,10 @@
 - Ability to play Game Boy Color games as well as Game Boy games in the game boy colors DMG mode
 - Fairly high accuracy
 - Support for most cartridge types
+- Audio
 - Biosless mode
 - Save states
-- Rewinding (experimental)
+- Rewinding
 - Web support
 
 ## Tests
@@ -67,7 +68,6 @@ OPTIONS:
 
 ## TODO
 
-- [ ] Audio support
 - [ ] Dissasembler for debug frontend
 - [ ] Make `frontend_debug` work for web
 - [ ] Implement some sort of mass rom test suite similar to [sameboy](https://sameboy.github.io/automation/)?

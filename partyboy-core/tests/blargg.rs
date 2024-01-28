@@ -45,7 +45,6 @@ mod cpu_instrs {
     fn get_root_path() -> PathBuf {
         let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         path.pop();
-        path.pop();
         path.push("test/test_roms/blargg/");
         path.push("cpu_instrs/individual/");
         path
@@ -74,7 +73,6 @@ mod instr_timing {
     fn get_root_path() -> PathBuf {
         let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         path.pop();
-        path.pop();
         path.push("test/test_roms/blargg/");
         path.push("instr_timing/");
         path
@@ -90,7 +88,6 @@ mod mem_timing {
 
     fn get_root_path() -> PathBuf {
         let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        path.pop();
         path.pop();
         path.push("test/test_roms/blargg/");
         path.push("mem_timing/");

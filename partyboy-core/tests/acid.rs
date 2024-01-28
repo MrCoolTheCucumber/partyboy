@@ -8,14 +8,12 @@ mod common;
 fn get_test_rom_root_path() -> PathBuf {
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.pop();
-    path.pop();
     path.push("test/test_roms");
     path
 }
 
 fn get_expected_root_path() -> PathBuf {
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    path.pop();
     path.pop();
     path.push("test/test_expected/acid");
     path

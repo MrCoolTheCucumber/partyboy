@@ -42,12 +42,12 @@ jobs:
           node-version: 16
 
       - name: Build pkg
-        working-directory: ./core/gameboy_web
+        working-directory: ./partyboy-core-web
         run: |
           wasm-pack build --target bundler --scope mrcoolthecucumber --release
 
       - name: Publish to npm
-        working-directory: ./core/gameboy_web/pkg
+        working-directory: ./partyboy-core-web/pkg
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |

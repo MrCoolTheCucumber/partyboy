@@ -105,6 +105,7 @@ pub fn new(rom: Option<Vec<u8>>, bios: Option<Vec<u8>>) -> (Sender<MsgToGb>, Rec
         let mut rewind = false;
 
         let mut report_helper = ReportHelper::new(FPS_REPORT_RATE_MS, SPEED);
+        #[allow(deprecated)]
         let mut loop_helper = spin_sleep::LoopHelper::builder()
             .report_interval(Duration::from_millis(500))
             .build_with_target_rate(59.73);

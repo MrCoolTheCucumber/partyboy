@@ -6,7 +6,7 @@ use crossbeam::channel::{Receiver, Sender};
 use eframe::{egui::Context, emath::Vec2, NativeOptions};
 use messages::{MessageFromGb, MessageToGB};
 use partyboy_core::{builder::GameBoyBuilder, GameBoy};
-use spin_sleep::LoopHelper;
+use spin_sleep_util::{MissedTickBehavior, RateReporter};
 
 mod app;
 mod channel_log;
@@ -16,9 +16,11 @@ pub static mut CYCLE_COUNT: u64 = 0;
 
 fn gb_loop(to_gb_rx: Receiver<MessageToGB>, from_gb_tx: Sender<MessageFromGb>, ctx: Context) -> ! {
     let mut gb: Option<GameBoy> = None;
-    let mut loop_helper = LoopHelper::builder()
-        .report_interval(Duration::from_millis(500))
-        .build_with_target_rate(59.73);
+
+    let mut interval =
+        spin_sleep_util::interval(Duration::from_millis((1000.0f64 / 59.73f64) as u64))
+            .with_missed_tick_behavior(MissedTickBehavior::Burst);
+    let mut reporter = RateReporter::new(Duration::from_millis(500));
 
     let mut run = true;
     let mut turbo = false;
@@ -42,6 +44,7 @@ fn gb_loop(to_gb_rx: Receiver<MessageToGB>, from_gb_tx: Sender<MessageFromGb>, c
                     unsafe { CYCLE_COUNT = 0 }
                 }
                 MessageToGB::Start => {
+                    interval.reset();
                     run = true;
                 }
                 MessageToGB::Stop => {
@@ -67,7 +70,8 @@ fn gb_loop(to_gb_rx: Receiver<MessageToGB>, from_gb_tx: Sender<MessageFromGb>, c
                             app::InputType::GBInput(keycode) => gb.key_up(*keycode),
                             app::InputType::Other(key) => {
                                 if let Key::Space = key {
-                                    turbo = false
+                                    turbo = false;
+                                    interval.reset();
                                 }
                             }
                         });
@@ -78,7 +82,6 @@ fn gb_loop(to_gb_rx: Receiver<MessageToGB>, from_gb_tx: Sender<MessageFromGb>, c
 
         if run {
             if let Some(gb) = &mut gb {
-                let _ = loop_helper.loop_start();
                 loop {
                     unsafe { CYCLE_COUNT += 1 }
                     gb.tick();
@@ -88,7 +91,7 @@ fn gb_loop(to_gb_rx: Receiver<MessageToGB>, from_gb_tx: Sender<MessageFromGb>, c
 
                         let mut debug_info = gb.debug_info();
 
-                        if let Some(fps) = loop_helper.report_rate() {
+                        if let Some(fps) = reporter.increment_and_report() {
                             debug_info.fps = Some(fps);
                         }
 
@@ -98,8 +101,9 @@ fn gb_loop(to_gb_rx: Receiver<MessageToGB>, from_gb_tx: Sender<MessageFromGb>, c
                         break;
                     }
                 }
+
                 if !turbo {
-                    loop_helper.loop_sleep();
+                    interval.tick();
                 }
             }
         } else {

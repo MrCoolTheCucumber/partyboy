@@ -17,4 +17,4 @@ log = "0.4"
 log-panics = "2"
 partyboy-core = { path = "../partyboy-core", features = ["debug_info"]}
 rfd = "0.10"
-spin_sleep = "1.1.1"
+spin_sleep_util = "0.1"

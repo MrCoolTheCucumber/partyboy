@@ -67,4 +67,4 @@ jobs:
 
       - name: Job summary
         if: always()
-        run: cat ./test/junit_to_md/TestReport.md >> $GITHUB_STEP_SUMMARY
+        run: cat ./partyboy-util/TestReport.md >> $GITHUB_STEP_SUMMARY

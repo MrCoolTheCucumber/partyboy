@@ -1,21 +1,18 @@
 [workspace]
 members = [
-    "benches",
-    "common",
-    "frontends/frontend",
-    "frontends/frontend_debug",
-    "frontends/frontend_web",
-    "core/gameboy",
-    "test/junit_to_md",
-    "util/gen_bios_skip_snapshot"
+    "partyboy-common",
+    "partyboy-frontend",
+    "partyboy-frontend-debug",
+    "partyboy-core",
+    "partyboy-util"
 ]
 default-members = [
-    "frontends/frontend",
-    "core/gameboy",
+    "partyboy-frontend",
+    "partyboy-core",
 ]
 exclude = [
     # for some reason it messes up intellisense if its a member
-    "core/gameboy_web", 
+    "partyboy-core-web", 
 ]
 resolver="2"
 

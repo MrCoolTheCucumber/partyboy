@@ -62,9 +62,9 @@ jobs:
 
       - name: Convert junit report to markdown
         if: always()
-        working-directory: ./test/junit_to_md
-        run: cargo r -- -p ../../target/nextest/ci/junit.xml
+        working-directory: ./partyboy-util
+        run: cargo r -- convert-junit-to-md -p ../target/nextest/ci/junit.xml
 
       - name: Job summary
         if: always()
-        run: cat ./test/junit_to_md/TestReport.md >> $GITHUB_STEP_SUMMARY
+        run: cat ./partyboy-util/TestReport.md >> $GITHUB_STEP_SUMMARY

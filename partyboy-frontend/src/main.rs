@@ -1,17 +1,17 @@
-use input::{get_key_downs, get_key_ups};
+use input::try_into_gameboy_input;
 use logging::init_logger;
 use msgs::MsgFromGb;
 use partyboy_core::ppu::rgb::Rgb;
 
 use clap::clap_app;
-use pixels::{PixelsBuilder, SurfaceTexture};
+use pixels::{wgpu::Backends, PixelsBuilder, SurfaceTexture};
 use winit::{
     dpi::LogicalSize,
-    event::{Event, VirtualKeyCode},
-    event_loop::{ControlFlow, EventLoop},
+    event::{ElementState, Event, WindowEvent},
+    event_loop::EventLoop,
+    platform::modifier_supplement::KeyEventExtModifierSupplement,
     window::WindowBuilder,
 };
-use winit_input_helper::WinitInputHelper;
 
 use crate::msgs::MsgToGb;
 
@@ -78,8 +78,7 @@ fn main() {
         .bios_path
         .map(|path| std::fs::read(path).expect("Unable to read bios file"));
 
-    let event_loop = EventLoop::new();
-    let mut input = WinitInputHelper::new();
+    let event_loop = EventLoop::new().expect("Unable to create event loop");
     let window = WindowBuilder::new()
         .with_title("Partyboy 🎉")
         .with_inner_size(LogicalSize::new(WIDTH * SCALE, HEIGHT * SCALE))
@@ -92,6 +91,7 @@ fn main() {
         let surface_texture = SurfaceTexture::new(window_size.width, window_size.height, &window);
         PixelsBuilder::new(WIDTH, HEIGHT, surface_texture)
             .enable_vsync(false)
+            .wgpu_backend(Backends::VULKAN)
             .build()
             .unwrap()
     };
@@ -99,80 +99,97 @@ fn main() {
     let (s, r) = emu_thread::new(rom, bios);
     let mut frame_to_draw: Option<Vec<Rgb>> = None;
 
-    event_loop.run(move |event, _, control_flow| {
-        let msgs: Vec<MsgFromGb> = r.try_iter().collect();
-        for msg in msgs {
-            match msg {
-                MsgFromGb::Frame(fb) => frame_to_draw = Some(fb),
-                MsgFromGb::Fps(fps) => window.set_title(format!("{:.2}", fps).as_str()),
-            }
-        }
-
-        match event {
-            Event::RedrawRequested(_) => {
-                if let Some(frame) = &frame_to_draw {
-                    let flat_frame = frame
-                        .iter()
-                        .flat_map(|px| [px.r, px.g, px.b, 0xFF])
-                        .collect::<Vec<_>>();
-                    pixels.frame_mut().copy_from_slice(flat_frame.as_slice());
-                }
-
-                if let Err(e) = pixels.render() {
-                    log::error!("pixels.render() failed: {}", e);
-                    *control_flow = ControlFlow::Exit;
-                    return;
+    event_loop
+        .run(move |event, elwt| {
+            let msgs: Vec<MsgFromGb> = r.try_iter().collect();
+            for msg in msgs {
+                match msg {
+                    MsgFromGb::Frame(fb) => frame_to_draw = Some(fb),
+                    MsgFromGb::Fps(fps) => window.set_title(format!("{:.2}", fps).as_str()),
                 }
             }
-            Event::LoopDestroyed => {
-                *control_flow = ControlFlow::Exit;
-                return;
-            }
-            _ => {}
-        }
 
-        if input.update(&event) {
-            // TODO: use 1 message..
-            let key_downs = get_key_downs(&mut input);
-            let key_ups = get_key_ups(&mut input);
+            match event {
+                Event::WindowEvent { window_id, event } if window_id == window.id() => {
+                    match event {
+                        WindowEvent::CloseRequested => elwt.exit(),
+                        WindowEvent::RedrawRequested => {
+                            if let Some(frame) = &frame_to_draw {
+                                let flat_frame = frame
+                                    .iter()
+                                    .flat_map(|px| [px.r, px.g, px.b, 0xFF])
+                                    .collect::<Vec<_>>();
+                                pixels.frame_mut().copy_from_slice(flat_frame.as_slice());
+                            }
 
-            if !key_downs.is_empty() {
-                let keydown_msg = MsgToGb::KeyDown(key_downs);
-                s.send(keydown_msg).unwrap();
-            }
-
-            if !key_ups.is_empty() {
-                let keyup_msg = MsgToGb::KeyUp(key_ups);
-                s.send(keyup_msg).unwrap();
-            }
-
-            if input.key_pressed(VirtualKeyCode::Escape) || input.quit() {
-                *control_flow = ControlFlow::Exit;
-                return;
-            }
-
-            if input.key_pressed(VirtualKeyCode::Space) {
-                s.send(MsgToGb::Turbo(true)).unwrap();
-            }
-            if input.key_released(VirtualKeyCode::Space) {
-                s.send(MsgToGb::Turbo(false)).unwrap();
-            }
-
-            if input.key_pressed(VirtualKeyCode::C) {
-                s.send(MsgToGb::SaveSnapshot).unwrap();
-            }
-            if input.key_released(VirtualKeyCode::V) {
-                s.send(MsgToGb::LoadSnapshot).unwrap();
+                            if let Err(e) = pixels.render() {
+                                log::error!("pixels.render() failed: {}", e);
+                                elwt.exit();
+                                return;
+                            }
+                        }
+                        WindowEvent::KeyboardInput { event, .. } if !event.repeat => {
+                            let key = event.key_without_modifiers();
+                            if let Some(gb_input) = try_into_gameboy_input(key.as_ref()) {
+                                match event.state {
+                                    ElementState::Pressed => {
+                                        s.send(MsgToGb::KeyDown(vec![gb_input])).unwrap()
+                                    }
+                                    ElementState::Released => {
+                                        s.send(MsgToGb::KeyUp(vec![gb_input])).unwrap()
+                                    }
+                                }
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                _ => {}
             }
 
-            if input.key_pressed(VirtualKeyCode::Q) {
-                s.send(MsgToGb::Rewind(true)).unwrap();
-            }
-            if input.key_released(VirtualKeyCode::Q) {
-                s.send(MsgToGb::Rewind(false)).unwrap();
-            }
-        }
+            // if input.update(&event) {
+            //     // TODO: use 1 message..
+            //     let key_downs = get_key_downs(&mut input);
+            //     let key_ups = get_key_ups(&mut input);
 
-        window.request_redraw();
-    });
+            //     if !key_downs.is_empty() {
+            //         let keydown_msg = MsgToGb::KeyDown(key_downs);
+            //         s.send(keydown_msg).unwrap();
+            //     }
+
+            //     if !key_ups.is_empty() {
+            //         let keyup_msg = MsgToGb::KeyUp(key_ups);
+            //         s.send(keyup_msg).unwrap();
+            //     }
+
+            //     if input.key_pressed(VirtualKeyCode::Escape) || input.quit() {
+            //         *elwt = ControlFlow::Exit;
+            //         return;
+            //     }
+
+            //     if input.key_pressed(VirtualKeyCode::Space) {
+            //         s.send(MsgToGb::Turbo(true)).unwrap();
+            //     }
+            //     if input.key_released(VirtualKeyCode::Space) {
+            //         s.send(MsgToGb::Turbo(false)).unwrap();
+            //     }
+
+            //     if input.key_pressed(VirtualKeyCode::C) {
+            //         s.send(MsgToGb::SaveSnapshot).unwrap();
+            //     }
+            //     if input.key_released(VirtualKeyCode::V) {
+            //         s.send(MsgToGb::LoadSnapshot).unwrap();
+            //     }
+
+            //     if input.key_pressed(VirtualKeyCode::Q) {
+            //         s.send(MsgToGb::Rewind(true)).unwrap();
+            //     }
+            //     if input.key_released(VirtualKeyCode::Q) {
+            //         s.send(MsgToGb::Rewind(false)).unwrap();
+            //     }
+            // }
+
+            window.request_redraw();
+        })
+        .expect("Unable to run event loop?");
 }

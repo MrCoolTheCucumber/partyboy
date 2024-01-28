@@ -8,7 +8,7 @@ use crossbeam::channel::{Receiver, Sender};
 use lz4_flex::{compress_prepend_size, decompress_size_prepended};
 use partyboy_common::loop_helper::LoopHelper as ReportHelper;
 use partyboy_core::{GameBoy, SPEED};
-use ringbuffer::{ConstGenericRingBuffer, RingBuffer, RingBufferExt, RingBufferWrite};
+use ringbuffer::{ConstGenericRingBuffer, RingBuffer};
 
 use crate::msgs::{MsgFromGb, MsgToGb};
 
@@ -42,11 +42,11 @@ pub fn new(rom: Option<Vec<u8>>, bios: Option<Vec<u8>>) -> (Sender<MsgToGb>, Rec
             Err(_) => 0,
         };
 
-        log::debug!("Audio devices found: {audio_devices_found}");
+        log::info!("Audio devices found: {audio_devices_found}");
 
         let (audio_s, audio_r) = crossbeam::channel::bounded::<(f32, f32)>(512 * 16);
 
-        if audio_devices_found > 0 {
+        let _: Option<_> = if audio_devices_found > 0 {
             let device = host
                 .default_output_device()
                 .expect("no output device found");
@@ -62,26 +62,33 @@ pub fn new(rom: Option<Vec<u8>>, bios: Option<Vec<u8>>) -> (Sender<MsgToGb>, Rec
             let audio_stream = device
                 .build_output_stream(
                     &config,
-                    move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
-                        let rx = audio_r.clone();
-
+                    move |data: &mut [f32], i: &cpal::OutputCallbackInfo| {
+                        println!("?");
+                        let audio_r = audio_r.clone();
                         let mut index = 0;
                         while index < data.len() {
-                            let sample = rx.try_recv().ok().unwrap_or((0.0, 0.0));
+                            let sample = audio_r.try_recv().ok().unwrap_or((0.0, 0.0));
 
                             data[index] = sample.0;
                             data[index + 1] = sample.1;
                             index += 2;
                         }
                     },
-                    move |_| {},
+                    move |e| {
+                        println!("Stream error: {e:?}");
+                    },
+                    Some(Duration::from_secs(1)),
                 )
                 .unwrap();
 
             audio_stream.play().unwrap();
+
+            log::info!("created audio stream");
+            Some(audio_stream)
         } else {
             log::info!("No audio device found, dropping all audio produced");
-        }
+            None
+        };
 
         let (s, r) = (s_to_ui, r_from_ui);
 

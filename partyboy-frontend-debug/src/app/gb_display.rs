@@ -2,7 +2,7 @@ use eframe::{
     egui,
     epaint::{Color32, ColorImage},
 };
-use gameboy::ppu::rgb::Rgb;
+use partyboy_core::ppu::rgb::Rgb;
 
 use super::DebuggerApp;
 

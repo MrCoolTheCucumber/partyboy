@@ -3,7 +3,7 @@
 mod common;
 
 use common::APPROX_CYCLES_PER_SCREEN_DRAW;
-use gameboy::{builder::SerialWriteHandler, GameBoy};
+use partyboy_core::{builder::SerialWriteHandler, GameBoy};
 use std::{cell::RefCell, path::PathBuf, rc::Rc};
 
 const PASSING_FIB: [u8; 6] = [3, 5, 8, 13, 21, 34];

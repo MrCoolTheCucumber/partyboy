@@ -1,7 +1,7 @@
-use gameboy::ppu::rgb::Rgb;
 use input::{get_key_downs, get_key_ups};
 use logging::init_logger;
 use msgs::MsgFromGb;
+use partyboy_core::ppu::rgb::Rgb;
 
 use clap::clap_app;
 use pixels::{PixelsBuilder, SurfaceTexture};

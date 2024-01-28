@@ -1,4 +1,4 @@
-use gameboy::{input::Keycode, ppu::rgb::Rgb};
+use partyboy_core::{input::Keycode, ppu::rgb::Rgb};
 
 pub enum MsgFromGb {
     Frame(Vec<Rgb>),

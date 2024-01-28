@@ -1,7 +1,7 @@
 use crossbeam::channel::{Receiver, Sender};
 use eframe::egui;
-use gameboy::ppu::rgb::Rgb;
-use gameboy::{debug::GBDebugInfo, input::Keycode};
+use partyboy_core::ppu::rgb::Rgb;
+use partyboy_core::{debug::GBDebugInfo, input::Keycode};
 
 use crate::{channel_log::Log, MessageFromGb, MessageToGB};
 

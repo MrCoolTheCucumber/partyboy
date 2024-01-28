@@ -1,5 +1,5 @@
 [package]
-name = "frontend"
+name = "partyboy-frontend"
 version = "0.1.0"
 edition = "2021"
 resolver="2"
@@ -14,9 +14,9 @@ path = "src/main.rs"
 env_logger = "0.9"
 clap = "2"
 cpal = "0.14.2"
-common = { path = "../partyboy-common" }
+partyboy-common = { path = "../partyboy-common" }
 crossbeam = "0.8"
-gameboy = { path = "../partyboy-core" }
+partyboy-core = { path = "../partyboy-core" }
 log = "0.4"
 log-panics = "2"
 log4rs = "1"

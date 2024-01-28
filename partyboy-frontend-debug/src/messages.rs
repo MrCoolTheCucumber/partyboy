@@ -1,5 +1,5 @@
-use gameboy::debug::GBDebugInfo;
-use gameboy::ppu::rgb::Rgb;
+use partyboy_core::debug::GBDebugInfo;
+use partyboy_core::ppu::rgb::Rgb;
 
 use crate::app::InputType;
 

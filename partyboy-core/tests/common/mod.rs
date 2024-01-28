@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
-use gameboy::ppu::rgb::Rgb;
 use image::Rgb as iRGB;
+use partyboy_core::ppu::rgb::Rgb;
 
 pub const WIDTH: u32 = 160;
 pub const HEIGHT: u32 = 144;

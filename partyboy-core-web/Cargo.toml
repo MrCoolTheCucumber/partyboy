@@ -1,5 +1,5 @@
 [package]
-name = "gameboy_web"
+name = "partyboy-core-web"
 version = "1.0.0"
 edition = "2021"
 
@@ -7,9 +7,9 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-common = { path = "../partyboy-common", features = ["web"] }
+partyboy-common = { path = "../partyboy-common", features = ["web"] }
 console_error_panic_hook = "0.1.7"
-gameboy = { path = "../partyboy-core", features = ["web"] }
+partyboy-core = { path = "../partyboy-core", features = ["web"] }
 js-sys = "0.3.60"
 lz4_flex = { version = "0.9.3", default-features = false, features = ["checked-decode", "safe-encode", "safe-decode"] }
 rmp-serde = "1.1.1"

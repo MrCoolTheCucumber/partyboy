@@ -1,10 +1,9 @@
-use common::bitpacked::BitPackedState;
 use lz4_flex::{compress_prepend_size, decompress_size_prepended};
 use wasm_bindgen::prelude::*;
 
-pub use gameboy::input::Input;
-pub use gameboy::ppu::rgb::Rgb;
-pub use gameboy::GameBoy;
+pub use partyboy_core::input::Input;
+pub use partyboy_core::ppu::rgb::Rgb;
+pub use partyboy_core::GameBoy;
 
 pub use common;
 

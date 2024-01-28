@@ -1,4 +1,4 @@
-use gameboy::input::Keycode;
+use partyboy_core::input::Keycode;
 use winit::event::VirtualKeyCode;
 use winit_input_helper::WinitInputHelper;
 
@@ -15,16 +15,16 @@ const GB_KEYS: [VirtualKeyCode; 8] = [
 
 pub fn try_into_gameboy_input(key: VirtualKeyCode) -> Option<Keycode> {
     match key {
-        VirtualKeyCode::W => Some(gameboy::input::Keycode::Up),
-        VirtualKeyCode::A => Some(gameboy::input::Keycode::Left),
-        VirtualKeyCode::S => Some(gameboy::input::Keycode::Down),
-        VirtualKeyCode::D => Some(gameboy::input::Keycode::Right),
+        VirtualKeyCode::W => Some(Keycode::Up),
+        VirtualKeyCode::A => Some(Keycode::Left),
+        VirtualKeyCode::S => Some(Keycode::Down),
+        VirtualKeyCode::D => Some(Keycode::Right),
 
-        VirtualKeyCode::O => Some(gameboy::input::Keycode::A),
-        VirtualKeyCode::K => Some(gameboy::input::Keycode::B),
+        VirtualKeyCode::O => Some(Keycode::A),
+        VirtualKeyCode::K => Some(Keycode::B),
 
-        VirtualKeyCode::M => Some(gameboy::input::Keycode::Start),
-        VirtualKeyCode::N => Some(gameboy::input::Keycode::Select),
+        VirtualKeyCode::M => Some(Keycode::Start),
+        VirtualKeyCode::N => Some(Keycode::Select),
 
         _ => None,
     }

@@ -1,7 +1,7 @@
 mod common;
 
 use common::APPROX_CYCLES_PER_SCREEN_DRAW;
-use gameboy::{builder::SerialWriteHandler, GameBoy};
+use partyboy_core::{builder::SerialWriteHandler, GameBoy};
 use std::{cell::RefCell, path::PathBuf, rc::Rc};
 
 macro_rules! define_blargg_cpu_test {

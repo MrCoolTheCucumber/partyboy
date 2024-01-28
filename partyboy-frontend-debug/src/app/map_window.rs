@@ -2,7 +2,7 @@ use eframe::{
     egui::{self, Ui},
     epaint::{Color32, ColorImage},
 };
-use gameboy::{
+use partyboy_core::{
     debug::{GBPalleteData, GBPpuInfo},
     ppu::rgb::Rgb,
 };

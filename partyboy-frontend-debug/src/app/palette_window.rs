@@ -4,7 +4,7 @@ use eframe::{
     epaint::Color32,
 };
 use egui_extras::{Size, TableBuilder};
-use gameboy::{debug::CgbCompatibility, ppu::rgb::Rgb};
+use partyboy_core::{debug::CgbCompatibility, ppu::rgb::Rgb};
 
 use super::DebuggerApp;
 

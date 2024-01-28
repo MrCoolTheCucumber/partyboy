@@ -935,14 +935,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "common"
-version = "0.1.0"
-dependencies = [
- "log",
- "wasm-bindgen",
-]
-
-[[package]]
 name = "concurrent-queue"
 version = "2.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1798,46 +1790,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "frontend"
-version = "0.1.0"
-dependencies = [
- "clap 2.34.0",
- "common",
- "cpal",
- "crossbeam",
- "env_logger",
- "gameboy",
- "log",
- "log-panics",
- "log4rs",
- "lz4_flex",
- "pixels",
- "ringbuffer",
- "rmp-serde",
- "serde",
- "spin_sleep",
- "winit 0.27.5",
- "winit_input_helper",
-]
-
-[[package]]
-name = "frontend_debug"
-version = "0.1.0"
-dependencies = [
- "clap 3.2.25",
- "crossbeam",
- "eframe",
- "egui_extras",
- "env_logger",
- "flexi_logger",
- "gameboy",
- "log",
- "log-panics",
- "rfd",
- "spin_sleep",
-]
-
-[[package]]
 name = "futures-core"
 version = "0.3.30"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1903,24 +1855,6 @@ dependencies = [
  "pin-project-lite",
  "pin-utils",
  "slab",
-]
-
-[[package]]
-name = "gameboy"
-version = "0.1.0"
-dependencies = [
- "console_error_panic_hook",
- "criterion",
- "image",
- "log",
- "paste",
- "rmp-serde",
- "seq-macro",
- "serde",
- "serde-big-array",
- "serde_json",
- "thiserror",
- "wasm-bindgen",
 ]
 
 [[package]]
@@ -3224,11 +3158,77 @@ dependencies = [
 ]
 
 [[package]]
+name = "partyboy-common"
+version = "0.1.0"
+dependencies = [
+ "log",
+ "wasm-bindgen",
+]
+
+[[package]]
+name = "partyboy-core"
+version = "0.1.0"
+dependencies = [
+ "console_error_panic_hook",
+ "criterion",
+ "image",
+ "log",
+ "paste",
+ "rmp-serde",
+ "seq-macro",
+ "serde",
+ "serde-big-array",
+ "serde_json",
+ "thiserror",
+ "wasm-bindgen",
+]
+
+[[package]]
+name = "partyboy-frontend"
+version = "0.1.0"
+dependencies = [
+ "clap 2.34.0",
+ "cpal",
+ "crossbeam",
+ "env_logger",
+ "log",
+ "log-panics",
+ "log4rs",
+ "lz4_flex",
+ "partyboy-common",
+ "partyboy-core",
+ "pixels",
+ "ringbuffer",
+ "rmp-serde",
+ "serde",
+ "spin_sleep",
+ "winit 0.27.5",
+ "winit_input_helper",
+]
+
+[[package]]
+name = "partyboy-frontend-debug"
+version = "0.1.0"
+dependencies = [
+ "clap 3.2.25",
+ "crossbeam",
+ "eframe",
+ "egui_extras",
+ "env_logger",
+ "flexi_logger",
+ "log",
+ "log-panics",
+ "partyboy-core",
+ "rfd",
+ "spin_sleep",
+]
+
+[[package]]
 name = "partyboy-util"
 version = "0.1.0"
 dependencies = [
  "clap 4.4.18",
- "gameboy",
+ "partyboy-core",
  "quick-xml",
  "rmp-serde",
  "serde",

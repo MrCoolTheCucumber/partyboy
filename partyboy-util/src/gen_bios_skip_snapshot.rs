@@ -1,5 +1,5 @@
 use clap::Parser;
-use gameboy::builder::GameBoyBuilder;
+use partyboy_core::builder::GameBoyBuilder;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]

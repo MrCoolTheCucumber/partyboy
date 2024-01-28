@@ -1,13 +1,13 @@
 use std::{collections::VecDeque, time::Duration};
 
-use common::loop_helper::LoopHelper as ReportHelper;
 use cpal::{
     traits::{DeviceTrait, HostTrait, StreamTrait},
     SampleRate, StreamConfig,
 };
 use crossbeam::channel::{Receiver, Sender};
-use gameboy::{GameBoy, SPEED};
 use lz4_flex::{compress_prepend_size, decompress_size_prepended};
+use partyboy_common::loop_helper::LoopHelper as ReportHelper;
+use partyboy_core::{GameBoy, SPEED};
 use ringbuffer::{ConstGenericRingBuffer, RingBuffer, RingBufferExt, RingBufferWrite};
 
 use crate::msgs::{MsgFromGb, MsgToGb};
@@ -115,7 +115,7 @@ pub fn new(rom: Option<Vec<u8>>, bios: Option<Vec<u8>>) -> (Sender<MsgToGb>, Rec
             loop_helper.loop_start();
 
             // calculate how many ticks have elapsed
-            let now = common::time::now();
+            let now = partyboy_common::time::now();
 
             let msgs: Vec<MsgToGb> = r.try_iter().collect();
             for msg in msgs {

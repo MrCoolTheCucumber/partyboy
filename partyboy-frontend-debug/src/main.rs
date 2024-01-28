@@ -4,8 +4,8 @@ use app::DebuggerApp;
 use channel_log::ChannelLog;
 use crossbeam::channel::{Receiver, Sender};
 use eframe::{egui::Context, emath::Vec2, NativeOptions};
-use gameboy::{builder::GameBoyBuilder, GameBoy};
 use messages::{MessageFromGb, MessageToGB};
+use partyboy_core::{builder::GameBoyBuilder, GameBoy};
 use spin_sleep::LoopHelper;
 
 mod app;

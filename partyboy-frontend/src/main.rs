@@ -9,6 +9,7 @@ use winit::{
     dpi::LogicalSize,
     event::{ElementState, Event, WindowEvent},
     event_loop::EventLoop,
+    keyboard::{Key, NamedKey},
     platform::modifier_supplement::KeyEventExtModifierSupplement,
     window::WindowBuilder,
 };
@@ -133,12 +134,28 @@ fn main() {
                             if let Some(gb_input) = try_into_gameboy_input(key.as_ref()) {
                                 match event.state {
                                     ElementState::Pressed => {
-                                        s.send(MsgToGb::KeyDown(vec![gb_input])).unwrap()
+                                        s.send(MsgToGb::KeyDown(gb_input)).unwrap()
                                     }
                                     ElementState::Released => {
-                                        s.send(MsgToGb::KeyUp(vec![gb_input])).unwrap()
+                                        s.send(MsgToGb::KeyUp(gb_input)).unwrap()
                                     }
                                 }
+                            }
+
+                            match key.as_ref() {
+                                Key::Named(NamedKey::Escape) => {
+                                    elwt.exit();
+                                    return;
+                                }
+                                Key::Named(NamedKey::Space) => {
+                                    s.send(MsgToGb::Turbo(event.state.is_pressed())).unwrap();
+                                }
+                                Key::Character("q") => {
+                                    s.send(MsgToGb::Rewind(event.state.is_pressed())).unwrap();
+                                }
+                                Key::Character("c") => s.send(MsgToGb::SaveSnapshot).unwrap(),
+                                Key::Character("v") => s.send(MsgToGb::LoadSnapshot).unwrap(),
+                                _ => {}
                             }
                         }
                         _ => {}
@@ -147,49 +164,7 @@ fn main() {
                 _ => {}
             }
 
-            // if input.update(&event) {
-            //     // TODO: use 1 message..
-            //     let key_downs = get_key_downs(&mut input);
-            //     let key_ups = get_key_ups(&mut input);
-
-            //     if !key_downs.is_empty() {
-            //         let keydown_msg = MsgToGb::KeyDown(key_downs);
-            //         s.send(keydown_msg).unwrap();
-            //     }
-
-            //     if !key_ups.is_empty() {
-            //         let keyup_msg = MsgToGb::KeyUp(key_ups);
-            //         s.send(keyup_msg).unwrap();
-            //     }
-
-            //     if input.key_pressed(VirtualKeyCode::Escape) || input.quit() {
-            //         *elwt = ControlFlow::Exit;
-            //         return;
-            //     }
-
-            //     if input.key_pressed(VirtualKeyCode::Space) {
-            //         s.send(MsgToGb::Turbo(true)).unwrap();
-            //     }
-            //     if input.key_released(VirtualKeyCode::Space) {
-            //         s.send(MsgToGb::Turbo(false)).unwrap();
-            //     }
-
-            //     if input.key_pressed(VirtualKeyCode::C) {
-            //         s.send(MsgToGb::SaveSnapshot).unwrap();
-            //     }
-            //     if input.key_released(VirtualKeyCode::V) {
-            //         s.send(MsgToGb::LoadSnapshot).unwrap();
-            //     }
-
-            //     if input.key_pressed(VirtualKeyCode::Q) {
-            //         s.send(MsgToGb::Rewind(true)).unwrap();
-            //     }
-            //     if input.key_released(VirtualKeyCode::Q) {
-            //         s.send(MsgToGb::Rewind(false)).unwrap();
-            //     }
-            // }
-
             window.request_redraw();
         })
-        .expect("Unable to run event loop?");
+        .expect("Unable to start event loop?");
 }

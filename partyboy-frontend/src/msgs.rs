@@ -8,8 +8,8 @@ pub enum MsgFromGb {
 pub enum MsgToGb {
     #[allow(dead_code)]
     Load,
-    KeyDown(Vec<Keycode>),
-    KeyUp(Vec<Keycode>),
+    KeyDown(Keycode),
+    KeyUp(Keycode),
     Turbo(bool),
     Rewind(bool),
 

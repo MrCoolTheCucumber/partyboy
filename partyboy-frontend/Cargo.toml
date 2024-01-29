@@ -13,7 +13,7 @@ path = "src/main.rs"
 [dependencies]
 env_logger = "0.11"
 clap = "2"
-cpal = "0.15.2"
+cpal = "0.15"
 partyboy-common = { path = "../partyboy-common" }
 crossbeam = "0.8"
 partyboy-core = { path = "../partyboy-core" }

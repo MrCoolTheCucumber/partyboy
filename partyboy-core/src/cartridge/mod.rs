@@ -1,3 +1,5 @@
+use std::iter;
+
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -187,7 +189,7 @@ impl Cartridge {
     // we cant return `impl trait` in rust yet so lets do this
     pub fn iter_ram(&self) -> Box<dyn Iterator<Item = u8> + '_> {
         match self {
-            Cartridge::Rom(_) => unimplemented!("ROM doesn't have any RAM!"),
+            Cartridge::Rom(_) => Box::new(iter::empty()),
             Cartridge::Mbc1(cart) => Self::get_ram_iter(cart),
             Cartridge::Mbc2(cart) => Self::get_ram_iter(cart),
             Cartridge::Mbc3(cart) => Self::get_ram_iter(cart),

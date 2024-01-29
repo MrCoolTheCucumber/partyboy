@@ -219,4 +219,11 @@ impl GameBoy {
 
         *self = snapshot;
     }
+
+    pub fn try_read_cartridge_ram(&self) -> Option<Box<[u8]>> {
+        self.bus
+            .cartridge
+            .as_ref()
+            .map(|cart| cart.iter_ram().collect::<Vec<_>>().into_boxed_slice())
+    }
 }

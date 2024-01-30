@@ -5,7 +5,7 @@ pub use partyboy_core::input::Input;
 pub use partyboy_core::ppu::rgb::Rgb;
 pub use partyboy_core::GameBoy;
 
-pub use common;
+pub use partyboy_common as common;
 
 #[wasm_bindgen]
 pub fn init_panic_hook() {

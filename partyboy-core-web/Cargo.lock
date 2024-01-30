@@ -27,13 +27,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
-name = "common"
-version = "0.1.0"
-dependencies = [
- "wasm-bindgen",
-]
-
-[[package]]
 name = "console_error_panic_hook"
 version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -41,34 +34,6 @@ checksum = "a06aeb73f470f66dcdbf7223caeebb85984942f22f1adb2a088cf9668146bbbc"
 dependencies = [
  "cfg-if",
  "wasm-bindgen",
-]
-
-[[package]]
-name = "gameboy"
-version = "0.1.0"
-dependencies = [
- "console_error_panic_hook",
- "log",
- "paste",
- "rmp-serde",
- "serde",
- "serde-big-array",
- "thiserror",
- "wasm-bindgen",
-]
-
-[[package]]
-name = "gameboy_web"
-version = "1.0.0"
-dependencies = [
- "common",
- "console_error_panic_hook",
- "gameboy",
- "js-sys",
- "lz4_flex",
- "rmp-serde",
- "wasm-bindgen",
- "web-sys",
 ]
 
 [[package]]
@@ -109,6 +74,41 @@ name = "once_cell"
 version = "1.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "86f0b0d4bf799edbc74508c1e8bf170ff5f41238e5f8225603ca7caaae2b7860"
+
+[[package]]
+name = "partyboy-common"
+version = "0.1.0"
+dependencies = [
+ "wasm-bindgen",
+]
+
+[[package]]
+name = "partyboy-core"
+version = "0.1.0"
+dependencies = [
+ "console_error_panic_hook",
+ "log",
+ "paste",
+ "rmp-serde",
+ "serde",
+ "serde-big-array",
+ "thiserror",
+ "wasm-bindgen",
+]
+
+[[package]]
+name = "partyboy-core-web"
+version = "1.1.0"
+dependencies = [
+ "console_error_panic_hook",
+ "js-sys",
+ "lz4_flex",
+ "partyboy-common",
+ "partyboy-core",
+ "rmp-serde",
+ "wasm-bindgen",
+ "web-sys",
+]
 
 [[package]]
 name = "paste"

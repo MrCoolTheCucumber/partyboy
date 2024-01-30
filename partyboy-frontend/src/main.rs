@@ -1,3 +1,6 @@
+use std::path::PathBuf;
+
+use emu_thread::EmuThreadHandle;
 use input::try_into_gameboy_input;
 use logging::init_logger;
 use msgs::MsgFromGb;
@@ -5,6 +8,7 @@ use partyboy_core::ppu::rgb::Rgb;
 
 use clap::clap_app;
 use pixels::{wgpu::Backends, PixelsBuilder, SurfaceTexture};
+use saves::{read_save_file, write_save_file};
 use winit::{
     dpi::LogicalSize,
     event::{ElementState, Event, WindowEvent},
@@ -20,6 +24,7 @@ mod emu_thread;
 mod input;
 mod logging;
 mod msgs;
+mod saves;
 
 pub const SCALE: u32 = 2;
 pub const WIDTH: u32 = 160;
@@ -52,19 +57,6 @@ fn parse_args() -> Args {
     }
 }
 
-// fn get_save_file_path_from_rom_path(path: &Path) -> PathBuf {
-//     let mut save_file_path = PathBuf::from(path);
-//     let file_name = save_file_path
-//         .file_stem()
-//         .unwrap()
-//         .to_str()
-//         .unwrap()
-//         .to_owned();
-//     save_file_path.pop();
-//     save_file_path.push(format!("{}.sav", file_name));
-//     save_file_path
-// }
-
 fn main() {
     let args = parse_args();
 
@@ -73,7 +65,13 @@ fn main() {
 
     let rom = args
         .rom_path
+        .as_ref()
         .map(|path| std::fs::read(path).expect("Unable to read game file"));
+
+    let ram = args
+        .rom_path
+        .as_ref()
+        .and_then(|path| read_save_file(&PathBuf::from(path)));
 
     let bios = args
         .bios_path
@@ -97,12 +95,14 @@ fn main() {
             .unwrap()
     };
 
-    let (s, r) = emu_thread::new(rom, bios);
+    let EmuThreadHandle { tx, rx, handle } = emu_thread::new(rom, bios, ram);
+    let mut handle = Some(handle);
+
     let mut frame_to_draw: Option<Vec<Rgb>> = None;
 
     event_loop
         .run(move |event, elwt| {
-            let msgs: Vec<MsgFromGb> = r.try_iter().collect();
+            let msgs: Vec<MsgFromGb> = rx.try_iter().collect();
             for msg in msgs {
                 match msg {
                     MsgFromGb::Frame(fb) => frame_to_draw = Some(fb),
@@ -134,10 +134,10 @@ fn main() {
                             if let Some(gb_input) = try_into_gameboy_input(key.as_ref()) {
                                 match event.state {
                                     ElementState::Pressed => {
-                                        s.send(MsgToGb::KeyDown(gb_input)).unwrap()
+                                        tx.send(MsgToGb::KeyDown(gb_input)).unwrap()
                                     }
                                     ElementState::Released => {
-                                        s.send(MsgToGb::KeyUp(gb_input)).unwrap()
+                                        tx.send(MsgToGb::KeyUp(gb_input)).unwrap()
                                     }
                                 }
                             }
@@ -148,17 +148,35 @@ fn main() {
                                     return;
                                 }
                                 Key::Named(NamedKey::Space) => {
-                                    s.send(MsgToGb::Turbo(event.state.is_pressed())).unwrap();
+                                    tx.send(MsgToGb::Turbo(event.state.is_pressed())).unwrap();
                                 }
                                 Key::Character("q") => {
-                                    s.send(MsgToGb::Rewind(event.state.is_pressed())).unwrap();
+                                    tx.send(MsgToGb::Rewind(event.state.is_pressed())).unwrap();
                                 }
-                                Key::Character("c") => s.send(MsgToGb::SaveSnapshot).unwrap(),
-                                Key::Character("v") => s.send(MsgToGb::LoadSnapshot).unwrap(),
+                                Key::Character("c") => tx.send(MsgToGb::SaveSnapshot).unwrap(),
+                                Key::Character("v") => tx.send(MsgToGb::LoadSnapshot).unwrap(),
                                 _ => {}
                             }
                         }
                         _ => {}
+                    }
+                }
+                Event::LoopExiting => {
+                    tx.send(MsgToGb::Shutdown)
+                        .expect("Unable to signal emu thread to stop");
+
+                    let ram = handle
+                        .take()
+                        .expect("Recieved close request twice?")
+                        .join()
+                        .expect("Unable to join emu thread to main thread");
+
+                    if let Some(ram) = ram {
+                        if let Some(path) = args.rom_path.as_ref() {
+                            write_save_file(&PathBuf::from(path), &ram);
+                        }
+                    } else {
+                        log::warn!("Emulator was unable to read cart ram?");
                     }
                 }
                 _ => {}

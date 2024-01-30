@@ -15,4 +15,6 @@ pub enum MsgToGb {
 
     SaveSnapshot,
     LoadSnapshot,
+
+    Shutdown,
 }

@@ -1,4 +1,4 @@
-use std::{collections::VecDeque, time::Duration};
+use std::{collections::VecDeque, thread::JoinHandle, time::Duration};
 
 use cpal::{
     traits::{DeviceTrait, HostTrait, StreamTrait},
@@ -13,6 +13,12 @@ use ringbuffer::{ConstGenericRingBuffer, RingBuffer};
 use crate::msgs::{MsgFromGb, MsgToGb};
 
 const FPS_REPORT_RATE_MS: u64 = 500;
+
+pub struct EmuThreadHandle {
+    pub tx: Sender<MsgToGb>,
+    pub rx: Receiver<MsgFromGb>,
+    pub handle: JoinHandle<Option<Box<[u8]>>>,
+}
 
 fn take_snapshot(gb: &GameBoy) -> Vec<u8> {
     let encoded = rmp_serde::to_vec(&gb).unwrap();
@@ -100,11 +106,11 @@ fn set_up_audio() -> (Option<Stream>, Sender<(f32, f32)>) {
     (audio_stream, audio_s)
 }
 
-pub fn new(rom: Option<Vec<u8>>, bios: Option<Vec<u8>>) -> (Sender<MsgToGb>, Receiver<MsgFromGb>) {
+pub fn new(rom: Option<Vec<u8>>, bios: Option<Vec<u8>>, ram: Option<Vec<u8>>) -> EmuThreadHandle {
     let (s_to_gb, r_from_ui) = crossbeam::channel::bounded::<MsgToGb>(32);
     let (s_to_ui, r_from_gb) = crossbeam::channel::bounded::<MsgFromGb>(128);
 
-    std::thread::spawn(move || {
+    let handle = std::thread::spawn(move || {
         let (_stream, audio_s) = set_up_audio();
 
         let (s, r) = (s_to_ui, r_from_ui);
@@ -114,6 +120,9 @@ pub fn new(rom: Option<Vec<u8>>, bios: Option<Vec<u8>>) -> (Sender<MsgToGb>, Rec
         // TODO: make builder take optionals?
         if let Some(rom) = rom {
             builder = builder.rom(rom);
+        }
+        if let Some(ram) = ram {
+            builder = builder.ram(ram);
         }
         if let Some(bios) = bios {
             builder = builder.bios(bios);
@@ -165,6 +174,10 @@ pub fn new(rom: Option<Vec<u8>>, bios: Option<Vec<u8>>) -> (Sender<MsgToGb>, Rec
                             apply_snapshot(&mut gb, state);
                             log::info!("Loaded snapshot")
                         }
+                    }
+                    MsgToGb::Shutdown => {
+                        let ram = gb.try_read_cartridge_ram();
+                        return ram;
                     }
                 }
             }
@@ -229,5 +242,9 @@ pub fn new(rom: Option<Vec<u8>>, bios: Option<Vec<u8>>) -> (Sender<MsgToGb>, Rec
         }
     });
 
-    (s_to_gb, r_from_gb)
+    EmuThreadHandle {
+        tx: s_to_gb,
+        rx: r_from_gb,
+        handle,
+    }
 }

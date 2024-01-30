@@ -1,8 +1,6 @@
 #[cfg(feature = "serde")]
 use {
-    super::serialize::{
-        ram_bank_deserialize, ram_bank_serialize, rom_bank_deserialize, rom_bank_serialize,
-    },
+    super::serialize::{ram_bank_deserialize, ram_bank_serialize},
     serde::{Deserialize, Serialize},
 };
 
@@ -31,13 +29,7 @@ pub struct Mbc1 {
     rom_bank_mask_lo: u8,
     rom_bank_mask_hi: u8,
 
-    #[cfg_attr(
-        feature = "serde",
-        serde(
-            serialize_with = "rom_bank_serialize",
-            deserialize_with = "rom_bank_deserialize"
-        )
-    )]
+    #[serde(skip)]
     rom_banks: Vec<[u8; 0x4000]>,
 
     #[cfg_attr(
@@ -202,5 +194,13 @@ impl CartridgeInterface for Mbc1 {
 
     fn ram_banks(&self) -> &Vec<[u8; 0x2000]> {
         &self.ram_banks
+    }
+
+    fn load_rom(&mut self, rom: Vec<[u8; 0x4000]>) {
+        self.rom_banks = rom;
+    }
+
+    fn take_rom(self) -> Vec<[u8; 0x4000]> {
+        self.rom_banks
     }
 }

@@ -4,23 +4,33 @@ use super::CartridgeInterface;
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Rom {
-    data: Box<[u8]>,
+    #[serde(skip)]
+    data: Vec<[u8; 0x4000]>,
 }
 
 impl Rom {
     pub fn new(rom: Vec<u8>) -> Self {
         assert_eq!(rom.len(), 0x8000);
-        Self {
-            data: rom.into_boxed_slice(),
-        }
+
+        let data: Vec<[u8; 0x4000]> = rom
+            .chunks_exact(0x4000)
+            .map(|chunk| {
+                let mut arr = [0; 0x4000];
+                arr.copy_from_slice(chunk);
+                arr
+            })
+            .collect();
+
+        Self { data }
     }
 }
 
 impl CartridgeInterface for Rom {
     fn read_rom(&self, addr: u16) -> u8 {
-        match addr < 0x8000 {
-            true => self.data[addr as usize],
-            false => panic!("Invalid address when reading from ROM cart"),
+        match addr {
+            0x0000..=0x3FFF => self.data[0][addr as usize],
+            0x4000..=0x7FFF => self.data[1][(addr - 0x4000) as usize],
+            _ => panic!("Invalid address when reading from ROM cart"),
         }
     }
 
@@ -43,6 +53,14 @@ impl CartridgeInterface for Rom {
     fn ram_banks(&self) -> &Vec<[u8; 0x2000]> {
         unimplemented!("ROM has no RAM.");
     }
+
+    fn load_rom(&mut self, rom: Vec<[u8; 0x4000]>) {
+        self.data = rom;
+    }
+
+    fn take_rom(self) -> Vec<[u8; 0x4000]> {
+        self.data
+    }
 }
 
 #[cfg(test)]
@@ -52,7 +70,7 @@ use super::Cartridge;
 
 pub fn create_test_rom() -> Cartridge {
     let rom = Rom {
-        data: Box::new([0; 0x8000]),
+        data: vec![[0; 0x4000], [0; 0x4000]],
     };
 
     Cartridge::Rom(rom)

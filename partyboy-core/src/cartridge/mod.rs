@@ -22,6 +22,9 @@ trait CartridgeInterface {
     fn ram_banks(&self) -> &Vec<[u8; 0x2000]>;
     fn has_ram(&self) -> bool;
 
+    fn load_rom(&mut self, rom: Vec<[u8; 0x4000]>);
+    fn take_rom(self) -> Vec<[u8; 0x4000]>;
+
     // fn create_save_file(&self) {
     //     let ram_iter = self.iter_ram();
     //     let save_file_path = self.save_file_path();
@@ -194,6 +197,27 @@ impl Cartridge {
 
     pub fn has_ram(&self) -> bool {
         !matches!(self, Self::Rom(_))
+    }
+
+    /// Init the rom, used for applying snapshots
+    pub(crate) fn load_rom(&mut self, rom: Vec<[u8; 0x4000]>) {
+        match self {
+            Cartridge::Rom(cart) => cart.load_rom(rom),
+            Cartridge::Mbc1(cart) => cart.load_rom(rom),
+            Cartridge::Mbc2(cart) => cart.load_rom(rom),
+            Cartridge::Mbc3(cart) => cart.load_rom(rom),
+            Cartridge::Mbc5(cart) => cart.load_rom(rom),
+        }
+    }
+
+    pub(crate) fn take_rom(self) -> Vec<[u8; 0x4000]> {
+        match self {
+            Cartridge::Rom(cart) => cart.take_rom(),
+            Cartridge::Mbc1(cart) => cart.take_rom(),
+            Cartridge::Mbc2(cart) => cart.take_rom(),
+            Cartridge::Mbc3(cart) => cart.take_rom(),
+            Cartridge::Mbc5(cart) => cart.take_rom(),
+        }
     }
 }
 

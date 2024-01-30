@@ -4,20 +4,6 @@ use std::marker::PhantomData;
 
 use serde::{de::Visitor, ser::SerializeSeq, Deserializer, Serializer};
 
-pub fn rom_bank_serialize<S>(x: &Vec<[u8; 0x4000]>, s: S) -> Result<S::Ok, S::Error>
-where
-    S: Serializer,
-{
-    let mut seq = s.serialize_seq(Some(x.len() * 0x4000))?;
-    for arr in x {
-        for e in arr {
-            seq.serialize_element(e)?;
-        }
-    }
-
-    seq.end()
-}
-
 pub fn ram_bank_serialize<S>(x: &Vec<[u8; 0x2000]>, s: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
@@ -71,13 +57,6 @@ impl<'de, const N: usize> Visitor<'de> for MyVisitor<N> {
             .map(|chunk| chunk.try_into().unwrap())
             .collect())
     }
-}
-
-pub fn rom_bank_deserialize<'de, D>(deserializer: D) -> Result<Vec<[u8; 0x4000]>, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    deserializer.deserialize_seq(MyVisitor::<0x4000>::new())
 }
 
 pub fn ram_bank_deserialize<'de, D>(deserializer: D) -> Result<Vec<[u8; 0x2000]>, D::Error>

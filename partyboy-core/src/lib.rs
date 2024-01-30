@@ -210,7 +210,13 @@ impl GameBoy {
         &self.bus
     }
 
-    pub fn load_snapshot(&mut self, snapshot: GameBoy) {
+    pub fn load_snapshot(&mut self, mut snapshot: GameBoy) {
+        if let (Some(old_cart), Some(new_cart)) =
+            (self.bus.cartridge.take(), snapshot.bus.cartridge.as_mut())
+        {
+            new_cart.load_rom(old_cart.take_rom());
+        }
+
         *self = snapshot;
     }
 }

@@ -113,24 +113,7 @@ fn main() {
             match event {
                 Event::WindowEvent { window_id, event } if window_id == window.id() => {
                     match event {
-                        WindowEvent::CloseRequested => {
-                            tx.send(MsgToGb::Shutdown)
-                                .expect("Unable to signal emu thread to stop");
-
-                            let ram = handle
-                                .take()
-                                .expect("Recieved close request twice?")
-                                .join()
-                                .expect("Unable to join emu thread to main thread");
-
-                            if let Some(ram) = ram {
-                                if let Some(path) = args.rom_path.as_ref() {
-                                    write_save_file(&PathBuf::from(path), &ram);
-                                }
-                            }
-
-                            elwt.exit();
-                        }
+                        WindowEvent::CloseRequested => elwt.exit(),
                         WindowEvent::RedrawRequested => {
                             if let Some(frame) = &frame_to_draw {
                                 let flat_frame = frame
@@ -176,6 +159,24 @@ fn main() {
                             }
                         }
                         _ => {}
+                    }
+                }
+                Event::LoopExiting => {
+                    tx.send(MsgToGb::Shutdown)
+                        .expect("Unable to signal emu thread to stop");
+
+                    let ram = handle
+                        .take()
+                        .expect("Recieved close request twice?")
+                        .join()
+                        .expect("Unable to join emu thread to main thread");
+
+                    if let Some(ram) = ram {
+                        if let Some(path) = args.rom_path.as_ref() {
+                            write_save_file(&PathBuf::from(path), &ram);
+                        }
+                    } else {
+                        log::warn!("Emulator was unable to read cart ram?");
                     }
                 }
                 _ => {}

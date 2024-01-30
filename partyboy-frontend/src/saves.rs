@@ -16,6 +16,7 @@ fn get_save_file_path(rom_path: &Path) -> Option<PathBuf> {
 
 pub fn read_save_file(rom_path: &Path) -> Option<Vec<u8>> {
     let save_file_path = get_save_file_path(rom_path)?;
+    log::info!("Loading save file...");
     fs::read(save_file_path).ok()
 }
 
@@ -25,5 +26,5 @@ pub fn write_save_file(rom_path: &Path, bytes: &[u8]) {
     };
 
     let _ = fs::write(save_file_path, bytes);
-    log::info!("written save file...");
+    log::info!("Written save file...");
 }

@@ -13,5 +13,8 @@ perf.data.old
 !test/test_roms/README.md
 /test_roms
 
+# runner output
+partyboy-mass-runner/out
+
 # hmm
 /bin/_cgb_boot.bin

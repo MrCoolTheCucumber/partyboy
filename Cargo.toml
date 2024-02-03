@@ -4,7 +4,8 @@ members = [
     "partyboy-frontend",
     "partyboy-frontend-debug",
     "partyboy-core",
-    "partyboy-util"
+    "partyboy-util", 
+    "partyboy-mass-runner"
 ]
 default-members = [
     "partyboy-frontend",

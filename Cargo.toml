@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "partyboy-common",
+    "partyboy-disassembler",
     "partyboy-frontend",
     "partyboy-frontend-debug",
     "partyboy-core",

@@ -3274,6 +3274,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "partyboy-disassembler"
+version = "0.1.0"
+dependencies = [
+ "winnow 0.6.1",
+]
+
+[[package]]
 name = "partyboy-frontend"
 version = "0.1.0"
 dependencies = [
@@ -4416,7 +4423,7 @@ checksum = "1b5bb770da30e5cbfde35a2d7b9b8a2c4b8ef89548a7a6aeab5c9a576e3e7421"
 dependencies = [
  "indexmap 2.1.0",
  "toml_datetime",
- "winnow",
+ "winnow 0.5.35",
 ]
 
 [[package]]
@@ -4429,7 +4436,7 @@ dependencies = [
  "serde",
  "serde_spanned",
  "toml_datetime",
- "winnow",
+ "winnow 0.5.35",
 ]
 
 [[package]]
@@ -5434,6 +5441,15 @@ name = "winnow"
 version = "0.5.35"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1931d78a9c73861da0134f453bb1f790ce49b2e30eba8410b4b79bac72b46a2d"
+dependencies = [
+ "memchr",
+]
+
+[[package]]
+name = "winnow"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d90f4e0f530c4c69f62b80d839e9ef3855edc9cba471a160c4d692deed62b401"
 dependencies = [
  "memchr",
 ]

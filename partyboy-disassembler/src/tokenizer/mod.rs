@@ -1,7 +1,8 @@
 use winnow::prelude::*;
+use winnow::stream::Stream as _;
 use winnow::{combinator::repeat, token::take};
 
-use crate::opcode::Opcode;
+use crate::opcode::Instruction;
 
 use self::tokenize_x_0::tokenize_x_0;
 
@@ -37,20 +38,21 @@ impl OpcodeParts for u8 {
     }
 }
 
-pub type Stream<'i> = &'i [u8];
+pub type Stream<'i> = &'i [(usize, u8)];
 
-pub fn parse(data: &[u8]) -> PResult<Vec<Opcode>> {
-    let mut buf = data;
+pub fn parse(data: &[u8]) -> PResult<Vec<Instruction>> {
+    let enumerated = data.iter_offsets().collect::<Vec<_>>();
+    let mut buf = enumerated.as_slice();
     repeat(0.., parse_opcode).parse_next(&mut buf)
 }
 
-fn parse_opcode(input: &mut Stream) -> PResult<Opcode> {
-    let byte = take(1usize)
-        .map(|slice: &[u8]| slice[0])
+fn parse_opcode(input: &mut Stream) -> PResult<Instruction> {
+    let (offset, byte) = take(1usize)
+        .map(|slice: &[(usize, u8)]| slice[0])
         .parse_next(input)?;
 
     match byte.x() {
-        0 => tokenize_x_0(byte, input),
+        0 => tokenize_x_0(byte, offset, input), // TODO: call parse_next?
         1 => todo!(),
         2 => todo!(),
         3 => todo!(),

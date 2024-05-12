@@ -15,7 +15,7 @@ pub enum Register8 {
     HL,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum Register16 {
     BC,
     DE,
@@ -168,13 +168,37 @@ pub enum OpcodeVal {
 
 #[derive(Debug)]
 pub struct Span {
-    start: usize,
-    end: usize,
+    pub start: usize,
+    pub end: usize,
+}
+
+impl Span {
+    pub fn new(start: usize, end: usize) -> Self {
+        Self { start, end }
+    }
+}
+
+impl From<usize> for Span {
+    fn from(value: usize) -> Self {
+        Self {
+            start: value,
+            end: value + 1,
+        }
+    }
+}
+
+impl From<(usize, usize)> for Span {
+    fn from((a, b): (usize, usize)) -> Self {
+        Self {
+            start: a,
+            end: b + 1,
+        }
+    }
 }
 
 #[derive(Debug)]
 pub struct Instruction {
-    val: OpcodeVal,
-    opcode: Opcode,
-    span: Span,
+    pub val: OpcodeVal,
+    pub opcode: Opcode,
+    pub span: Span,
 }

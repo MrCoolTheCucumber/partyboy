@@ -1,5 +1,3 @@
-#![cfg(feature = "serde")]
-
 use std::marker::PhantomData;
 
 use serde::{de::Visitor, ser::SerializeSeq, Deserializer, Serializer};

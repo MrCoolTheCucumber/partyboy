@@ -369,7 +369,7 @@ macro_rules! __jr {
         InstructionStep::Standard(|cpu, _| {
             let jmp_amount = cpu.operand8 as i8;
             if jmp_amount < 0 {
-                cpu.pc = cpu.pc.wrapping_sub(jmp_amount.abs() as u16);
+                cpu.pc = cpu.pc.wrapping_sub(jmp_amount.unsigned_abs() as u16);
             } else {
                 cpu.pc = cpu.pc.wrapping_add(jmp_amount as u16);
             }

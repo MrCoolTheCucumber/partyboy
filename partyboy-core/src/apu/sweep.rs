@@ -96,9 +96,7 @@ impl Sweep {
         }
 
         if self.enabled && self.period > 0 {
-            let Some(new_freq) = self.calc_freq(freq) else {
-                return None;
-            };
+            let new_freq = self.calc_freq(freq)?;
 
             if new_freq <= 2047 && self.slope > 0 && self.calc_freq(new_freq).is_none() {
                 return None;

@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use super::cpu::Cpu;
 
 #[cfg(feature = "serde")]
@@ -34,14 +36,14 @@ impl InterruptFlag {
     }
 }
 
-impl ToString for InterruptFlag {
-    fn to_string(&self) -> String {
+impl Display for InterruptFlag {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            InterruptFlag::VBlank => String::from("VBlank"),
-            InterruptFlag::Stat => String::from("Stat"),
-            InterruptFlag::Timer => String::from("Timer"),
-            InterruptFlag::Serial => String::from("Serial"),
-            InterruptFlag::Joypad => String::from("Joypad"),
+            InterruptFlag::VBlank => write!(f, "VBlank"),
+            InterruptFlag::Stat => write!(f, "Stat"),
+            InterruptFlag::Timer => write!(f, "Timer"),
+            InterruptFlag::Serial => write!(f, "Serial"),
+            InterruptFlag::Joypad => write!(f, "Joypad"),
         }
     }
 }

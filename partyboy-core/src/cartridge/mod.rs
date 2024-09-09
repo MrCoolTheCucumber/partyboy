@@ -22,6 +22,8 @@ trait CartridgeInterface {
     fn write_ram(&mut self, addr: u16, value: u8);
 
     fn ram_banks(&self) -> &Vec<[u8; 0x2000]>;
+
+    #[allow(unused)] // This will be needed for writing save files
     fn has_ram(&self) -> bool;
 
     fn load_rom(&mut self, rom: Vec<[u8; 0x4000]>);

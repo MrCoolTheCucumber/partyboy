@@ -54,7 +54,7 @@ impl GameBoy {
     fn new(
         rom: Option<Vec<u8>>,
         ram: Option<Vec<u8>>,
-        bios: [u8; 2304],
+        bios: [u8; 0x900],
         serial_write_handler: SerialWriteHandler,
     ) -> Self {
         let cartridge = rom.map(|rom| Cartridge::new(rom, ram));

@@ -4,15 +4,16 @@ use std::fmt::Display;
 
 use super::{input::Input, interrupts::Interrupts, ppu::Ppu, timer::Timer};
 use crate::{
-    apu::Apu, builder::SerialWriteHandler, cartridge::Cartridge, common::D2Array,
-    cpu::speed_controller::CpuSpeedController, dma::oam::OamDma,
+    apu::Apu,
+    builder::SerialWriteHandler,
+    cartridge::Cartridge,
+    common::{BoxedSlice, D2Array},
+    cpu::speed_controller::CpuSpeedController,
+    dma::oam::OamDma,
 };
 
 #[cfg(feature = "serde")]
-use {
-    serde::{Deserialize, Serialize},
-    serde_big_array::BigArray,
-};
+use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Copy, Default, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -60,19 +61,16 @@ pub(crate) struct Bus {
     pub cartridge: Option<Cartridge>,
     pub ppu: Ppu,
 
-    pub working_ram: D2Array<u8, 0x1000, 8>,
+    pub working_ram: D2Array<0x1000, 8>,
     working_ram_bank: usize,
 
-    #[cfg_attr(feature = "serde", serde(with = "BigArray"))]
-    pub io: [u8; 0x100],
-    #[cfg_attr(feature = "serde", serde(with = "BigArray"))]
-    pub zero_page: [u8; 0x80],
+    pub io: BoxedSlice<u8, 0x100>,
+    pub zero_page: BoxedSlice<u8, 0x80>,
 
     pub oam_dma: OamDma,
 
     pub bios_enabled: bool,
-    #[cfg_attr(feature = "serde", serde(with = "BigArray"))]
-    pub bios: [u8; 0x900],
+    pub bios: BoxedSlice<u8, 0x900>,
     pub console_compatibility_mode: CgbCompatibility,
 
     pub interrupts: Interrupts,
@@ -86,7 +84,7 @@ impl Bus {
     pub fn new(
         cartridge: Option<Cartridge>,
         serial_write_handler: SerialWriteHandler,
-        bios: [u8; 2304],
+        bios: [u8; 0x900],
     ) -> Self {
         Self {
             serial_write_handler,
@@ -94,16 +92,16 @@ impl Bus {
             cartridge,
             ppu: Ppu::new(),
 
-            working_ram: [[0; 0x1000]; 8].into(),
+            working_ram: D2Array::new_zeroed(),
             working_ram_bank: 1,
 
-            io: [0; 0x100],
-            zero_page: [0; 0x80],
+            io: BoxedSlice::default(),
+            zero_page: BoxedSlice::default(),
 
             oam_dma: OamDma::default(),
 
             bios_enabled: true,
-            bios,
+            bios: BoxedSlice::new_with_slice(bios),
             console_compatibility_mode: CgbCompatibility::CgbOnly,
 
             interrupts: Interrupts::new(),

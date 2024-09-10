@@ -9,7 +9,11 @@ use self::{
     rgb::Rgb,
 };
 use super::interrupts::{InterruptFlag, Interrupts};
-use crate::{bus::CgbCompatibility, common::D2Array, dma::hdma::Hdma};
+use crate::{
+    bus::CgbCompatibility,
+    common::{BoxedSlice, D2Array},
+    dma::hdma::Hdma,
+};
 
 #[cfg(feature = "serde")]
 use {
@@ -19,15 +23,13 @@ use {
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub(crate) struct Ppu {
-    pub gpu_vram: D2Array<u8, 0x2000, 2>,
+    pub gpu_vram: D2Array<0x2000, 2>,
     pub gpu_vram_bank: u8,
 
-    #[cfg_attr(feature = "serde", serde(with = "BigArray"))]
-    pub sprite_table: [u8; 0xA0],
+    pub sprite_table: BoxedSlice<u8, 0xA0>,
     pub sprite_palette: [[usize; 4]; 2],
 
-    #[cfg_attr(feature = "serde", serde(with = "BigArray"))]
-    pub frame_buffer: [Rgb; 160 * 144],
+    pub frame_buffer: BoxedSlice<Rgb, { 160 * 144 }>,
     draw_flag: bool,
 
     bg_palette: [usize; 4],
@@ -58,16 +60,14 @@ pub(crate) struct Ppu {
     pub wy: u8,   // FF4A
     pub wx: u8,   // FF4B
 
-    #[cfg_attr(feature = "serde", serde(with = "BigArray"))]
-    bg_color_palette_ram: [u8; 64],
+    bg_color_palette_ram: BoxedSlice<u8, 64>,
     #[cfg_attr(feature = "serde", serde(with = "BigArray"))]
     bg_color_palette: [[Rgb; 4]; 8],
     bg_color_palette_specification: u8, // FF68
     bg_color_palette_index: usize,
     bg_color_palette_auto_increment: bool,
 
-    #[cfg_attr(feature = "serde", serde(with = "BigArray"))]
-    sprite_color_palette_ram: [u8; 64],
+    sprite_color_palette_ram: BoxedSlice<u8, 64>,
     #[cfg_attr(feature = "serde", serde(with = "BigArray"))]
     sprite_color_palette: [[Rgb; 4]; 8],
     sprite_color_palette_specification: u8, // FF6A
@@ -268,13 +268,13 @@ impl Default for FifoPixel {
 impl Ppu {
     pub fn new() -> Self {
         Self {
-            gpu_vram: [[0; 0x2000]; 2].into(),
+            gpu_vram: D2Array::new_zeroed(),
             gpu_vram_bank: 0b1111_1110,
 
-            sprite_table: [0; 0xA0],
+            sprite_table: BoxedSlice::default(),
             sprite_palette: [[0, 1, 2, 3], [0, 1, 2, 3]],
 
-            frame_buffer: [Rgb::default(); 160 * 144],
+            frame_buffer: BoxedSlice::default(),
             draw_flag: false,
 
             bg_palette: [0, 1, 2, 3],
@@ -304,7 +304,7 @@ impl Ppu {
             wy: 0x0,
             wx: 0x0,
 
-            bg_color_palette_ram: [0xFF; 64],
+            bg_color_palette_ram: BoxedSlice::new_with(0xFF),
             bg_color_palette: [[Rgb::default(); 4]; 8],
             bg_color_palette_specification: 0xFF,
             bg_color_palette_index: 0,
@@ -314,7 +314,7 @@ impl Ppu {
             // "Note that while 4 colors are stored per OBJ palette, color #0 is never used,
             // as it’s always transparent. It’s thus fine to write garbage values,
             // or even leave color #0 uninitialized." - Pandocs
-            sprite_color_palette_ram: [0xFF; 64],
+            sprite_color_palette_ram: BoxedSlice::new_with(0xFF),
             sprite_color_palette: [[Rgb::default(); 4]; 8],
             sprite_color_palette_specification: 0xFF,
             sprite_color_palette_index: 0,
@@ -371,7 +371,7 @@ impl Ppu {
 
     #[cfg(not(feature = "web"))]
     pub fn get_frame_buffer(&self) -> &[Rgb] {
-        &self.frame_buffer
+        &*self.frame_buffer
     }
 
     #[cfg(feature = "web")]
@@ -399,7 +399,7 @@ impl Ppu {
         self.line_clock_cycles = 0;
         self.mode_clock_cycles = 0;
         self.mode = PpuMode::OAM;
-        self.frame_buffer = [Rgb::const_mono(255); 160 * 144];
+        self.frame_buffer = BoxedSlice::new_with(Rgb::const_mono(255));
         self.stat &= 0b1111_1100;
         self.fifo_state.reset();
     }

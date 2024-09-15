@@ -8,7 +8,7 @@ use std::{cell::RefCell, path::PathBuf, rc::Rc};
 
 const PASSING_FIB: [u8; 6] = [3, 5, 8, 13, 21, 34];
 
-fn assert_output(buffer: &Vec<u8>) {
+fn assert_output(buffer: &[u8]) {
     assert_eq!(buffer.len(), 6);
 
     for i in 0..6 {

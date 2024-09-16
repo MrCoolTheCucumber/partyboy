@@ -25,7 +25,7 @@ use self::builder::GameBoyBuilder;
 use self::{
     builder::SerialWriteHandler,
     bus::Bus,
-    cpu::{instructions::InstructionCache, Cpu},
+    cpu::{Cpu, InstructionCache},
     dma::{
         hdma::{DmaType, Hdma, HdmaController},
         oam::OamDma,

@@ -1,5 +1,3 @@
-#![cfg(test)]
-
 use super::{InstructionCache, InstructionOpcode};
 use crate::{bus::Bus, cpu::Cpu};
 use paste::paste;

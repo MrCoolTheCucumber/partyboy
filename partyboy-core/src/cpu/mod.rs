@@ -1,6 +1,8 @@
-pub mod instructions;
+mod instructions;
 pub mod register;
 pub mod speed_controller;
+
+#[cfg(test)]
 mod tests;
 
 #[cfg(feature = "serde")]
@@ -8,12 +10,11 @@ use serde::{Deserialize, Serialize};
 
 use std::fmt::Debug;
 
-use self::{
-    instructions::{Instruction, InstructionCache, InstructionOpcode, InstructionState},
-    register::Register,
-};
-use super::bus::Bus;
-use crate::cpu::instructions::InstructionStep;
+use crate::bus::Bus;
+use instructions::{Instruction, InstructionOpcode, InstructionState, InstructionStep};
+use register::Register;
+
+pub use instructions::InstructionCache;
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub(crate) struct Cpu {
@@ -103,8 +104,8 @@ impl Cpu {
         #[cfg(debug_assertions)]
         debug_assert!(self.is_fetching || self.instruction_opcode.is_none());
 
-        if self.instruction_opcode.is_some() {
-            match self.instruction_opcode.unwrap() {
+        if let Some(instruction_opcode) = self.instruction_opcode.take() {
+            match instruction_opcode {
                 InstructionOpcode::Unprefixed(_) => self.pc -= 1,
                 InstructionOpcode::Prefixed(_) => self.pc -= 2,
                 _ => unreachable!(),

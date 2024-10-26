@@ -35,8 +35,8 @@ pub enum IncDecArg {
 pub struct BitArg {
     /// A 3 bit unsigned number (0 - 7) representing the particular bit tod
     /// perform the operation on
-    bit: u8,
-    register: Register8,
+    pub bit: u8,
+    pub register: Register8,
 }
 
 #[derive(Debug)]
@@ -132,6 +132,9 @@ pub enum Opcode {
     NOP,
     SCF,
     STOP,
+
+    // BRUH
+    Invalid(u8),
 }
 
 #[derive(Debug)]

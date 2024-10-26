@@ -7,10 +7,13 @@ use crate::opcode::{Instruction, OpcodeParts as _};
 use self::tokenize_x_0::tokenize_x_0;
 use self::tokenize_x_1::tokenize_x_1;
 use self::tokenize_x_2::tokenize_x_2;
+use self::tokenize_x_3::tokenize_x_3;
 
+mod tokenize_cb_prefix;
 mod tokenize_x_0;
 mod tokenize_x_1;
 mod tokenize_x_2;
+mod tokenize_x_3;
 
 pub type Stream<'i> = &'i [(usize, u8)];
 
@@ -29,7 +32,7 @@ fn parse_opcode(input: &mut Stream) -> PResult<Instruction> {
         0 => tokenize_x_0(byte, offset, input),
         1 => tokenize_x_1(byte, offset),
         2 => tokenize_x_2(byte, offset),
-        3 => todo!(),
+        3 => tokenize_x_3(byte, offset, input),
         _ => unreachable!(),
     }
 }

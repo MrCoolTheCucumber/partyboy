@@ -21,7 +21,7 @@ pub fn tokenize_x_0(byte: u8, offset: usize, input: &mut Stream) -> PResult<Inst
         4 => tokenize_z_4(byte, offset),
         5 => tokenize_z_5(byte, offset),
         6 => tokenize_z_6(byte, offset, input),
-        7 => tokenize_x_7(byte, offset),
+        7 => tokenize_z_7(byte, offset),
         _ => unreachable!(),
     }
 }
@@ -191,24 +191,24 @@ fn tokenize_z_5(byte: u8, offset: usize) -> PResult<Instruction> {
 
 fn tokenize_z_6(byte: u8, offset: usize, input: &mut Stream) -> PResult<Instruction> {
     // TODO: return an actual winnow error
-    take(2usize)
+    take(1usize)
         .map(|bytes: &[(usize, u8)]| {
             let dest_reg8: Register8 = (*byte.y()).into();
             let opcode = Opcode::LD {
-                src: LoadArg::N8(bytes[1].1),
+                src: LoadArg::N8(bytes[0].1),
                 dest: LoadArg::R8(dest_reg8),
             };
 
             Instruction {
                 val: OpcodeVal::Unprefixed(byte),
                 opcode,
-                span: (offset, bytes[1].0).into(),
+                span: (offset, bytes[0].0).into(),
             }
         })
         .parse_next(input)
 }
 
-fn tokenize_x_7(byte: u8, offset: usize) -> PResult<Instruction> {
+fn tokenize_z_7(byte: u8, offset: usize) -> PResult<Instruction> {
     let val = OpcodeVal::Unprefixed(byte);
     let span = offset.into();
 

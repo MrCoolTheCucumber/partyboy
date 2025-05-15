@@ -7,7 +7,7 @@ use msgs::MsgFromGb;
 use partyboy_core::ppu::rgb::Rgb;
 
 use clap::clap_app;
-use pixels::{wgpu::Backends, PixelsBuilder, SurfaceTexture};
+use pixels::{PixelsBuilder, SurfaceTexture};
 use saves::{read_save_file, write_save_file};
 use winit::{
     dpi::LogicalSize,
@@ -90,7 +90,6 @@ fn main() {
         let surface_texture = SurfaceTexture::new(window_size.width, window_size.height, &window);
         PixelsBuilder::new(WIDTH, HEIGHT, surface_texture)
             .enable_vsync(false)
-            .wgpu_backend(Backends::VULKAN)
             .build()
             .unwrap()
     };

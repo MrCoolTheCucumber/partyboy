@@ -51,7 +51,7 @@ impl CartridgeInterface for Rom {
     }
 
     fn ram_banks(&self) -> &Vec<[u8; 0x2000]> {
-        unimplemented!("ROM has no RAM.");
+        unimplemented!("ROM has no RAM.")
     }
 
     fn load_rom(&mut self, rom: Vec<[u8; 0x4000]>) {
@@ -67,7 +67,6 @@ impl CartridgeInterface for Rom {
 use super::Cartridge;
 
 #[cfg(test)]
-
 pub fn create_test_rom() -> Cartridge {
     let rom = Rom {
         data: vec![[0; 0x4000], [0; 0x4000]],

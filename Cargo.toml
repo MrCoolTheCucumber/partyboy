@@ -42,6 +42,11 @@ spin_sleep = "1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter", "tracing-log"] }
 tracing-appender = "0.2"
+anyhow = "1"
+indicatif = { version = "0.18", features = ["rayon"] }
+panic-message = "0.3"
+rayon = "1"
+partyboy-core = { path = "partyboy-core", version = "0.1.0" }
 
 [profile.dev]
 opt-level = 3

@@ -126,7 +126,7 @@ macro_rules! add_hl_r16 {
                 cpu.clear_flag(Flag::N);
                 cpu.set_flag_if_cond_else_clear(overflown, Flag::C);
 
-                let half_carry_occured = (u16::from(cpu.hl) & 0xFFF) + ((u16::from(cpu.$reg) & 0xFFF)) > 0xFFF;
+                let half_carry_occured = (u16::from(cpu.hl) & 0xFFF) + (u16::from(cpu.$reg) & 0xFFF) > 0xFFF;
                 cpu.set_flag_if_cond_else_clear(half_carry_occured, Flag::H);
 
                 cpu.hl = result.into();
@@ -1470,8 +1470,6 @@ pub(super) use __adc;
 pub(super) use __add;
 pub(super) use __and;
 pub(super) use __cp;
-pub(super) use __define_branching_op_macro;
-pub(super) use __define_op_macro;
 pub(super) use __jr;
 pub(super) use __or;
 pub(super) use __pop_r16_af_edgecase;

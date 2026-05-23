@@ -123,7 +123,7 @@ impl SampleChannel {
             0 => {
                 self.sample_index = (self.sample_index + 1) % 32;
 
-                if self.written_freq_flag && self.sample_index % 2 == 0 {
+                if self.written_freq_flag && self.sample_index.is_multiple_of(2) {
                     self.frequency = self.written_freqency;
                 }
 

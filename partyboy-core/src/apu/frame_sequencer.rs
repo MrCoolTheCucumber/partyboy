@@ -23,7 +23,7 @@ impl SteppedComponents {
 impl From<u32> for SteppedComponents {
     fn from(val: u32) -> Self {
         Self {
-            length_crtl: val % 2 != 0,
+            length_crtl: !val.is_multiple_of(2),
             vol_envelope: val == 7,
             sweep: val == 2 || val == 6,
         }

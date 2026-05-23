@@ -1,297 +1,209 @@
-use std::{
-    any::Any,
-    fs, iter, panic,
-    path::{Path, PathBuf},
+mod args;
+mod emulator;
+mod rom;
+mod types;
+mod writer;
+
+use std::sync::atomic::{AtomicU8, AtomicUsize, Ordering};
+use std::sync::Arc;
+use std::time::Duration;
+use std::{fs, panic, process, thread};
+
+use anyhow::{bail, Result};
+use clap::Parser;
+use crossbeam::channel;
+use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
+use panic::AssertUnwindSafe;
+
+use crate::args::Args;
+use crate::emulator::run_one_rom;
+use crate::rom::{filter_completed_for_resume, get_all_roms, rom_display_name, Rom};
+use crate::types::{
+    current_shutdown, new_shutdown, request_shutdown, RunResult, ShutdownState, WorkerStatus,
 };
 
-use anyhow::{anyhow, bail, Result};
-use clap::Parser;
-use image::{ImageBuffer, RgbImage};
-use indicatif::{ParallelProgressIterator, ProgressBar, ProgressStyle};
-use partyboy_core::{builder::GameBoyBuilder, input::Keycode, ppu::rgb::Rgb, GameBoy};
-use rayon::iter::{IntoParallelIterator, ParallelIterator};
-
-#[derive(Debug, Parser)]
-#[command(author, version, about, long_about = None)]
-struct Args {
-    #[arg(short, long)]
-    roms_dir: PathBuf,
-
-    #[arg(short, long)]
-    output: PathBuf,
-
-    #[arg(short, long)]
-    bios: Option<PathBuf>,
-
-    /// Target emulation speed as a multiplier of real time (e.g. 3.0 = 3x real-time).
-    /// Values <= 0 mean unlimited / original max-speed behavior.
-    #[arg(long, default_value_t = 3.0)]
-    speed_factor: f64,
-}
-
-#[allow(unused)]
-enum RunResult {
-    Success {
-        rom_name: String,
-        fourty_seconds_frame_buffer: Vec<Rgb>,
-        onetwenty_seconds_frame_buffer: Vec<Rgb>,
-        rom_path: PathBuf,
-    },
-    Fail {
-        rom_name: String,
-        error: Box<dyn Any + Send>,
-    },
-}
-
-struct Rom {
-    bytes: Vec<u8>,
-    path: PathBuf,
-}
-
-fn get_all_roms(path: &Path) -> Result<Vec<Rom>> {
-    fs::read_dir(path)?
-        .filter_map(|entry| {
-            let entry = entry.ok()?;
-            if entry.file_type().ok()?.is_dir() {
-                return None;
-            }
-            Some(entry.path())
-        })
-        .map(|path| {
-            let bytes = fs::read(&path)?;
-            Ok(Rom { bytes, path })
-        })
-        .collect::<Result<Vec<_>>>()
-}
-
-fn into_img(fb: Vec<Rgb>) -> RgbImage {
-    let mut img: RgbImage = ImageBuffer::new(160, 144);
-    fb.into_iter()
-        .flat_map(|rgb| [rgb.r, rgb.g, rgb.b])
-        .zip(img.iter_mut())
-        .for_each(|(px, img_px)| *img_px = px);
-    img
-}
-
-/// Run exactly `ticks` calls to `gb.tick()`, invoking `on_tick(gb, i)` after each tick.
-/// When `speed_factor > 0` the loop dynamically sleeps (using real wall time)
-/// so that the *average* emulation rate does not exceed `speed_factor` × real time.
-/// A factor <= 0 means "run as fast as possible" (original unlimited behavior).
-fn run_emulated_ticks<F>(gb: &mut GameBoy, ticks: u64, speed_factor: f64, mut on_tick: F)
-where
-    F: FnMut(&mut GameBoy, u64),
-{
-    if speed_factor <= 0.0 {
-        for i in 0..ticks {
-            let _ = gb.tick();
-            on_tick(gb, i);
-        }
-        return;
-    }
-
-    let start = std::time::Instant::now();
-    // Check once per emulated second — very low overhead and yields nice long sleeps
-    // that the OS scheduler can actually deschedule the thread for.
-    let check_every = partyboy_core::SPEED;
-
-    for i in 0..ticks {
-        let _ = gb.tick();
-        on_tick(gb, i);
-
-        if i % check_every == 0 {
-            let emulated_seconds = i as f64 / partyboy_core::SPEED as f64;
-            let desired_real_seconds = emulated_seconds / speed_factor;
-            let real_seconds = start.elapsed().as_secs_f64();
-            if real_seconds < desired_real_seconds {
-                std::thread::sleep(std::time::Duration::from_secs_f64(
-                    desired_real_seconds - real_seconds,
-                ));
-            }
-        }
-    }
-}
-
 fn main() -> Result<()> {
+    tracing_subscriber::fmt()
+        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+        .init();
+
     let args = Args::parse();
 
     if !args.roms_dir.is_dir() {
         bail!("roms_dir is not a directory!");
     }
-
     if args.output.is_file() {
         bail!("output is not a directory!");
     }
 
-    let bios = if let Some(bios_path) = args.bios {
-        Some(fs::read(bios_path)?)
-    } else {
-        None
-    };
+    let bios: Option<Arc<[u8]>> = args
+        .bios
+        .as_deref()
+        .map(fs::read)
+        .transpose()?
+        .map(Arc::from);
 
-    let speed_factor = args.speed_factor;
+    let mut roms = get_all_roms(&args.roms_dir)?;
 
-    let roms = get_all_roms(&args.roms_dir)?;
+    if args.resume {
+        if !args.output.exists() {
+            fs::create_dir_all(&args.output)?;
+        }
+        let before = roms.len();
+        roms = filter_completed_for_resume(roms, &args.output);
+        tracing::info!(
+            "Resume mode: {} already done, {} remaining.",
+            before - roms.len(),
+            roms.len()
+        );
+    }
 
-    println!("Found {} roms.", roms.len());
+    let total_to_process = roms.len();
+    tracing::info!("Found {} ROMs to process.", total_to_process);
 
-    let pb = ProgressBar::new(roms.len() as u64);
-    pb.set_style(
+    let jobs = args.jobs.unwrap_or_else(|| {
+        thread::available_parallelism()
+            .map(|n| n.get())
+            .unwrap_or(4)
+            .min(16)
+    });
+
+    let (work_tx, work_rx) = channel::unbounded::<Rom>();
+    let (result_tx, result_rx) = channel::unbounded::<RunResult>();
+    let completed_count = Arc::new(AtomicUsize::new(0));
+
+    for rom in roms {
+        let _ = work_tx.send(rom);
+    }
+    drop(work_tx);
+
+    let mp = MultiProgress::new();
+
+    // Route panic output through mp.println so it doesn't interleave with the bar
+    // redraws (stderr writes by the default hook leave half-rendered bars stuck in
+    // the scrollback). The full message is still persisted via the writer thread's
+    // .failed marker.
+    {
+        let mp = mp.clone();
+        panic::set_hook(Box::new(move |info| {
+            let name = thread::current().name().unwrap_or("<unnamed>").to_string();
+            let _ = mp.println(format!("thread '{name}' {info}"));
+        }));
+    }
+
+    let global_bar = mp.add(ProgressBar::new(total_to_process as u64));
+    global_bar.set_style(
         ProgressStyle::with_template(
-            "{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {pos:>7}/{len:7} ({eta})",
+            "{spinner:.green} [{elapsed_precise}] {bar:40.cyan/blue} {pos:>5}/{len:5} ROMs ({eta})",
         )
         .unwrap()
-        .progress_chars("#>-"),
+        .progress_chars("##-"),
+    );
+    global_bar.set_message("Overall");
+
+    let worker_bars: Vec<ProgressBar> = (0..jobs)
+        .map(|i| {
+            let pb = mp.add(ProgressBar::new(120));
+            pb.set_style(
+                ProgressStyle::with_template(&format!(
+                    "  [W{i:02}] {{spinner:.yellow}} {{msg:<20.20}} [{{bar:30.green/blue}}] {{pos:>3}}/{{len}}s"
+                ))
+                .unwrap()
+                .progress_chars("##-"),
+            );
+            pb.set_message("idle");
+            pb
+        })
+        .collect();
+
+    let writer_handle = writer::spawn_writer_thread(
+        result_rx,
+        args.output.clone(),
+        completed_count.clone(),
+        Some(mp.clone()),
     );
 
-    let run_results = roms
-        .into_par_iter()
-        .progress_with(pb)
-        .map(|rom| {
-            let rom_name = rom
-                .path
-                .file_name()
-                .and_then(|n| n.to_str())
-                .ok_or(anyhow!("Unable to get filename"))
-                .unwrap()
-                .to_owned();
+    let worker_statuses: Vec<Arc<WorkerStatus>> =
+        (0..jobs).map(|_| Arc::new(WorkerStatus::new())).collect();
 
-            panic::set_hook(Box::new(|_| {}));
+    let shutdown = new_shutdown();
 
-            let result = panic::catch_unwind({
-                let rom_name = rom_name.clone();
-                let rom_path = rom.path.clone();
-                || {
-                    let mut builder = GameBoyBuilder::new();
-
-                    if let Some(bios) = &bios {
-                        builder = builder.bios(bios.clone());
-                    }
-
-                    let mut gb = builder.rom(rom.bytes).build().unwrap();
-
-                    // Warm-up: run 40 emulated seconds (throttled if requested)
-                    run_emulated_ticks(&mut gb, partyboy_core::SPEED * 40, speed_factor, |_, _| {});
-
-                    let fourty_seconds_frame_buffer = gb.get_frame_buffer().to_vec();
-
-                    let mut pressed = false;
-                    // Main play period: 80 emulated seconds while mashing buttons (throttled)
-                    run_emulated_ticks(&mut gb, partyboy_core::SPEED * 80, speed_factor, |gb, tick| {
-                        if tick % (partyboy_core::SPEED / 2) == 0 {
-                            match pressed {
-                                true => {
-                                    gb.key_down(Keycode::A);
-                                    gb.key_up(Keycode::Start);
-                                }
-                                false => {
-                                    gb.key_up(Keycode::A);
-                                    gb.key_down(Keycode::Start);
-                                }
-                            }
-                            pressed = !pressed;
-                        }
-                    });
-
-                    let onetwenty_seconds_frame_buffer = gb.get_frame_buffer().to_vec();
-
-                    RunResult::Success {
-                        rom_name,
-                        fourty_seconds_frame_buffer,
-                        onetwenty_seconds_frame_buffer,
-                        rom_path,
-                    }
+    // A single UI driver thread polls worker statuses and updates bars, so workers
+    // never touch ProgressBar objects directly. Serializing draws here avoids races
+    // with mp.println from the writer/panic hook that would otherwise duplicate or
+    // freeze the bar block.
+    {
+        let statuses = worker_statuses.clone();
+        let bars = worker_bars.clone();
+        let shutdown = shutdown.clone();
+        thread::spawn(move || {
+            while current_shutdown(&shutdown) == ShutdownState::Running {
+                for (status, bar) in statuses.iter().zip(&bars) {
+                    let (rom, emul) = status.snapshot();
+                    bar.set_message(rom.unwrap_or_else(|| "idle".into()));
+                    bar.set_position(emul);
                 }
-            });
+                thread::sleep(Duration::from_millis(80));
+            }
+        });
+    }
 
-            match result {
-                Ok(run_result) => run_result,
-                Err(payload) => RunResult::Fail {
-                    rom_name,
-                    error: payload,
-                },
+    // Ctrl+C: first press = graceful drain, second = force exit.
+    {
+        let shutdown = shutdown.clone();
+        let count = Arc::new(AtomicU8::new(0));
+        ctrlc::set_handler(move || {
+            if count.fetch_add(1, Ordering::Relaxed) == 0 {
+                tracing::warn!("Ctrl+C received — finishing current ROMs then exiting (press again to force)");
+                request_shutdown(&shutdown, ShutdownState::Draining);
+            } else {
+                tracing::error!("Second Ctrl+C — forcing exit");
+                request_shutdown(&shutdown, ShutdownState::ForceKill);
+                process::exit(1);
             }
         })
-        .collect::<Vec<RunResult>>();
-
-    if !args.output.exists() {
-        fs::create_dir(&args.output)?;
+        .expect("Error setting Ctrl+C handler");
     }
 
-    println!();
-    println!();
+    let mut handles = Vec::with_capacity(jobs);
+    for status in &worker_statuses {
+        let status = status.clone();
+        let work_rx = work_rx.clone();
+        let result_tx = result_tx.clone();
+        let bios = bios.clone();
+        let speed = args.speed_factor;
+        let shutdown = shutdown.clone();
+        let global_bar = global_bar.clone();
 
-    let mut html = Vec::new();
-
-    for result in run_results {
-        match result {
-            RunResult::Success {
-                rom_name,
-                fourty_seconds_frame_buffer,
-                onetwenty_seconds_frame_buffer,
-                mut rom_path,
-            } => {
-                let fourty = into_img(fourty_seconds_frame_buffer);
-                let onetwenty = into_img(onetwenty_seconds_frame_buffer);
-
-                rom_path.set_extension("");
-                let name = rom_path
-                    .file_name()
-                    .and_then(|n| n.to_str())
-                    .ok_or(anyhow!("Unable to get filename"))?;
-
-                fourty.save(args.output.join(format!("{name}_40.png")))?;
-                onetwenty.save(args.output.join(format!("{name}_120.png")))?;
-
-                let html_fragment = format!(
-                    r#"
-                    <div class="runner-result runner-success">
-                        <div>{rom_name}</div>
-                        <img src="{name}_40.png">
-                        <img src="{name}_120.png">
-                    </div>
-                "#
-                );
-
-                html.push(html_fragment);
-            }
-            RunResult::Fail { rom_name, error } => {
-                let msg = panic_message::panic_message(&error);
-
-                let html_fragment = format!(
-                    r#"
-                    <div class="runner-result runner-fail">
-                        <div>{rom_name}</div>
-                        <div>{msg}</div>
-                    </div>
-                "#
-                );
-
-                html.push(html_fragment);
-
-                eprintln!("A run failed:");
-                eprintln!("Rom: {rom_name}");
-                eprintln!("Error: {msg}");
-                eprintln!();
-            }
-        }
+        handles.push(thread::spawn(move || {
+            // Top-level safety net: run_one_rom catches its own panics and converts
+            // them to RunResult::Fail, so this only fires for the truly unexpected.
+            let _ = panic::catch_unwind(AssertUnwindSafe(|| {
+                while current_shutdown(&shutdown) == ShutdownState::Running {
+                    let Ok(rom) = work_rx.recv() else { break };
+                    status.set_rom(Some(rom_display_name(&rom.path)));
+                    let res = run_one_rom(rom, bios.as_deref(), speed, Some(&status));
+                    let _ = result_tx.send(res);
+                    status.set_rom(None);
+                    global_bar.inc(1);
+                }
+            }));
+        }));
     }
 
-    let html = ["
-        <!DOCTYPE html>
-        <html>
-        <head>
-        <title>Page Title</title>
-        </head>
-        <body>
-    "
-    .to_owned()]
-    .into_iter()
-    .chain(html)
-    .chain(iter::once("</body></html>".to_owned()))
-    .collect::<String>();
+    for h in handles {
+        let _ = h.join();
+    }
 
-    fs::write(args.output.join("report.html"), html)
-        .map_err(|_| anyhow!("Unable to write html report file"))?;
+    request_shutdown(&shutdown, ShutdownState::Draining);
+    drop(result_tx);
+    let _ = writer_handle.join();
 
+    global_bar.finish_with_message("Done");
+    for b in &worker_bars {
+        b.finish_with_message("idle");
+    }
+
+    tracing::info!("Mass runner finished.");
     Ok(())
 }

@@ -8,7 +8,7 @@ use anyhow::{anyhow, bail, Result};
 use clap::Parser;
 use image::{ImageBuffer, RgbImage};
 use indicatif::{ParallelProgressIterator, ProgressBar, ProgressStyle};
-use partyboy_core::{builder::GameBoyBuilder, input::Keycode, ppu::rgb::Rgb};
+use partyboy_core::{builder::GameBoyBuilder, input::Keycode, ppu::rgb::Rgb, GameBoy};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
 #[derive(Debug, Parser)]
@@ -22,6 +22,11 @@ struct Args {
 
     #[arg(short, long)]
     bios: Option<PathBuf>,
+
+    /// Target emulation speed as a multiplier of real time (e.g. 3.0 = 3x real-time).
+    /// Values <= 0 mean unlimited / original max-speed behavior.
+    #[arg(long, default_value_t = 3.0)]
+    speed_factor: f64,
 }
 
 #[allow(unused)]
@@ -68,6 +73,44 @@ fn into_img(fb: Vec<Rgb>) -> RgbImage {
     img
 }
 
+/// Run exactly `ticks` calls to `gb.tick()`, invoking `on_tick(gb, i)` after each tick.
+/// When `speed_factor > 0` the loop dynamically sleeps (using real wall time)
+/// so that the *average* emulation rate does not exceed `speed_factor` × real time.
+/// A factor <= 0 means "run as fast as possible" (original unlimited behavior).
+fn run_emulated_ticks<F>(gb: &mut GameBoy, ticks: u64, speed_factor: f64, mut on_tick: F)
+where
+    F: FnMut(&mut GameBoy, u64),
+{
+    if speed_factor <= 0.0 {
+        for i in 0..ticks {
+            let _ = gb.tick();
+            on_tick(gb, i);
+        }
+        return;
+    }
+
+    let start = std::time::Instant::now();
+    // Check once per emulated second — very low overhead and yields nice long sleeps
+    // that the OS scheduler can actually deschedule the thread for.
+    let check_every = partyboy_core::SPEED;
+
+    for i in 0..ticks {
+        let _ = gb.tick();
+        on_tick(gb, i);
+
+        if i % check_every == 0 {
+            let emulated_seconds = i as f64 / partyboy_core::SPEED as f64;
+            let desired_real_seconds = emulated_seconds / speed_factor;
+            let real_seconds = start.elapsed().as_secs_f64();
+            if real_seconds < desired_real_seconds {
+                std::thread::sleep(std::time::Duration::from_secs_f64(
+                    desired_real_seconds - real_seconds,
+                ));
+            }
+        }
+    }
+}
+
 fn main() -> Result<()> {
     let args = Args::parse();
 
@@ -84,6 +127,8 @@ fn main() -> Result<()> {
     } else {
         None
     };
+
+    let speed_factor = args.speed_factor;
 
     let roms = get_all_roms(&args.roms_dir)?;
 
@@ -123,16 +168,15 @@ fn main() -> Result<()> {
                     }
 
                     let mut gb = builder.rom(rom.bytes).build().unwrap();
-                    for _ in 0..(partyboy_core::SPEED * 40) {
-                        let _ = gb.tick();
-                    }
+
+                    // Warm-up: run 40 emulated seconds (throttled if requested)
+                    run_emulated_ticks(&mut gb, partyboy_core::SPEED * 40, speed_factor, |_, _| {});
 
                     let fourty_seconds_frame_buffer = gb.get_frame_buffer().to_vec();
 
                     let mut pressed = false;
-                    for tick in 0..(partyboy_core::SPEED * 80) {
-                        let _ = gb.tick();
-
+                    // Main play period: 80 emulated seconds while mashing buttons (throttled)
+                    run_emulated_ticks(&mut gb, partyboy_core::SPEED * 80, speed_factor, |gb, tick| {
                         if tick % (partyboy_core::SPEED / 2) == 0 {
                             match pressed {
                                 true => {
@@ -146,7 +190,7 @@ fn main() -> Result<()> {
                             }
                             pressed = !pressed;
                         }
-                    }
+                    });
 
                     let onetwenty_seconds_frame_buffer = gb.get_frame_buffer().to_vec();
 

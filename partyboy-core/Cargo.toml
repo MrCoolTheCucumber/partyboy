@@ -1,24 +1,25 @@
 [package]
 name = "partyboy-core"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
+rust-version = "1.85"
 
 [dependencies]
-boxarray = "1.3.0"
-console_error_panic_hook = { version = "0.1", optional = true }
-log = "0.4"
-paste = "1"
-rmp-serde = { version = "1.1.1", optional = true }
-serde = { version = "1", features = ["derive"], optional = true }
-serde-big-array = { version = "0.5.1", optional = true }
-thiserror = "1"
-wasm-bindgen = { version = "0.2.83", optional = true }
+boxarray = { workspace = true }
+console_error_panic_hook = { workspace = true, optional = true }
+log = { workspace = true }
+paste = { workspace = true }
+rmp-serde = { workspace = true, optional = true }
+serde = { workspace = true, optional = true }
+serde-big-array = { workspace = true, optional = true }
+thiserror = { workspace = true }
+wasm-bindgen = { workspace = true, optional = true }
 
 [dev-dependencies]
-criterion = "0.4"
-seq-macro = "0.3"
-image = "0.24"
-serde_json = "1"
+criterion = { workspace = true }
+seq-macro = { workspace = true }
+image = { workspace = true }
+serde_json = { workspace = true }
 
 [features]
 default = ["serde"]

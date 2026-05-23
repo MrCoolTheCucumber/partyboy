@@ -2,7 +2,7 @@ use std::{collections::VecDeque, thread::JoinHandle, time::Duration};
 
 use cpal::{
     traits::{DeviceTrait, HostTrait, StreamTrait},
-    SampleRate, Stream, StreamConfig,
+    Stream, StreamConfig,
 };
 use crossbeam::channel::{Receiver, Sender};
 use lz4_flex::{compress_prepend_size, decompress_size_prepended};
@@ -52,11 +52,11 @@ fn set_up_audio() -> (Option<Stream>, Sender<(f32, f32)>) {
             .default_output_device()
             .expect("no output device found");
 
-        log::info!("Using audio device: {}", device.name().unwrap());
+        log::info!("Using audio device: {}", device.description().unwrap());
 
         let config = StreamConfig {
             channels: 2,
-            sample_rate: SampleRate(48000),
+            sample_rate: 48000,
             buffer_size: cpal::BufferSize::Fixed(512),
         };
 
@@ -231,7 +231,7 @@ pub fn new(rom: Option<Vec<u8>>, bios: Option<Vec<u8>>, ram: Option<Vec<u8>>) ->
 
             // check if we should report fps
             if let Some(fps) = report_helper.report_fps(now) {
-                last_8_frames.push(fps);
+                last_8_frames.enqueue(fps);
                 let fps = last_8_frames.iter().sum::<f64>() / last_8_frames.len() as f64;
                 let _ = s.try_send(MsgFromGb::Fps(fps));
             }

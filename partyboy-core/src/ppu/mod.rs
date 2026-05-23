@@ -376,7 +376,7 @@ impl Ppu {
 
     #[cfg(feature = "web")]
     pub fn get_frame_buffer(&self) -> [Rgb; 160 * 144] {
-        self.frame_buffer
+        *self.frame_buffer
     }
 
     pub fn consume_draw_flag(&mut self) -> bool {

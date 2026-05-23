@@ -12,7 +12,7 @@ fn is_px_eq(fb_px: Rgb, img_px: &iRGB<u8>) -> bool {
 }
 
 pub fn compare_fb_to_img(fb: &[Rgb], path: String) -> bool {
-    let img = image::io::Reader::open(path).unwrap().decode().unwrap();
+    let img = image::ImageReader::open(path).unwrap().decode().unwrap();
     let img = img.as_rgb8().unwrap();
 
     for px in img.enumerate_pixels() {

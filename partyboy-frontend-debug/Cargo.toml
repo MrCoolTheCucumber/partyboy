@@ -13,7 +13,7 @@ eframe = { git = "https://github.com/emilk/egui.git", rev = "e76c919c7e70c208c9a
 egui_extras = { git = "https://github.com/emilk/egui.git", rev = "e76c919c7e70c208c9a6209b9fe3369e7b6db99d" }
 env_logger = "0.9"
 flexi_logger = "0.22"
-log = "0.4"
+log = { workspace = true }
 log-panics = "2"
 partyboy-core = { path = "../partyboy-core", features = ["debug_info"]}
 rfd = "0.10"

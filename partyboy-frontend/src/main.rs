@@ -6,7 +6,7 @@ use logging::init_logger;
 use msgs::MsgFromGb;
 use partyboy_core::ppu::rgb::Rgb;
 
-use clap::clap_app;
+use clap::Parser;
 use pixels::{PixelsBuilder, SurfaceTexture};
 use saves::{read_save_file, write_save_file};
 use winit::{
@@ -30,51 +30,44 @@ pub const SCALE: u32 = 2;
 pub const WIDTH: u32 = 160;
 pub const HEIGHT: u32 = 144;
 
+#[derive(Parser, Debug)]
+#[command(version = "1.0", about = "A Gameboy color emulator")]
 struct Args {
-    rom_path: Option<String>,
-    bios_path: Option<String>,
-    enable_file_logging: bool,
+    /// The path to the rom to load.
+    #[arg(short, long)]
+    rom: Option<String>,
+
+    /// The path to the bios to use.
+    #[arg(short, long)]
+    bios: Option<String>,
+
+    /// Enables file logging.
+    #[arg(short, long)]
+    log: bool,
 }
 
 fn parse_args() -> Args {
-    let matches = clap_app!(partyboy =>
-        (version: "1.0")
-        (about: "A Gameboy color emulator")
-        (@arg rom_path: -r --rom +takes_value "The path to the rom to load.")
-        (@arg bios_path: -b --bios +takes_value "The path to the bios to use.")
-        (@arg enable_file_logging: -l --log "Enables file logging.")
-    )
-    .get_matches();
-
-    let rom_path = matches.value_of("rom_path").map(|str| str.to_owned());
-    let bios_path = matches.value_of("bios_path").map(|str| str.to_owned());
-    let enable_file_logging = matches.is_present("enable_file_logging");
-
-    Args {
-        rom_path,
-        bios_path,
-        enable_file_logging,
-    }
+    Args::parse()
 }
 
 fn main() {
     let args = parse_args();
 
     #[cfg(debug_assertions)]
-    init_logger(args.enable_file_logging);
+    init_logger(args.log);
 
     let rom = args
-        .rom_path
+        .rom
         .as_ref()
         .map(|path| std::fs::read(path).expect("Unable to read game file"));
 
     let ram = args
-        .rom_path
+        .rom
         .as_ref()
         .and_then(|path| read_save_file(&PathBuf::from(path)));
 
     let bios = args
-        .bios_path
+        .bios
         .map(|path| std::fs::read(path).expect("Unable to read bios file"));
 
     let event_loop = EventLoop::new().expect("Unable to create event loop");
@@ -171,7 +164,7 @@ fn main() {
                         .expect("Unable to join emu thread to main thread");
 
                     if let Some(ram) = ram {
-                        if let Some(path) = args.rom_path.as_ref() {
+                        if let Some(path) = args.rom.as_ref() {
                             write_save_file(&PathBuf::from(path), &ram);
                         }
                     } else {

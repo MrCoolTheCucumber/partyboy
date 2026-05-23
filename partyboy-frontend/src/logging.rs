@@ -11,7 +11,8 @@ use log4rs::{
 // TODO: why am I using two logger libs?
 pub fn init_logger(enable_file_logging: bool) {
     if env::var("RUST_LOG").is_err() {
-        env::set_var("RUST_LOG", "info")
+        // SAFETY: Single-threaded initialization before any other threads are spawned.
+        unsafe { env::set_var("RUST_LOG", "info") }
     }
 
     if enable_file_logging {

@@ -16,6 +16,34 @@ exclude = [
 ]
 resolver="2"
 
+[workspace.dependencies]
+boxarray = "1.3"
+console_error_panic_hook = "0.1"
+criterion = "0.8"
+image = "0.25"
+log = "0.4"
+paste = "1.0"
+rmp-serde = "1.3"
+seq-macro = "0.3"
+serde = { version = "1.0", features = ["derive"] }
+serde-big-array = "0.5"
+serde_json = "1.0"
+thiserror = "2.0"
+wasm-bindgen = "0.2"
+
+# Frontend (partyboy binary) crates
+clap = { version = "4.6", features = ["derive"] }
+pixels = "0.13"
+winit = { version = "0.29", features = ["rwh_05"] }
+cpal = "0.17"
+crossbeam = "0.8"
+ringbuffer = "0.16"
+lz4_flex = "0.11"
+log4rs = "1.4"
+env_logger = "0.11"
+log-panics = "2"
+spin_sleep = "1"
+
 [profile.dev]
 opt-level = 3
 overflow-checks = false

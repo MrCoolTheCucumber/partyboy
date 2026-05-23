@@ -11,15 +11,15 @@ path = "src/main.rs"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-env_logger = { workspace = true }
 clap = { workspace = true }
 cpal = { workspace = true }
 partyboy-common = { path = "../partyboy-common" }
 crossbeam = { workspace = true }
 partyboy-core = { path = "../partyboy-core" }
 log = { workspace = true }
-log-panics = { workspace = true }
-log4rs = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+tracing-appender = { workspace = true }
 lz4_flex = { workspace = true }
 pixels = { workspace = true }
 serde = { workspace = true }

@@ -30,8 +30,6 @@ serde-big-array = "0.5"
 serde_json = "1.0"
 thiserror = "2.0"
 wasm-bindgen = "0.2"
-
-# Frontend (partyboy binary) crates
 clap = { version = "4.6", features = ["derive"] }
 pixels = "0.13"
 winit = { version = "0.29", features = ["rwh_05"] }
@@ -39,10 +37,10 @@ cpal = "0.17"
 crossbeam = "0.8"
 ringbuffer = "0.16"
 lz4_flex = "0.11"
-log4rs = "1.4"
-env_logger = "0.11"
-log-panics = "2"
 spin_sleep = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter", "tracing-log"] }
+tracing-appender = "0.2"
 
 [profile.dev]
 opt-level = 3

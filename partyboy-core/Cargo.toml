@@ -34,8 +34,3 @@ serde = [
     "dep:rmp-serde"
 ]
 gen_bios_snapshot = []
-
-[[bench]]
-name = "my_benchmark"
-path =  "../benches/src/lib.rs"
-harness = false

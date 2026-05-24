@@ -45,5 +45,5 @@ impl Debug for InstructionOpcode {
 }
 
 pub struct Instruction {
-    pub steps: Vec<InstructionStep>,
+    pub steps: &'static [InstructionStep],
 }

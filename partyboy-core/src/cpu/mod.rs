@@ -71,10 +71,10 @@ impl Debug for Cpu {
 impl Cpu {
     pub fn new() -> Self {
         Self {
-            af: Register::new(0x00, 0x00),
-            bc: Register::new(0x00, 0x00),
-            de: Register::new(0x00, 0x00),
-            hl: Register::new(0x00, 0x00),
+            af: Register::default(),
+            bc: Register::default(),
+            de: Register::default(),
+            hl: Register::default(),
 
             pc: 0x0,
             sp: 0x0,

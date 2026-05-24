@@ -11,7 +11,7 @@ pub enum Flag {
     C = 0b00010000,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Register {
     pub hi: u8,
@@ -28,7 +28,7 @@ impl Register {
 impl Debug for Register {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let val: u16 = (*self).into();
-        f.write_str(format!("{}", val).as_str())
+        write!(f, "{}", val)
     }
 }
 

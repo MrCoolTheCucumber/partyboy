@@ -1,5 +1,5 @@
-use common::compare_fb_to_img;
 use common::APPROX_CYCLES_PER_SCREEN_DRAW;
+use common::compare_fb_to_img;
 use partyboy_core::GameBoy;
 use std::path::PathBuf;
 

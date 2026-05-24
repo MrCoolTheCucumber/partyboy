@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 pub use crate::bus::CgbCompatibility;
-use crate::{ppu::rgb::Rgb, GameBoy};
+use crate::{GameBoy, ppu::rgb::Rgb};
 
 #[derive(Default)]
 pub struct GBDebugInfo {

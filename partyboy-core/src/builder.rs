@@ -1,8 +1,8 @@
 use crate::{
+    GameBoy,
     bus::{Bus, CgbCompatibility},
     cartridge::Cartridge,
-    ppu::{cgb_palette, rgb::Rgb, ObjectPriorityMode},
-    GameBoy,
+    ppu::{ObjectPriorityMode, cgb_palette, rgb::Rgb},
 };
 use thiserror::Error;
 

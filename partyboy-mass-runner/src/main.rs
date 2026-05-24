@@ -154,7 +154,9 @@ fn main() -> Result<()> {
         let count = Arc::new(AtomicU8::new(0));
         ctrlc::set_handler(move || {
             if count.fetch_add(1, Ordering::Relaxed) == 0 {
-                tracing::warn!("Ctrl+C received — finishing current ROMs then exiting (press again to force)");
+                tracing::warn!(
+                    "Ctrl+C received — finishing current ROMs then exiting (press again to force)"
+                );
                 request_shutdown(&shutdown, ShutdownState::Draining);
             } else {
                 tracing::error!("Second Ctrl+C — forcing exit");

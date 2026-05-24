@@ -124,12 +124,8 @@ impl ApplicationHandler for App {
                 let key = event.key_without_modifiers();
                 if let Some(gb_input) = try_into_gameboy_input(key.as_ref()) {
                     match event.state {
-                        ElementState::Pressed => {
-                            self.tx.send(MsgToGb::KeyDown(gb_input)).unwrap()
-                        }
-                        ElementState::Released => {
-                            self.tx.send(MsgToGb::KeyUp(gb_input)).unwrap()
-                        }
+                        ElementState::Pressed => self.tx.send(MsgToGb::KeyDown(gb_input)).unwrap(),
+                        ElementState::Released => self.tx.send(MsgToGb::KeyUp(gb_input)).unwrap(),
                     }
                 }
 
@@ -226,7 +222,7 @@ fn main() {
         window: None,
         pixels: None,
     };
-    
+
     event_loop
         .run_app(&mut app)
         .expect("Unable to start event loop");

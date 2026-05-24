@@ -1,8 +1,8 @@
 use super::{
+    Sample,
     envelope::Envelope,
     frame_sequencer::SteppedComponents,
     length::{Length, LengthMode},
-    Sample,
 };
 
 #[cfg(feature = "serde")]

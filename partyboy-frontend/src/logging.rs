@@ -1,4 +1,4 @@
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, fmt};
+use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
 
 pub fn init_logger(enable_file_logging: bool) {
     let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| {

@@ -24,7 +24,12 @@ pub fn get_all_roms(path: &Path) -> Result<Vec<Rom>> {
             }
             Some(entry.path())
         })
-        .map(|path| Ok(Rom { bytes: fs::read(&path)?, path }))
+        .map(|path| {
+            Ok(Rom {
+                bytes: fs::read(&path)?,
+                path,
+            })
+        })
         .collect()
 }
 

@@ -133,7 +133,11 @@ fn bootstrap_from_disk(output_dir: &Path) -> (Vec<String>, Vec<(String, String)>
     (successes, failures)
 }
 
-fn write_html_report(output_dir: &Path, successes: &[String], failures: &[(String, String)]) -> Result<()> {
+fn write_html_report(
+    output_dir: &Path,
+    successes: &[String],
+    failures: &[(String, String)],
+) -> Result<()> {
     let mut html = String::from(HTML_HEAD);
 
     for stem in successes {
@@ -145,7 +149,9 @@ fn write_html_report(output_dir: &Path, successes: &[String], failures: &[(Strin
     html.push_str(HTML_MIDDLE);
 
     for (name, msg) in failures {
-        html.push_str(&format!(r#"<div class="fail"><b>{name}</b><br>{msg}</div>"#));
+        html.push_str(&format!(
+            r#"<div class="fail"><b>{name}</b><br>{msg}</div>"#
+        ));
     }
 
     html.push_str(HTML_FOOT);

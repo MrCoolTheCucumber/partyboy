@@ -1,8 +1,8 @@
 use std::{collections::VecDeque, thread::JoinHandle, time::Duration};
 
 use cpal::{
-    traits::{DeviceTrait, HostTrait, StreamTrait},
     Stream, StreamConfig,
+    traits::{DeviceTrait, HostTrait, StreamTrait},
 };
 use crossbeam::channel::{Receiver, Sender};
 use lz4_flex::{compress_prepend_size, decompress_size_prepended};

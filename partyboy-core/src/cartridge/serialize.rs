@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use serde::{de::Visitor, ser::SerializeSeq, Deserializer, Serializer};
+use serde::{Deserializer, Serializer, de::Visitor, ser::SerializeSeq};
 
 pub fn ram_bank_serialize<S>(x: &Vec<[u8; 0x2000]>, s: S) -> Result<S::Ok, S::Error>
 where

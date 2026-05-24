@@ -4,7 +4,7 @@ use {
     serde::{Deserialize, Serialize},
 };
 
-use super::{init_rom_and_ram, CartridgeInterface};
+use super::{CartridgeInterface, init_rom_and_ram};
 
 // TODO: RTC impl is broken?
 

@@ -4,7 +4,7 @@ use {
     serde::{Deserialize, Serialize},
 };
 
-use super::{init_rom_and_ram, CartridgeInterface};
+use super::{CartridgeInterface, init_rom_and_ram};
 
 #[derive(Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]

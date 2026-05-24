@@ -1,7 +1,7 @@
 use super::{
+    Sample,
     frame_sequencer::SteppedComponents,
     length::{Length, LengthMode},
-    Sample,
 };
 
 #[cfg(feature = "serde")]

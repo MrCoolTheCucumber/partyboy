@@ -3,7 +3,6 @@ use std::fmt::Display;
 use crate::{
     bus::{Bus, CgbCompatibility},
     cartridge::Cartridge,
-    cpu::Cpu,
     ppu::{Ppu, PpuMode},
 };
 
@@ -311,15 +310,31 @@ impl HdmaController {
                 self.clock -= 1;
                 if self.clock == 0 {
                     self.clock = HDMA_T_PER_WORD_COPY;
-                    let full_block_copied = bus.hdma_copy_word();
 
-                    if full_block_copied {
-                        // check if hdma is canceled/finished
-                        self.state = match bus.ppu.hdma.current_dma {
-                            Some(DmaType::Hdma) => {
-                                HdmaControllerState::Started(HdmaState::WaitingForHBlank)
+                    // Both GDMA and HDMA copy a single word (2 bytes) per
+                    // HDMA_T_PER_WORD_COPY t-cycles. GDMA runs the whole transfer
+                    // back to back, whereas HDMA copies one block then waits for
+                    // the next h-blank.
+                    match bus.ppu.hdma.current_dma {
+                        Some(DmaType::Gdma) => {
+                            Hdma::tick_gdma(bus);
+                            // tick_gdma clears current_dma once the transfer is done
+                            if bus.ppu.hdma.current_dma.is_none() {
+                                self.state = HdmaControllerState::Waiting;
                             }
-                            _ => HdmaControllerState::Waiting,
+                        }
+                        _ => {
+                            let full_block_copied = bus.hdma_copy_word();
+
+                            if full_block_copied {
+                                // check if hdma is canceled/finished
+                                self.state = match bus.ppu.hdma.current_dma {
+                                    Some(DmaType::Hdma) => {
+                                        HdmaControllerState::Started(HdmaState::WaitingForHBlank)
+                                    }
+                                    _ => HdmaControllerState::Waiting,
+                                }
+                            }
                         }
                     }
                 }
@@ -339,36 +354,40 @@ impl HdmaController {
         }
     }
 
-    pub fn handle_hdma(&mut self, bus: &mut Bus, cpu: &mut Cpu) {
+    pub fn handle_hdma(&mut self, bus: &mut Bus) {
         self.handle_hblank_rising_edge(&bus.ppu);
         match self.state {
-            HdmaControllerState::Waiting => {
-                // we only check if we can start hdma inbetween cpu
-                // we should probably only check "once"
-                // I think actual time is 3t into cpu fetch? not too sure
-                // comment out || is_fetching so it only checks the t cycle after the instruction finishes
-
-                // if !(!cpu.is_processing_instruction()/*|| cpu.is_fetching()*/) {
-                //     return;
-                // }
-
-                // TODO: above code might be better, but this seems fine for now
-                if cpu.is_processing_instruction() {
-                    return;
-                }
-
-                // if hdma isn't requested then return
-                if !matches!(bus.ppu.hdma.current_dma, Some(DmaType::Hdma)) {
-                    return;
-                }
-
-                // NEW: check if there is a rising edge we can consume
-                if self.try_consume_rising_edge() {
-                    self.clock = HDMA_T_PER_WORD_COPY + HDMA_WIND_UP_T;
+            HdmaControllerState::Waiting => match bus.ppu.hdma.current_dma {
+                // GDMA halts the cpu and runs to completion right away. It does
+                // not wait for an h-blank, and copies a word every
+                // HDMA_T_PER_WORD_COPY t-cycles (same rate as HDMA).
+                Some(DmaType::Gdma) => {
+                    self.clock = HDMA_T_PER_WORD_COPY;
                     self.clock -= 1;
                     self.state = HdmaControllerState::Started(HdmaState::CopyBlock);
                 }
-            }
+
+                Some(DmaType::Hdma) => {
+                    // HBlank DMA transfers one block at the start of each h-blank,
+                    // pausing the CPU for the duration; we start the block as soon
+                    // as we observe the h-blank rising edge.
+                    //
+                    // We must NOT gate this on `cpu.is_processing_instruction()`
+                    // being false. With partyboy's prefetch CPU model the gap
+                    // between instructions is vanishingly small, and in CGB
+                    // double-speed mode the cpu ticks twice per step so that gap is
+                    // never observed here at all -- gating on it blocked HBlank DMA
+                    // forever (e.g. Aladdin streams its sprite tiles this way, and
+                    // they never landed in VRAM, so the character vanished).
+                    if self.try_consume_rising_edge() {
+                        self.clock = HDMA_T_PER_WORD_COPY + HDMA_WIND_UP_T;
+                        self.clock -= 1;
+                        self.state = HdmaControllerState::Started(HdmaState::CopyBlock);
+                    }
+                }
+
+                None => {}
+            },
             HdmaControllerState::Started(hdma_state) => self.handle_hdma_state(hdma_state, bus),
         }
     }

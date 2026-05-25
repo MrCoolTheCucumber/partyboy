@@ -96,8 +96,7 @@ impl GameBoy {
             self.tick_cpu_related();
         }
 
-        self.hdma_controller
-            .handle_hdma(&mut self.bus, &mut self.cpu);
+        self.hdma_controller.handle_hdma(&mut self.bus);
 
         // TODO: move into handle_hdma
         if matches!(self.bus.ppu.hdma.current_dma, Some(DmaType::Gdma)) {

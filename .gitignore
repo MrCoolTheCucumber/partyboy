@@ -19,5 +19,6 @@ output/
 # hmm
 /bin/_cgb_boot.bin
 
-AGENTS.md
 .grok/
+.claude/
+.mcp.json
